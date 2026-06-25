@@ -95,7 +95,7 @@ namespace material_box_storage_detection_system_Net
                 Color.FromArgb(255, 120, 0), OpenRackDeformationTuner), 3, 1);
 
             root.Controls.Add(BuildCard("📷", "相机批量控制",
-                "一键开启/关闭所有 2D/3D 相机及读码器，\n实时查看各设备运行状态",
+                "一键开启/关闭所有 2D/3D 相机，\n实时查看各设备运行状态",
                 Color.FromArgb(40, 167, 69), OpenCameraControl), 4, 1);
 
             root.Controls.Add(BuildCard("🔬", "2D 相机内参标定",

@@ -153,6 +153,8 @@ namespace material_box_storage_detection_system_Net.Config
                 case 1: mapping = Instance.Algorithms.SlotOccupancy?.CameraMapping; break;
                 case 2: mapping = Instance.Algorithms.StackerOffset?.CameraMapping; break;
                 case 3: mapping = Instance.Algorithms.RackDeformation?.CameraMapping; break;
+                case 4:
+                case 5: mapping = Instance.Algorithms.VisualInventory?.CameraMapping; break;
             }
 
             if (mapping == null) 

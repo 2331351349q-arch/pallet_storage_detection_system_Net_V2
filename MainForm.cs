@@ -84,7 +84,6 @@ namespace material_box_storage_detection_system_Net
         {
             if (btn_LiveLeft != null) btn_LiveLeft.Enabled = false;
             if (btn_LiveRight != null) btn_LiveRight.Enabled = false;
-            if (btn_LiveCodeReader != null) btn_LiveCodeReader.Enabled = false;
             if (btn_ToolHub != null) btn_ToolHub.Enabled = false;
         }
 
@@ -95,7 +94,6 @@ namespace material_box_storage_detection_system_Net
         {
             if (btn_LiveLeft != null) btn_LiveLeft.Enabled = true;
             if (btn_LiveRight != null) btn_LiveRight.Enabled = true;
-            if (btn_LiveCodeReader != null) btn_LiveCodeReader.Enabled = true;
             if (btn_ToolHub != null) btn_ToolHub.Enabled = true;
         }
 
@@ -142,15 +140,7 @@ namespace material_box_storage_detection_system_Net
             await Task.Run(() =>
             {
                 int camCount = DeviceManager.Initialize(config.Cameras, Manager_OnLogMessage);
-                int readerCount = CodeReaderService.TestConnection(Manager_OnLogMessage);
-                if (readerCount > 0)
-                {
-                    Manager_OnLogMessage("[-] 正在预热读码器，消除首次启动延迟...");
-                    // 主动触发一次取流并停止，提前完成设备句柄创建与连接，避免首次 flag=4 耗时过长
-                    CodeReaderService.StartScan(_ => { });
-                    CodeReaderService.StopScan();
-                }
-                Manager_OnLogMessage($"🚀 所有硬件检测完毕，共成功装载并点亮了 {camCount + readerCount} 台相机及读码设备");
+                Manager_OnLogMessage($"🚀 所有硬件检测完毕，共成功装载并点亮了 {camCount} 台相机设备");
             });
 
             //05、依次启动业务队列处理器与外部监听服务。
@@ -236,8 +226,7 @@ namespace material_box_storage_detection_system_Net
                 }
                 else if (cameraIndex == 4)
                 {
-                    pictureBox_CodeReader.Image?.Dispose();
-                    pictureBox_CodeReader.Image = (System.Drawing.Image)displayImage.Clone();
+                    // 预留第4路相机图像显示
                 }
             }
         }
@@ -345,9 +334,9 @@ namespace material_box_storage_detection_system_Net
                 {
                     if (cam.Type == "Hikvision2D" && !string.IsNullOrWhiteSpace(cam.Name))
                     {
-                        // 2DCam#2 → left, 2DCam#1 → right
-                        bool isLeft = side == "left" && cam.Name.Contains("2DCam#2");
-                        bool isRight = side == "right" && cam.Name.Contains("2DCam#1");
+                        // 匹配名称中包含 Left 或 Right 的 2D 相机
+                        bool isLeft = side == "left" && cam.Name.Contains("Left", StringComparison.OrdinalIgnoreCase);
+                        bool isRight = side == "right" && cam.Name.Contains("Right", StringComparison.OrdinalIgnoreCase);
                         if (isLeft || isRight)
                         {
                             if (!merged.Contains(cam.Sn))
@@ -395,59 +384,6 @@ namespace material_box_storage_detection_system_Net
             }
         }
 
-        private bool _isLiveCodeReader = false;
-        private bool _isCodeReaderBusy = false;
-        private async void btn_LiveCodeReader_Click(object sender, EventArgs e)
-        {
-            if (_isCodeReaderBusy) return;
-
-            if (!_isLiveCodeReader)
-            {
-                // 先切按钮状态为"启动中"，防止重复点击
-                _isCodeReaderBusy = true;
-                btn_LiveCodeReader.Enabled = false;
-                btn_LiveCodeReader.Text = "⏳ 正在启动读码器...";
-                btn_LiveCodeReader.ForeColor = Color.Orange;
-                Manager_OnLogMessage("▶ 正在开启读码器实时预览...");
-
-                // 在后台线程初始化读码器，避免阻塞 UI
-                bool started = await Task.Run(() =>
-                    CodeReaderService.StartScan(
-                        img => Manager_OnImageUpdated(4, img),
-                        Manager_OnLogMessage));
-
-                _isLiveCodeReader = started;
-                _isCodeReaderBusy = false;
-                btn_LiveCodeReader.Enabled = true;
-
-                if (started)
-                {
-                    btn_LiveCodeReader.Text = "⏹ 停止读码器";
-                    btn_LiveCodeReader.ForeColor = Color.Red;
-                }
-                else
-                {
-                    btn_LiveCodeReader.Text = "▶ 读码器实时采集";
-                    btn_LiveCodeReader.ForeColor = Color.FromArgb(30, 50, 80);
-                }
-            }
-            else
-            {
-                _isLiveCodeReader = false;
-                btn_LiveCodeReader.Text = "▶ 读码器实时采集";
-                btn_LiveCodeReader.ForeColor = Color.FromArgb(30, 50, 80);
-                try
-                {
-                    CodeReaderService.StopScan();
-                    Manager_OnLogMessage("⏹ 已停止读码器实时预览。");
-                }
-                catch (Exception ex)
-                {
-                    Manager_OnLogMessage($"❌ 停止读码器实时预览异常: {ex.Message}");
-                }
-            }
-        }
-
         private void SetupCameraLabels()
         {
             const int labelHeight = 22;
@@ -485,11 +421,6 @@ namespace material_box_storage_detection_system_Net
             Wrap(pictureBox_Camera1, 0, 0, 1);
             Wrap(pictureBox_Camera2, 1, 0, 2);
             Wrap(pictureBox_Camera3, 0, 1, 3);
-            Wrap(pictureBox_CodeReader, 1, 1, 4);
-
-            // 读码器 SN 固定
-            var readerSn = ConfigManager.Instance?.CodeReader?.SerialNumber ?? "N/A";
-            _cameraLabels[4].Text = $"  CodeReader   {readerSn}";
         }
 
         private string GetCameraDisplayName(string sn)

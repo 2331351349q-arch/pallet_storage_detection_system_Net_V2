@@ -20,7 +20,6 @@ namespace material_box_storage_detection_system_Net
             btn_Config = new Button();
             btn_LiveLeft = new Button();
             btn_LiveRight = new Button();
-            btn_LiveCodeReader = new Button();
             btn_ToolHub = new Button();
             tableLayoutPanel_Main = new TableLayoutPanel();
             groupBox_Images = new GroupBox();
@@ -28,7 +27,6 @@ namespace material_box_storage_detection_system_Net
             pictureBox_Camera1 = new PictureBox();
             pictureBox_Camera2 = new PictureBox();
             pictureBox_Camera3 = new PictureBox();
-            pictureBox_CodeReader = new PictureBox();
             groupBox_Logs = new GroupBox();
             listBox_Log = new ListBox();
             panel_Top.SuspendLayout();
@@ -38,7 +36,6 @@ namespace material_box_storage_detection_system_Net
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera1).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera2).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera3).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox_CodeReader).BeginInit();
             groupBox_Logs.SuspendLayout();
             SuspendLayout();
             // 
@@ -48,7 +45,6 @@ namespace material_box_storage_detection_system_Net
             panel_Top.Controls.Add(btn_Config);
             panel_Top.Controls.Add(btn_LiveLeft);
             panel_Top.Controls.Add(btn_LiveRight);
-            panel_Top.Controls.Add(btn_LiveCodeReader);
             panel_Top.Controls.Add(btn_ToolHub);
             panel_Top.Dock = DockStyle.Top;
             panel_Top.Location = new Point(0, 0);
@@ -97,20 +93,6 @@ namespace material_box_storage_detection_system_Net
             btn_LiveRight.Text = "▶ 右侧实时预览 (2台)";
             btn_LiveRight.UseVisualStyleBackColor = false;
             btn_LiveRight.Click += btn_LiveRight_Click;
-            // 
-            // btn_LiveCodeReader
-            // 
-            btn_LiveCodeReader.BackColor = Color.White;
-            btn_LiveCodeReader.FlatStyle = FlatStyle.Flat;
-            btn_LiveCodeReader.Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Bold);
-            btn_LiveCodeReader.ForeColor = Color.FromArgb(30, 50, 80);
-            btn_LiveCodeReader.Location = new Point(550, 5);
-            btn_LiveCodeReader.Name = "btn_LiveCodeReader";
-            btn_LiveCodeReader.Size = new Size(180, 30);
-            btn_LiveCodeReader.TabIndex = 3;
-            btn_LiveCodeReader.Text = "▶ 读码器实时预览";
-            btn_LiveCodeReader.UseVisualStyleBackColor = false;
-            btn_LiveCodeReader.Click += btn_LiveCodeReader_Click;
             // 
             // btn_ToolHub
             // 
@@ -163,7 +145,6 @@ namespace material_box_storage_detection_system_Net
             tableLayoutPanel_Images.Controls.Add(pictureBox_Camera1, 0, 0);
             tableLayoutPanel_Images.Controls.Add(pictureBox_Camera2, 1, 0);
             tableLayoutPanel_Images.Controls.Add(pictureBox_Camera3, 0, 1);
-            tableLayoutPanel_Images.Controls.Add(pictureBox_CodeReader, 1, 1);
             tableLayoutPanel_Images.Dock = DockStyle.Fill;
             tableLayoutPanel_Images.Location = new Point(3, 21);
             tableLayoutPanel_Images.Name = "tableLayoutPanel_Images";
@@ -205,17 +186,6 @@ namespace material_box_storage_detection_system_Net
             pictureBox_Camera3.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox_Camera3.TabIndex = 2;
             pictureBox_Camera3.TabStop = false;
-            // 
-            // pictureBox_CodeReader
-            // 
-            pictureBox_CodeReader.BackColor = Color.Black;
-            pictureBox_CodeReader.Dock = DockStyle.Fill;
-            pictureBox_CodeReader.Location = new Point(505, 232);
-            pictureBox_CodeReader.Name = "pictureBox_CodeReader";
-            pictureBox_CodeReader.Size = new Size(497, 224);
-            pictureBox_CodeReader.SizeMode = PictureBoxSizeMode.Zoom;
-            pictureBox_CodeReader.TabIndex = 3;
-            pictureBox_CodeReader.TabStop = false;
             // 
             // groupBox_Logs
             // 
@@ -262,7 +232,6 @@ namespace material_box_storage_detection_system_Net
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera1).EndInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera2).EndInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera3).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox_CodeReader).EndInit();
             groupBox_Logs.ResumeLayout(false);
             ResumeLayout(false);
         }
@@ -275,13 +244,11 @@ namespace material_box_storage_detection_system_Net
         private System.Windows.Forms.PictureBox pictureBox_Camera1;
         private System.Windows.Forms.PictureBox pictureBox_Camera2;
         private System.Windows.Forms.PictureBox pictureBox_Camera3;
-        private System.Windows.Forms.PictureBox pictureBox_CodeReader;
         private System.Windows.Forms.GroupBox groupBox_Logs;
         private System.Windows.Forms.ListBox listBox_Log;
         private System.Windows.Forms.Button btn_Config;
         private System.Windows.Forms.Button btn_LiveLeft;
         private System.Windows.Forms.Button btn_LiveRight;
-        private System.Windows.Forms.Button btn_LiveCodeReader;
         private System.Windows.Forms.Button btn_ToolHub;
     }
 }

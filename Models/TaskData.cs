@@ -13,7 +13,7 @@ namespace material_box_storage_detection_system_Net.Models
     {
         /// <summary>
         /// 任务标志位。
-        /// 1: 货位检测, 2: 堆垛机偏移检测, 3: 变形检测, 4/5: 盘点。
+        /// 1: 货位检测, 2: 堆垛机偏移检测, 3: 变形检测, 4/5: 盘点(2D相机扫码)。
         /// </summary>
         public int Flag { get; set; }
 

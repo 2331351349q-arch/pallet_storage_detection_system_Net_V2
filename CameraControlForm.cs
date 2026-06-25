@@ -5,7 +5,7 @@ using material_box_storage_detection_system_Net.Devices;
 namespace material_box_storage_detection_system_Net
 {
     /// <summary>
-    /// 相机批量控制工具 — 支持一键开启/关闭所有 2D、3D 相机及读码器。
+    /// 相机批量控制工具 — 支持一键开启/关闭所有 2D、3D 相机。
     /// </summary>
     public class CameraControlForm : Form
     {
@@ -400,22 +400,6 @@ namespace material_box_storage_detection_system_Net
                     AddPreviewBox(cfg.Sn, cfg.Name ?? cfg.Sn);
                 }
 
-                // 读码器行
-                var readerCfg = config?.CodeReader;
-                if (readerCfg != null)
-                {
-                    bool isRunning = false;
-                    try { isRunning = CodeReaderService.IsRunning; } catch { }
-                    string readerStatus = isRunning ? "🟢 采集中" : "🟡 已就绪";
-                    string readerSn = readerCfg.SerialNumber ?? "CodeReader";
-                    _cameraTable.Rows.Add(
-                        readerSn,
-                        "读码器 (CodeReader)",
-                        "读码器",
-                        readerStatus);
-                        
-                    AddPreviewBox(readerSn, "读码器 (CodeReader)");
-                }
             }
             catch (Exception ex)
             {
@@ -492,15 +476,6 @@ namespace material_box_storage_detection_system_Net
                     _cameraTable.Rows[i]["Status"] = GetStatusText(dev);
                 }
 
-                // 读码器行（最后一行）
-                int readerRow = cameras.Count;
-                if (readerRow < _cameraTable.Rows.Count)
-                {
-                    bool isRunning = false;
-                    try { isRunning = CodeReaderService.IsRunning; } catch { }
-                    _cameraTable.Rows[readerRow]["Status"] =
-                        isRunning ? "🟢 采集中" : "🟡 已就绪";
-                }
             }
             catch (Exception ex)
             {
@@ -603,48 +578,6 @@ namespace material_box_storage_detection_system_Net
                     }
                 }
 
-                // 2. 开启读码器
-                var readerCfg = config?.CodeReader;
-                if (readerCfg != null)
-                {
-                    try
-                    {
-                        string readerSn = readerCfg.SerialNumber ?? "CodeReader";
-                        AppendLog("  → 正在启动读码器...");
-                        bool readerOk = await Task.Run(() =>
-                            CodeReaderService.StartScan(
-                                bmp => 
-                                {
-                                    if (_pictureBoxes.TryGetValue(readerSn, out var pb) && pb != null && !pb.IsDisposed && pb.IsHandleCreated)
-                                    {
-                                        pb.BeginInvoke(new Action(() =>
-                                        {
-                                            var old = pb.Image;
-                                            pb.Image = (Image)bmp.Clone();
-                                            old?.Dispose();
-                                        }));
-                                    }
-                                },
-                                msg => AppendLog($"    {msg}")));
-
-                        if (readerOk)
-                        {
-                            AppendLog("✅ 读码器已开启采集");
-                            success++;
-                        }
-                        else
-                        {
-                            AppendLog("❌ 读码器启动失败");
-                            fail++;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        AppendLog($"❌ 读码器异常: {ex.Message}");
-                        fail++;
-                    }
-                }
-
                 AppendLog($"━━━━ 完成: 成功 {success} 台, 失败 {fail} 台 ━━━━");
                 RefreshStatus();
                 
@@ -704,17 +637,6 @@ namespace material_box_storage_detection_system_Net
                             AppendLog($"❌ {cfg.Name} 停止异常: {ex.Message}");
                         }
                     }
-                }
-
-                // 2. 停止读码器
-                try
-                {
-                    CodeReaderService.StopScan();
-                    AppendLog("✅ 读码器已停止采集");
-                }
-                catch (Exception ex)
-                {
-                    AppendLog($"❌ 读码器停止异常: {ex.Message}");
                 }
 
                 AppendLog($"━━━━ 完成: 已停止 {stopped} 台相机采集 ━━━━");

@@ -28,9 +28,6 @@
     <None Include="libs\Hikvision\Native\**\*">
        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="libs\Hik_ID\Native\**\*">
-       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
   <ItemGroup>
@@ -51,11 +48,6 @@
     <!-- 海康威视 SDK -->
     <Reference Include="MvCameraControl.Net">
       <HintPath>libs\Hikvision\Managed\MvCameraControl.Net.dll</HintPath>
-    </Reference>
-
-    <!-- 读码器 SDK -->
-    <Reference Include="MvCodeReaderSDK.Net">
-      <HintPath>libs\Hik_ID\Managed\MvCodeReaderSDK.Net.dll</HintPath>
     </Reference>
 
     <!-- Halcon SDK -->

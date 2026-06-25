@@ -9,40 +9,46 @@
     "TaskDb": 0,
     "ResultDb": 1
   },
-  "CodeReader": {
-    "SerialNumber": "00DA9460934",
-    "IpAddress": "192.168.10.90"
-  },
   "Cameras": [
     {
-      "Sn": "207000167701",
+      "Sn": "207000168577",
       "Type": "Tycam3D",
-      "Name": "3DCam#1"
+      "Name": "3DCam-Right#1"
     },
     {
-      "Sn": "207000168471",
+      "Sn": "207000168598",
       "Type": "Tycam3D",
-      "Name": "3DCam#2"
+      "Name": "3DCam-Right#2"
     },
     {
-      "Sn": "207000168488",
+      "Sn": "207000168918",
       "Type": "Tycam3D",
-      "Name": "3DCam#3"
+      "Name": "3DCam-Left#1"
     },
     {
-      "Sn": "207000168492",
+      "Sn": "207000169627",
       "Type": "Tycam3D",
-      "Name": "3DCam#4"
+      "Name": "3DCam-Left#2"
     },
     {
-      "Sn": "DA9434676",
+      "Sn": "DA9434653",
       "Type": "Hikvision2D",
-      "Name": "2DCam#1"
+      "Name": "2DCam-Right#1"
     },
     {
-      "Sn": "DA9434663",
+      "Sn": "DA9434361",
       "Type": "Hikvision2D",
-      "Name": "2DCam#2"
+      "Name": "2DCam-Right#2"
+    },
+    {
+      "Sn": "DA9434411",
+      "Type": "Hikvision2D",
+      "Name": "2DCam-Left#1"
+    },
+    {
+      "Sn": "DA9434623",
+      "Type": "Hikvision2D",
+      "Name": "2DCam-Left#2"
     }
   ],
   "Algorithms": {
@@ -66,10 +72,12 @@
       ],
       "CameraMapping": {
         "LeftSideSns": [
-          "207000168492"
+          "207000168918",
+          "207000169627"
         ],
         "RightSideSns": [
-          "207000167701"
+          "207000168577",
+          "207000168598"
         ]
       }
     },
@@ -83,42 +91,15 @@
         "C": 10,
         "D": 20
       },
-      "CameraRoiParams": [
-        {
-          "CameraSn": "207000167701",
-          "XMin": -350,
-          "XMax": 350,
-          "YMin": 99,
-          "YMax": 483,
-          "ZMin": 800,
-          "ZMax": 950,
-          "ReferenceX": -9.93,
-          "RefRackDefLeft": 0,
-          "RefRackDefRight": 0,
-          "RefArmAngleLeft": 0,
-          "RefArmAngleRight": 0
-        },
-        {
-          "CameraSn": "207000168492",
-          "XMin": -340,
-          "XMax": 380,
-          "YMin": 150,
-          "YMax": 600,
-          "ZMin": 800,
-          "ZMax": 900,
-          "ReferenceX": 33.2,
-          "RefRackDefLeft": 0,
-          "RefRackDefRight": 0,
-          "RefArmAngleLeft": 0,
-          "RefArmAngleRight": 0
-        }
-      ],
+      "CameraRoiParams": [],
       "CameraMapping": {
         "LeftSideSns": [
-          "207000168492"
+          "207000168918",
+          "207000169627"
         ],
         "RightSideSns": [
-          "207000167701"
+          "207000168577",
+          "207000168598"
         ]
       }
     },
@@ -140,135 +121,32 @@
       },
       "CameraMapping": {
         "LeftSideSns": [
-          "207000168492"
+          "207000168918",
+          "207000169627"
         ],
         "RightSideSns": [
-          "207000167701"
+          "207000168577",
+          "207000168598"
         ]
       },
-      "CameraRoiParams": [
-        {
-          "CameraSn": "207000167701",
-          "XMin": -345,
-          "XMax": 330,
-          "YMin": 150,
-          "YMax": 600,
-          "ZMin": 800,
-          "ZMax": 1000,
-          "ReferenceX": 0,
-          "RefRackDefLeft": 44.87,
-          "RefRackDefRight": 44.68,
-          "RefArmAngleLeft": 5.32,
-          "RefArmAngleRight": 0.39
-        },
-        {
-          "CameraSn": "207000168492",
-          "XMin": -310,
-          "XMax": 380,
-          "YMin": 150,
-          "YMax": 600,
-          "ZMin": 800,
-          "ZMax": 900,
-          "ReferenceX": 0,
-          "RefRackDefLeft": 50.77,
-          "RefRackDefRight": 56.94,
-          "RefArmAngleLeft": 1.69,
-          "RefArmAngleRight": 3.04
-        }
-      ]
+      "CameraRoiParams": []
+    },
+    "VisualInventory": {
+      "CameraMapping": {
+        "LeftSideSns": [
+          "DA9434623"
+        ],
+        "RightSideSns": [
+          "DA9434653",
+          "DA9434361"
+        ]
+      }
     }
   },
-  "Calibrations": [
-    {
-      "CameraSn": "207000167701",
-      "RotationMatrix": [
-        [
-          0.999491948822176,
-          0.005605022774709665,
-          -0.031375594963982026
-        ],
-        [
-          0.005605022774709665,
-          0.9381631582086549,
-          0.3461480496834516
-        ],
-        [
-          0.031375594963982026,
-          -0.3461480496834516,
-          0.9376551070308309
-        ]
-      ],
-      "TranslationVector": [
-        -0,
-        -0,
-        -0
-      ],
-      "RefPlaneNormalBase": [
-        0,
-        0,
-        1
-      ],
-      "RefPlaneNormalCam": [
-        0.031375594963982026,
-        -0.3461480496834516,
-        0.9376551070308309
-      ],
-      "CalibratedAt": "2026-06-22T11:13:50.943269+08:00",
-      "Fx": 521.5643310546875,
-      "Fy": 311.4825439453125,
-      "Cx": 521.5643310546875,
-      "Cy": 244.32205200195312,
-      "MeasuredDistanceMm": 0,
-      "PlaneD": -2170.0766809673514,
-      "IsValid": true
-    },
-    {
-      "CameraSn": "207000168492",
-      "RotationMatrix": [
-        [
-          0.9998511229961276,
-          -0.0034091157460513157,
-          0.01691477972698881
-        ],
-        [
-          -0.0034091157460513157,
-          0.9219350882428037,
-          0.3873294088970834
-        ],
-        [
-          -0.01691477972698881,
-          -0.3873294088970834,
-          0.9217862112389312
-        ]
-      ],
-      "TranslationVector": [
-        -0,
-        -0,
-        -0
-      ],
-      "RefPlaneNormalBase": [
-        0,
-        0,
-        1
-      ],
-      "RefPlaneNormalCam": [
-        -0.01691477972698881,
-        -0.3873294088970834,
-        0.9217862112389312
-      ],
-      "CalibratedAt": "2026-06-24T14:22:31.4782478+08:00",
-      "Fx": 521.2755737304688,
-      "Fy": 330.40399169921875,
-      "Cx": 521.2755737304688,
-      "Cy": 241.62655639648438,
-      "MeasuredDistanceMm": 0,
-      "PlaneD": -886.4527055353883,
-      "IsValid": true
-    }
-  ],
+  "Calibrations": [],
   "Camera2DCalibrations": [
     {
-      "CameraSn": "DA9434676",
+      "CameraSn": "DA9434653",
       "CalibratedAt": "0001-01-01T00:00:00",
       "RmsError": 0,
       "Fx": 0,
@@ -276,27 +154,48 @@
       "Cx": 0,
       "Cy": 0,
       "DistCoeffs": [],
-      "RoiLeft": [
-        765,
-        296,
-        1227,
-        232,
-        1499,
-        1234,
-        1090,
-        1234
-      ],
-      "RoiRight": [
-        4318,
-        201,
-        4819,
-        222,
-        4537,
-        1287,
-        4138,
-        1255
-      ],
-      "ReferenceOffsetX": 2859.3745
+      "RoiLeft": [],
+      "RoiRight": [],
+      "ReferenceOffsetX": null
+    },
+    {
+      "CameraSn": "DA9434361",
+      "CalibratedAt": "0001-01-01T00:00:00",
+      "RmsError": 0,
+      "Fx": 0,
+      "Fy": 0,
+      "Cx": 0,
+      "Cy": 0,
+      "DistCoeffs": [],
+      "RoiLeft": [],
+      "RoiRight": [],
+      "ReferenceOffsetX": null
+    },
+    {
+      "CameraSn": "DA9434411",
+      "CalibratedAt": "0001-01-01T00:00:00",
+      "RmsError": 0,
+      "Fx": 0,
+      "Fy": 0,
+      "Cx": 0,
+      "Cy": 0,
+      "DistCoeffs": [],
+      "RoiLeft": [],
+      "RoiRight": [],
+      "ReferenceOffsetX": null
+    },
+    {
+      "CameraSn": "DA9434623",
+      "CalibratedAt": "0001-01-01T00:00:00",
+      "RmsError": 0,
+      "Fx": 0,
+      "Fy": 0,
+      "Cx": 0,
+      "Cy": 0,
+      "DistCoeffs": [],
+      "RoiLeft": [],
+      "RoiRight": [],
+      "ReferenceOffsetX": null
     }
   ]
 }

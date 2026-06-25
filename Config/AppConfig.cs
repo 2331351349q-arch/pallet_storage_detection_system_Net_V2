@@ -9,36 +9,32 @@ namespace material_box_storage_detection_system_Net.Config
     /// </summary>
     public class AppConfig
     {
-        /// <summary>
-        /// 系统级通用配置（日志级别等）。
-        /// </summary>
-        [Browsable(false)]
-        public SystemConfig System { get; set; } = new SystemConfig();
+    /// <summary>
+    /// 系统级通用配置（日志级别等）。
+    /// </summary>
+    [Browsable(false)]
+    public SystemConfig System { get; set; } = new SystemConfig();
 
-        /// <summary>
-        /// Redis 连接与数据库分区配置。
-        /// </summary>
-        [Browsable(false)]
-        public RedisConfig Redis { get; set; } = new RedisConfig();
+    /// <summary>
+    /// Redis 连接与数据库分区配置。
+    /// </summary>
+    [Browsable(false)]
+    public RedisConfig Redis { get; set; } = new RedisConfig();
 
-        /// <summary>
-        /// 读码器目标设备配置。
-        /// </summary>
-        [Browsable(false)]
-        public CodeReaderConfig CodeReader { get; set; } = new CodeReaderConfig();
-
-        /// <summary>
-        /// 系统注册的相机硬件列表。
+    /// <summary>
+    /// 系统注册的相机硬件列表。
         /// </summary>
         [Browsable(false)]
         public List<CameraConfig> Cameras { get; set; } = new List<CameraConfig>
         {
-            new CameraConfig { Sn = "207000167701", Type = "Tycam3D", Name = "3DCam#1" },
-            new CameraConfig { Sn = "207000168471", Type = "Tycam3D", Name = "3DCam#2" },
-            new CameraConfig { Sn = "207000168488", Type = "Tycam3D", Name = "3DCam#3" },
-            new CameraConfig { Sn = "207000168492", Type = "Tycam3D", Name = "3DCam#4" },
-            new CameraConfig { Sn = "DA9434676", Type = "Hikvision2D", Name = "2DCam#1" },
-            new CameraConfig { Sn = "DA9434663", Type = "Hikvision2D", Name = "2DCam#2" }
+            new CameraConfig { Sn = "207000168577", Type = "Tycam3D", Name = "3DCam-Right#1" },
+            new CameraConfig { Sn = "207000168598", Type = "Tycam3D", Name = "3DCam-Right#2" },
+            new CameraConfig { Sn = "207000168918", Type = "Tycam3D", Name = "3DCam-Left#1" },
+            new CameraConfig { Sn = "207000169627", Type = "Tycam3D", Name = "3DCam-Left#2" },
+            new CameraConfig { Sn = "DA9434653", Type = "Hikvision2D", Name = "2DCam-Right#1" },
+            new CameraConfig { Sn = "DA9434361", Type = "Hikvision2D", Name = "2DCam-Right#2" },
+            new CameraConfig { Sn = "DA9434411", Type = "Hikvision2D", Name = "2DCam-Left#1" },
+            new CameraConfig { Sn = "DA9434623", Type = "Hikvision2D", Name = "2DCam-Left#2" }
         };
 
         /// <summary>
@@ -83,22 +79,6 @@ namespace material_box_storage_detection_system_Net.Config
     public class CameraConfig { public string Sn { get; set; } public string Type { get; set; } public string Name { get; set; } }
 
     /// <summary>
-    /// 读码器目标设备配置。
-    /// </summary>
-    public class CodeReaderConfig
-    {
-        /// <summary>
-        /// 目标读码器序列号。
-        /// </summary>
-        public string SerialNumber { get; set; } = "00DA9460934";
-
-        /// <summary>
-        /// 目标读码器 IP 地址。
-        /// </summary>
-        public string IpAddress { get; set; } = "192.168.10.90";
-    }
-
-    /// <summary>
     /// 算法参数汇总容器类，支持在属性栏展开。
     /// </summary>
     [TypeConverter(typeof(ExpandableObjectConverter))
@@ -122,6 +102,13 @@ namespace material_box_storage_detection_system_Net.Config
         /// </summary>
         [Category("03-横梁检测"), DisplayName("钢架变形判定阈值")]
         public RackDeformationConfig RackDeformation { get; set; } = new RackDeformationConfig();
+
+        /// <summary>
+        /// 视觉盘库检测的特定配置 (Flag 4/5)。
+        /// 使用 2D 相机进行条码扫描。
+        /// </summary>
+        [Category("04-盘库检测"), DisplayName("视觉盘库配置")]
+        public VisualInventoryConfig VisualInventory { get; set; } = new VisualInventoryConfig();
     }
 
     /// <summary>
@@ -192,8 +179,8 @@ namespace material_box_storage_detection_system_Net.Config
         [Browsable(false)]
         public CameraMapping CameraMapping { get; set; } = new CameraMapping
         {
-            LeftSideSns = new List<string> { "207000168492" },
-            RightSideSns = new List<string> { "207000167701" }
+            LeftSideSns = new List<string> { "207000168918", "207000169627" },
+            RightSideSns = new List<string> { "207000168577", "207000168598" }
         };
     }
 
@@ -241,8 +228,8 @@ namespace material_box_storage_detection_system_Net.Config
         [Browsable(false)]
         public CameraMapping CameraMapping { get; set; } = new CameraMapping
         {
-            LeftSideSns = new List<string> { "207000168492" },
-            RightSideSns = new List<string> { "207000167701" }
+            LeftSideSns = new List<string> { "207000168918", "207000169627" },
+            RightSideSns = new List<string> { "207000168577", "207000168598" }
         };
 
         /// <summary>
@@ -342,8 +329,8 @@ namespace material_box_storage_detection_system_Net.Config
         [Browsable(false)]
         public CameraMapping CameraMapping { get; set; } = new CameraMapping
         {
-            LeftSideSns = new List<string> { "207000168492" },
-            RightSideSns = new List<string> { "207000167701" }
+            LeftSideSns = new List<string> { "207000168918", "207000169627" },
+            RightSideSns = new List<string> { "207000168577", "207000168598" }
         };
 
         /// <summary>
@@ -377,6 +364,24 @@ namespace material_box_storage_detection_system_Net.Config
         /// 映射到右侧检测方位的相机序列号列表。
         /// </summary>
         public List<string> RightSideSns { get; set; } = new List<string>();
+    }
+
+    /// <summary>
+    /// 视觉盘库检测配置 (Flag 4/5)。
+    /// 使用 2D 相机拍摄料箱条码，通过图像处理进行解码。
+    /// </summary>
+    public class VisualInventoryConfig
+    {
+        /// <summary>
+        /// 该算法对应的 2D 相机 SN 映射关系。
+        /// Flag=4 启动扫码，Flag=5 停止扫码。
+        /// </summary>
+        [Browsable(false)]
+        public CameraMapping CameraMapping { get; set; } = new CameraMapping
+        {
+            LeftSideSns = new List<string> { "DA9434623" },
+            RightSideSns = new List<string> { "DA9434653", "DA9434361" }
+        };
     }
 
     /// <summary>

@@ -48,11 +48,6 @@ namespace material_box_storage_detection_system_Net.Control
 
             // 订阅通信类的事件：一旦 Redis 监听到合法信号，立即将任务塞进本地生产消费队列。
             _redisComm.OnTaskTriggered += (taskData) => EnqueueTask(taskData);
-
-            // 订阅读码器事件
-            Algorithms.VisualInventoryAlgo.OnCodeReaderImage += bmp => {
-                OnImageUpdated?.Invoke(4, bmp); // index=4 给读码器使用
-            };
         }
 
         /// <summary>
@@ -134,24 +129,14 @@ namespace material_box_storage_detection_system_Net.Control
                     bool algoSuccess;
                     var imagesToSave = new List<(String Name, Image Img)>();
 
-                    // 2. 任务分流：Flag 4/5 使用读码器流程，跳过相机抓图。
-                    if (task.Flag == 4 || task.Flag == 5)
+                    // 2. 统一抓图流程：所有 Flag 类型均通过相机抓图。
                     {
-                        var algoStartTime = DateTime.Now;
-                        algoSuccess = await ExecuteAlgorithmAsync(task.Flag, task.Side, null, null, result);
-                        LogPhaseTime($"算法执行(Flag{task.Flag})", algoStartTime);
-
-                        var codeReaderSnapshot = CodeReaderService.GetLatestFrameSnapshot();
-                        if (codeReaderSnapshot != null)
-                        {
-                            imagesToSave.Add(("code_reader", codeReaderSnapshot));
-                        }
-                    }
-                    else
-                    {
-                        // 3. 非盘库任务统一抓图：每侧各1台相机各抓1帧。
-                        const int requiredCameraCount = 1;
+                        // Flag=4/5 盘库任务：按 VisualInventory 配置的 SN 数量抓取 2D 相机图像
+                        // 其他 Flag：按各自配置抓取 3D 相机图像（每侧 1 台）
                         List<string> targetSNs = ConfigManager.GetTargetCameraSNs(task.Flag, task.Side);
+                        int requiredCameraCount = (task.Flag == 4 || task.Flag == 5)
+                            ? targetSNs?.Count ?? 0   // 盘库任务：按配置数量（左侧 1 台，右侧 2 台）
+                            : 1;
 
                         if (targetSNs == null || targetSNs.Count < requiredCameraCount)
                         {
