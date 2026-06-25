@@ -1,0 +1,812 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Map>
+    <ComponentMap>
+        <entry>
+            <key>TY_COMPONENT_DEVICE</key>
+            <value></value>
+        </entry>
+        <entry>
+            <key>TY_COMPONENT_DEPTH_CAM</key>
+            <value>Depth</value>
+        </entry>
+        <entry>
+            <key>TY_COMPONENT_IR_CAM_LEFT</key>
+            <value>Left</value>
+        </entry>
+        <entry>
+            <key>TY_COMPONENT_IR_CAM_RIGHT</key>
+            <value>Right</value>
+        </entry>
+        <entry>
+            <key>TY_COMPONENT_RGB_CAM_LEFT</key>
+            <value>Texture</value>
+        </entry>
+        <entry>
+            <key>TY_COMPONENT_LASER</key>
+            <value>Laser</value>
+        </entry>
+        <entry>
+            <key>TY_COMPONENT_IMU</key>
+            <value>IMU</value>
+        </entry>
+        <entry>
+            <key>TY_COMPONENT_BRIGHT_HISTO</key>
+            <value>BrightHisto</value>
+        </entry>
+        <entry>
+            <key>TY_COMPONENT_STORAGE</key>
+            <value>Storage</value>
+        </entry>
+    </ComponentMap>
+
+    <TemperatureSensorMap>
+        <entry>
+            <key>0</key>
+            <value>Left</value>
+        </entry>
+        <entry>
+            <key>1</key>
+            <value>Right</value>
+        </entry>
+        <entry>
+            <key>2</key>
+            <value>Texture</value>
+        </entry>
+        <entry>
+            <key>3</key>
+            <value>CpuCore</value>
+        </entry>
+        <entry>
+            <key>4</key>
+            <value>Mainboard</value>
+        </entry>
+    </TemperatureSensorMap>
+
+    <FeatureMap>
+        <entry>
+            <key>TY_STRUCT_CAM_INTRINSIC</key>
+            <value>Intrinsic</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_EXTRINSIC_TO_DEPTH</key>
+            <value>Extrinsic</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_EXTRINSIC_TO_IR_LEFT</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_CAM_RECTIFIED_ROTATION</key>
+            <value>Rotation</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_CAM_DISTORTION</key>
+            <value>Distortion</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_CAM_CALIB_DATA</key>
+            <value>CalibrationData</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_CAM_RECTIFIED_INTRI</key>
+            <value>Intrinsic2</value>
+        </entry>
+        <entry>
+            <key>TY_BYTEARRAY_CUSTOM_BLOCK</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_BYTEARRAY_ISP_BLOCK</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_INT_PERSISTENT_IP</key>
+            <value>GevPersistentIPAddress</value>
+        </entry>
+        <entry>
+            <key>TY_INT_PERSISTENT_SUBMASK</key>
+            <value>GevPersistentSubnetMask</value>
+        </entry>
+        <entry>
+            <key>TY_INT_PERSISTENT_GATEWAY</key>
+            <value>GevPersistentDefaultGateway</value>
+        </entry>
+        <entry>
+            <key>TY_BOOL_GVSP_RESEND</key>
+            <value>GevGVSPResend</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_PACKET_DELAY</key>
+            <value>PacketDelay</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_ACCEPTABLE_PERCENT</key>
+            <value>ignore</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_NTP_SERVER_IP</key>
+            <value>NTPServerIP</value>
+        </entry>
+        <entry>
+            <key>TY_INT_PACKET_SIZE</key>
+            <value>GevSCPSPacketSize</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_LINK_CMD_TIMEOUT</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_CAM_STATISTICS</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_INT_WIDTH_MAX</key>
+            <value>SensorWidth</value>
+        </entry>
+        <entry>
+            <key>TY_INT_HEIGHT_MAX</key>
+            <value>SensorHeight</value>
+        </entry>
+        <entry>
+            <key>TY_INT_OFFSET_X</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_INT_OFFSET_Y</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_INT_WIDTH</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_INT_HEIGHT</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_ENUM_IMAGE_MODE</key>
+            <value>PixelFormat</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_FLOAT_SCALE_UNIT</key>
+            <value>DepthScaleUnit</value>
+            <needSave />
+            <omitComponent />
+        </entry>
+        <entry>
+            <key>TY_ENUM_TRIGGER_POL</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_INT_FRAME_PER_TRIGGER</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_TRIGGER_PARAM</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_TRIGGER_PARAM_EX</key>
+            <struct>
+                <entry>
+                    <key>AcquisitionMode</key>
+                    <value>AcquisitionMode</value>
+                </entry>
+                <entry>
+                    <key>AcquisitionFrameRateEnable</key>
+                    <value>AcquisitionFrameRateEnable</value>
+                </entry>
+                <entry>
+                    <key>AcquisitionFrameRate</key>
+                    <value>AcquisitionFrameRate</value>
+                </entry>
+                <entry>
+                    <key>TriggerSource</key>
+                    <value>TriggerSource</value>
+                </entry>
+                <entry>
+                    <key>TriggerParamLedExpo</key>
+                    <value>TriggerParamLedExpo</value>
+                </entry>
+                <entry>
+                    <key>TriggerParamLedGain</key>
+                    <value>TriggerParamLedGain</value>
+                </entry>
+            </struct>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_TRIGGER_TIMER_LIST</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_TRIGGER_TIMER_PERIOD</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_BOOL_KEEP_ALIVE_ONOFF</key>
+            <value>DeviceLinkHeartbeatMode</value>
+        </entry>
+        <entry>
+            <key>TY_INT_KEEP_ALIVE_TIMEOUT</key>
+            <value>DeviceLinkHeartbeatTimeout</value>
+        </entry>
+        <entry>
+            <key>TY_BOOL_CMOS_SYNC</key>
+            <value>CmosSync</value>
+        </entry>
+        <entry>
+            <key>TY_INT_TRIGGER_DELAY_US</key>
+            <value>TriggerDelay</value>
+        </entry>
+        <entry>
+            <key>TY_BOOL_TRIGGER_OUT_IO</key>
+            <value>TriggerOutIO</value>
+        </entry>
+        <entry>
+            <key>TY_INT_TRIGGER_DURATION_US</key>
+            <value>TriggerDurationUs</value>
+        </entry>
+        <entry>
+            <key>TY_ENUM_STREAM_ASYNC</key>
+            <value>DeviceStreamAsyncMode</value>
+        </entry>
+        <entry>
+            <key>TY_INT_CAPTURE_TIME_US</key>
+            <value>CaptureTimeStatistic</value>
+        </entry>
+        <entry>
+            <key>TY_ENUM_TIME_SYNC_TYPE</key>
+            <value>DeviceTimeSyncMode</value>
+        </entry>
+        <entry>
+            <key>TY_BOOL_TIME_SYNC_READY</key>
+            <value>TimeSyncAck</value>
+        </entry>
+        <entry>
+            <key>TY_BOOL_IR_FLASHLIGHT</key>
+            <value>LightController1/LightEnable</value>
+            <omitComponent />
+        </entry>
+        <entry>
+            <key>TY_INT_IR_FLASHLIGHT_INTENSITY</key>
+            <value>LightController1/LightBrightness</value>
+            <omitComponent />
+        </entry>
+        <entry>
+            <key>TY_STRUCT_DO0_WORKMODE</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_DI0_WORKMODE</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_DO1_WORKMODE</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_DI1_WORKMODE</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_DO2_WORKMODE</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_DI2_WORKMODE</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_BOOL_RGB_FLASHLIGHT</key>
+            <value>LightController2/LightEnable</value>
+            <omitComponent />
+        </entry>
+        <entry>
+            <key>TY_INT_RGB_FLASHLIGHT_INTENSITY</key>
+            <value>LightController2/LightBrightness</value>
+            <omitComponent />
+        </entry>
+        <entry>
+            <key>TY_ENUM_CONFIG_MODE</key>
+            <value>ConfigMode</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_TEMPERATURE</key>
+            <value>DeviceTemperature</value>
+        </entry>
+        <entry>
+            <key>TY_BOOL_AUTO_EXPOSURE</key>
+            <value>ExposureAuto</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_FLOAT_EXPOSURE_TIME_US</key>
+            <value>ExposureTime</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_EXPOSURE_TIME</key>
+            <value>IntExposureTime</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BOOL_AUTO_GAIN</key>
+            <value>ignore</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BOOL_AUTO_AWB</key>
+            <value>BalanceWhiteAuto</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_STRUCT_AEC_ROI</key>
+            <struct>
+                <entry>
+                    <key>x</key>
+                    <value type="Int64">AutoFunctionAOIOffsetX</value>
+                </entry>
+                <entry>
+                    <key>y</key>
+                    <value type="Int64">AutoFunctionAOIOffsetY</value>
+                </entry>
+                <entry>
+                    <key>width</key>
+                    <value type="Int64">AutoFunctionAOIWidth</value>
+                </entry>
+                <entry>
+                    <key>height</key>
+                    <value type="Int64">AutoFunctionAOIHeight</value>
+                </entry>
+            </struct>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_TOF_HDR_RATIO</key>
+            <value>DepthStreamTofHdrRatio</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_TOF_JITTER_THRESHOLD</key>
+            <value>DepthStreamTofJitterThreshold</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_POWER</key>
+            <value>LightController0/LightBrightness</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BOOL_LASER_AUTO_CTRL</key>
+            <value>LaserPowerAutoCtrl</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_STRUCT_LASER_PATTERN</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_CAM_TRIG_POS</key>
+            <value>LaserCamTrigPos</value>
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_CAM_TRIG_LEN</key>
+            <value>LaserCamTrigLen</value>
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_LUT_TRIG_POS</key>
+            <value>LaserLutTrigPos</value>
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_LUT_NUM</key>
+            <value>LaserLutNum</value>
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_PATTERN_OFFSET</key>
+            <value>LaserPatternOffset</value>
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_MIRROR_NUM</key>
+            <value>LaserMirrorNum</value>
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_MIRROR_SEL</key>
+            <value>LaserMirrorSel</value>
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_LUT_IDX</key>
+            <value>LaserLutIdx</value>
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_FACET_IDX</key>
+            <value>LaserFacetIdx</value>
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_FACET_POS</key>
+            <value>LaserFacetPos</value>
+        </entry>
+        <entry>
+            <key>TY_INT_LASER_MODE</key>
+            <value>LaserWorkMode</value>
+        </entry>
+        <entry>
+            <key>TY_INT_CONST_DRV_DUTY</key>
+            <value>Drv8899CurrVal</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_LASER_ENABLE_BY_IDX</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_LASER_POWER_BY_IDX</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_FLOOD_ENABLE_BY_IDX</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_FLOOD_POWER_BY_IDX</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_BOOL_UNDISTORTION</key>
+            <value>IRUndistortion</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BOOL_BRIGHTNESS_HISTOGRAM</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_BOOL_DEPTH_POSTPROC</key>
+            <value>ignore</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_R_GAIN</key>
+            <value>RedGain</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_G_GAIN</key>
+            <value>GreenGain</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_B_GAIN</key>
+            <value>BlueGain</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_ANALOG_GAIN</key>
+            <value>AnalogGain</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_GAIN</key>
+            <value>DigitalGain</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BOOL_HDR</key>
+            <value>HDREnable</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BYTEARRAY_HDR_PARAMETER</key>
+            <value>HDRControl</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_AE_TARGET_Y</key>
+            <value>ExposureTargetBrightness</value>
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BOOL_IMU_DATA_ONOFF</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_IMU_ACC_BIAS</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_IMU_ACC_MISALIGNMENT</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_IMU_ACC_SCALE</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_IMU_GYRO_BIAS</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_IMU_GYRO_MISALIGNMENT</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_IMU_GYRO_SCALE</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_STRUCT_IMU_CAM_TO_IMU</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_ENUM_IMU_FPS</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_IMAGE_NUM</key>
+            <value>DepthSgbmImageNumber</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_DISPARITY_NUM</key>
+            <value>DepthSgbmDisparityNumber</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_DISPARITY_OFFSET</key>
+            <value>DepthSgbmDisparityOffset</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_MATCH_WIN_HEIGHT</key>
+            <value>DepthSgbmMatchWinHeight</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_SEMI_PARAM_P1</key>
+            <value>DepthSgbmSemiParamP1</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_SEMI_PARAM_P2</key>
+            <value>DepthSgbmSemiParamP2</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_UNIQUE_FACTOR</key>
+            <value>DepthSgbmUniqueFactor</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_UNIQUE_ABSDIFF</key>
+            <value>DepthSgbmUniqueAbsDiff</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_UNIQUE_MAX_COST</key>
+            <value>DepthSgbmUniqueMaxCost</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BOOL_SGBM_HFILTER_HALF_WIN</key>
+            <value>DepthSgbmHFilterHalfWin</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_MATCH_WIN_WIDTH</key>
+            <value>DepthSgbmMatchWinWidth</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BOOL_SGBM_MEDFILTER</key>
+            <value>DepthSgbmMedFilter</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BOOL_SGBM_LRC</key>
+            <value>DepthSgbmLRC</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_LRC_DIFF</key>
+            <value>DepthSgbmLRCDiff</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_MEDFILTER_THRESH</key>
+            <value>DepthSgbmMedFilterThresh</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_SEMI_PARAM_P1_SCALE</key>
+            <value>DepthSgbmSemiParamP1Scale</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGPM_PHASE_NUM</key>
+            <value>DepthSgpmPhaseNumber</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGPM_NORMAL_PHASE_SCALE</key>
+            <value>DepthSgpmPhaseScale</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGPM_NORMAL_PHASE_OFFSET</key>
+            <value>DepthSgpmPhaseOffset</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGPM_REF_PHASE_SCALE</key>
+            <value>DepthSgpmReferencePhaseScale</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGPM_REF_PHASE_OFFSET</key>
+            <value>DepthSgpmReferencePhaseOffset</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_FLOAT_SGPM_EPI_HS</key>
+            <value>DepthSgpmEpipolarConstraintPatternScale</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGPM_EPI_HF</key>
+            <value>DepthSgpmEpipolarConstraintPatternOffset</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BOOL_SGPM_EPI_EN</key>
+            <value>DepthSgpmEpipolarConstraintEnable</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGPM_EPI_CH0</key>
+            <value>DepthSgpmEpipolarConstraintChan0</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGPM_EPI_CH1</key>
+            <value>DepthSgpmEpipolarConstraintChan1</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGPM_EPI_THRESH</key>
+            <value>DepthSgpmEpipolarConstraintThresh</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_BOOL_SGPM_ORDER_FILTER_EN</key>
+            <value>DepthSgpmPhaseOrderFilterEnable</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGPM_ORDER_FILTER_CHN</key>
+            <value>DepthSgpmPhaseOrderFilterChannel</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_DEPTH_MIN_MM</key>
+            <value>DepthRangeMin</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_DEPTH_MAX_MM</key>
+            <value>DepthRangeMax</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_TEXTURE_OFFSET</key>
+            <value>DepthSgbmTextureFilterValueOffset</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_SGBM_TEXTURE_THRESH</key>
+            <value>DepthSgbmTextureFilterThreshold</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_STRUCT_PHC_GROUP_ATTR</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_ENUM_DEPTH_QUALITY</key>
+            <value>DepthStreamTofDepthQuality</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_FILTER_THRESHOLD</key>
+            <value>DepthStreamTofFilterThreshold</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_TOF_CHANNEL</key>
+            <value>DepthStreamTofChannel</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_TOF_MODULATION_THRESHOLD</key>
+            <value>DepthStreamTofModulationThreshold</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <!-- todo -->
+            <key>TY_STRUCT_TOF_FREQ</key>
+            <value>ignore</value>
+        </entry>
+        <entry>
+            <key>TY_BOOL_TOF_ANTI_INTERFERENCE</key>
+            <value>DepthStreamTofAntiInterference</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_TOF_ANTI_SUNLIGHT_INDEX</key>
+            <value>DepthStreamTofAntiSunlightIndex</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_MAX_SPECKLE_SIZE</key>
+            <value>DepthMaxSpeckleSize</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_INT_MAX_SPECKLE_DIFF</key>
+            <value>DepthMaxSpeckleDiff</value>
+            <omitComponent />
+            <needSave />
+        </entry>
+        <entry>
+            <key>TY_ENUM_LENS_OPTICAL_TYPE</key>
+            <value>LensOpticalType</value>
+        </entry>
+    </FeatureMap>
+</Map>

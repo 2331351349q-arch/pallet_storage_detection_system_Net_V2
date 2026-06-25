@@ -1,0 +1,113 @@
+<Window x:Class="RoiTuner.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:h="http://helix-toolkit.org/wpf"
+        mc:Ignorable="d"
+        Title="SlotOccupancy ROI 测试工具"
+        Width="1400"
+        Height="860"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="360" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Padding="10" BorderBrush="#DDD" BorderThickness="0,0,1,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock FontSize="18" FontWeight="Bold" Text="测试工具箱 - ROI 调整" Margin="0,0,0,10" />
+
+                    <TextBlock Text="配置文件" FontWeight="Bold" />
+                    <TextBox x:Name="txtConfigPath" Margin="0,4,0,10" IsReadOnly="True" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button x:Name="btnReloadConfig" Width="100" Height="30" Content="重载配置" Click="BtnReloadConfig_Click" />
+                        <Button x:Name="btnSaveRoi" Width="120" Height="30" Margin="8,0,0,0" Content="保存ROI到配置" Click="BtnSaveRoi_Click" />
+                    </StackPanel>
+
+                    <Separator Margin="0,0,0,10" />
+
+                    <TextBlock Text="检测侧" FontWeight="Bold" />
+                    <ComboBox x:Name="cmbSide" Margin="0,4,0,10" SelectionChanged="CmbSide_SelectionChanged">
+                        <ComboBoxItem Content="left" IsSelected="True" />
+                        <ComboBoxItem Content="right" />
+                    </ComboBox>
+
+                    <TextBlock Text="采样步长 (点云渲染)" FontWeight="Bold" />
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,10">
+                        <Slider x:Name="sldSampleStep" Width="180" Minimum="1" Maximum="12" Value="4" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="SldSampleStep_ValueChanged" />
+                        <TextBlock x:Name="txtSampleStep" Margin="10,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <TextBlock Text="目标相机 SN" FontWeight="Bold" />
+                    <TextBox x:Name="txtCameraSn" Margin="0,4,0,10" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button x:Name="btnInitCameras" Width="100" Height="30" Content="初始化相机" Click="BtnInitCameras_Click" />
+                        <Button x:Name="btnGrab" Width="100" Height="30" Margin="8,0,0,0" Content="抓取一帧" Click="BtnGrab_Click" />
+                    </StackPanel>
+
+                    <Separator Margin="0,0,0,10" />
+
+                    <TextBlock Text="ROI(mm)" FontWeight="Bold" />
+                    <Grid Margin="0,4,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="MinX" />
+                        <TextBox x:Name="txtMinX" Grid.Row="0" Grid.Column="1" Margin="0,2" LostFocus="RoiText_LostFocus" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="MaxX" />
+                        <TextBox x:Name="txtMaxX" Grid.Row="1" Grid.Column="1" Margin="0,2" LostFocus="RoiText_LostFocus" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="MinY" />
+                        <TextBox x:Name="txtMinY" Grid.Row="2" Grid.Column="1" Margin="0,2" LostFocus="RoiText_LostFocus" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="MaxY" />
+                        <TextBox x:Name="txtMaxY" Grid.Row="3" Grid.Column="1" Margin="0,2" LostFocus="RoiText_LostFocus" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Text="MinZ" />
+                        <TextBox x:Name="txtMinZ" Grid.Row="4" Grid.Column="1" Margin="0,2" LostFocus="RoiText_LostFocus" />
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" Text="MaxZ" />
+                        <TextBox x:Name="txtMaxZ" Grid.Row="5" Grid.Column="1" Margin="0,2" LostFocus="RoiText_LostFocus" />
+                    </Grid>
+
+                    <TextBlock x:Name="txtStats" Margin="0,0,0,10" Foreground="#222" TextWrapping="Wrap" />
+
+                    <TextBlock Text="日志" FontWeight="Bold" />
+                    <TextBox x:Name="txtLog" Height="180" Margin="0,4,0,0" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="220" />
+            </Grid.RowDefinitions>
+
+            <h:HelixViewport3D x:Name="viewport" ShowFrameRate="True" ZoomExtentsWhenLoaded="True" Background="#111">
+                <h:SunLight />
+                <h:CoordinateSystemVisual3D ArrowLengths="200" />
+            </h:HelixViewport3D>
+
+            <Border Grid.Row="1" BorderBrush="#DDD" BorderThickness="0,1,0,0" Padding="8">
+                <Image x:Name="imgPreview" Stretch="Uniform" />
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

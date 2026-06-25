@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FeatureInfoConfig>
+    <Feature name="AcquisitionMode" needSave="true" />
+    <Feature name="AcquisitionFrameRateEnable" needSave="true" />
+    <Feature name="AcquisitionFrameRate" needSave="true" />
+    <Feature name="AcquisitionStart" />
+    <Feature name="AcquisitionStop" />
+    <Feature name="CaptureTimeStatistic" />
+    <Feature name="CmosSync" needSave="true" />
+    <Feature name="DepthScaleUnit" needSave="true" />
+    <Feature name="DepthSgbmDisparityNumber" needSave="true" />
+    <Feature name="DepthSgbmDisparityOffset" needSave="true" />
+    <Feature name="DepthSgbmHFilterHalfWin" needSave="true" />
+    <Feature name="DepthSgbmImageNumber" needSave="true" />
+    <Feature name="DepthSgbmLRC" needSave="true" />
+    <Feature name="DepthSgbmLRCDiff" needSave="true" />
+    <Feature name="DepthSgbmMatchWinHeight" needSave="true" />
+    <Feature name="DepthSgbmMatchWinWidth" needSave="true" />
+    <Feature name="DepthSgbmMedFilter" needSave="true" />
+    <Feature name="DepthSgbmMedFilterThresh" needSave="true" />
+    <Feature name="DepthRangeMin" needSave="true" />
+    <Feature name="DepthRangeMax" needSave="true" />
+    <Feature name="DepthSgbmSaturateFilterBlurSize" needSave="true" />
+    <Feature name="DepthSgbmSaturateFilterDilateSize" needSave="true" />
+    <Feature name="DepthSgbmSaturateFilterEnable" needSave="true" />
+    <Feature name="DepthSgbmSaturateFilterVal" needSave="true" />
+    <Feature name="DepthSgbmSemiParamP1" needSave="true" />
+    <Feature name="DepthSgbmSemiParamP1Scale" needSave="true" />
+    <Feature name="DepthSgbmSemiParamP2" needSave="true" />
+    <Feature name="DepthSgbmTextureFilterEnable" needSave="true" />
+    <Feature name="DepthSgbmTextureFilterMaxDistance" needSave="true" />
+    <Feature name="DepthSgbmTextureFilterThreshold" needSave="true" />
+    <Feature name="DepthSgbmTextureFilterValueOffset" needSave="true" />
+    <Feature name="DepthSgbmTextureFilterWindowSize" needSave="true" />
+    <Feature name="DepthSgbmUniqueAbsDiff" needSave="true" />
+    <Feature name="DepthSgbmUniqueFactor" needSave="true" />
+    <Feature name="DepthSgbmUniqueMaxCost" needSave="true" />
+    <Feature name="DepthSgpmEpipolarConstraintChan0" needSave="true" />
+    <Feature name="DepthSgpmEpipolarConstraintChan1" needSave="true" />
+    <Feature name="DepthSgpmEpipolarConstraintEnable" needSave="true" />
+    <Feature name="DepthSgpmEpipolarConstraintPatternOffset" needSave="true" />
+    <Feature name="DepthSgpmEpipolarConstraintPatternScale" needSave="true" />
+    <Feature name="DepthSgpmEpipolarConstraintThresh" needSave="true" />
+    <Feature name="DepthSgpmPhaseNumber" needSave="true" />
+    <Feature name="DepthSgpmPhaseOffset" needSave="true" />
+    <Feature name="DepthSgpmPhaseOrderFilterChannel" needSave="true" />
+    <Feature name="DepthSgpmPhaseOrderFilterEnable" needSave="true" />
+    <Feature name="DepthSgpmPhaseScale" needSave="true" />
+    <Feature name="DepthSgpmReferencePhaseOffset" needSave="true" />
+    <Feature name="DepthSgpmReferencePhaseScale" needSave="true" />
+    <Feature name="DepthSgpmOutlierFilterPhaseThreshold" needSave="true" />
+    <Feature name="DepthSgpmAmplitudeThreshold" needSave="true" />
+    <Feature name="DepthSgpmMaxPhaseDiff" needSave="true" />
+    <Feature name="DepthStreamTofChannel" needSave="true" />
+    <Feature name="DepthStreamTofDepthQuality" needSave="true" />
+    <Feature name="DepthStreamTofFilterThreshold" needSave="true" />
+    <Feature name="DepthStreamTofHdrRatio" needSave="true" />
+    <Feature name="DepthStreamTofJitterThreshold" needSave="true" />
+    <Feature name="DepthStreamTofModulationThreshold" needSave="true" />
+    <Feature name="DeviceBuildHash" />
+    <Feature name="DeviceCalibrationTime" />
+    <Feature name="DeviceCharacterSet" />
+    <Feature name="DeviceConfigVersion" />
+    <Feature name="DeviceConnectionSelector" needSave="true" />
+    <Feature name="DeviceDataCompressType" needSave="true" />
+    <Feature name="DeviceErrCode" />
+    <Feature name="DeviceFirmwareVersion" />
+    <Feature name="DeviceFrameRecvTimeOut" needSave="true" />
+    <Feature name="DeviceGeneratedTime" />
+    <Feature name="DeviceHardWareModel" />
+    <Feature name="DeviceHardwareVersion" />
+    <Feature name="DeviceLinkHeartbeatMode" needSave="true" />
+    <Feature name="DeviceLinkHeartbeatTimeout" needSave="true" />
+    <Feature name="DeviceLinkSelector" />
+    <Feature name="DeviceLinkSpeed" />
+    <Feature name="DeviceManufacturerInfo" />
+    <Feature name="DeviceModelName" />
+    <Feature name="DeviceReset" />
+    <Feature name="DeviceSerialNumber" />
+    <Feature name="DeviceStreamAsyncMode" />
+    <Feature name="DeviceStreamChannelCount" />
+    <Feature name="DeviceStreamChannelLink" />
+    <Feature name="DeviceStreamChannelPacketSize" />
+    <Feature name="DeviceStreamChannelSelector" />
+    <Feature name="DeviceStreamChannelType" />
+    <Feature name="DeviceTLVersionMajor" />
+    <Feature name="DeviceTLVersionMinor" />
+    <Feature name="DeviceTechModel" />
+    <Feature name="DeviceTimeSyncMode" needSave="true" />
+    <Feature name="DeviceType" />
+    <Feature name="DeviceVendorName" />
+    <Feature name="DeviceVersion" />
+    <Feature name="GevCCP" />
+    <Feature name="GevCurrentDefaultGateway" />
+    <Feature name="GevCurrentIPAddress" />
+    <Feature name="GevCurrentIPConfigurationDHCP" />
+    <Feature name="GevCurrentIPConfigurationLLA" />
+    <Feature name="GevCurrentIPConfigurationPersistentIP" />
+    <Feature name="GevCurrentSubnetMask" />
+    <Feature name="GevFirstURL" />
+    <Feature name="GevGVCPPendingAck" needSave="true" />
+    <Feature name="GevGVCPPendingTimeout" needSave="true" />
+    <Feature name="GevInterfaceSelector" />
+    <Feature name="GevMACAddress" />
+    <Feature name="GevPersistentDefaultGateway" />
+    <Feature name="GevPersistentIPAddress" />
+    <Feature name="GevPersistentSubnetMask" />
+    <Feature name="GevSCDA" />
+    <Feature name="GevSCPD" needSave="true" />
+    <Feature name="GevSCPDirection" />
+    <Feature name="GevSCPHostPort" />
+    <Feature name="GevSCPInterfaceIndex" />
+    <Feature name="GevSCPSPacketSize" />
+    <Feature name="GevSCSP" />
+    <Feature name="GevSecondURL" />
+    <Feature name="GevStreamChannelSelector" />
+    <Feature name="IRUndistortion" needSave="true" />
+    <Feature name="NTPServerIP" />
+    <Feature name="PayloadSize" />
+    <Feature name="PostProcessParams0" needSave="true" />
+    <Feature name="PostProcessParams1" needSave="true" />
+    <Feature name="SourceCount" />
+    <Feature name="SourceIDValue" />
+    <Feature name="TLParamsLocked" />
+    <Feature name="TimeSyncAck" />
+    <Feature name="TofFmodParam0" needSave="true" />
+    <Feature name="TofFmodParam1" needSave="true" />
+    <Feature name="TofLightDelayParam0" needSave="true" />
+    <Feature name="TofLightDelayParam1" needSave="true" />
+    <Feature name="TofLightDelayParam2" needSave="true" />
+    <Feature name="TofModParam" needSave="true" />
+    <Feature name="TriggerActivation" needSave="true" />
+    <Feature name="TriggerDelay" needSave="true" />
+    <Feature name="TriggerDurationUs" needSave="true" />
+    <Feature name="TriggerMode" needSave="true" />
+    <Feature name="TriggerOutIO" needSave="true" />
+    <Feature name="TriggerSelector" needSave="true" />
+    <Feature name="TriggerSoftware" />
+    <Feature name="TriggerSource" needSave="true" />
+    <Selector name="SourceSelector">
+        <Feature name="ComponentEnable" needSave="true" />
+        <Feature name="PixelFormat" needSave="true" />
+        <Feature name="BinningHorizontal" needSave="true" />
+        <Feature name="BinningVertical" needSave="true" />
+        <Feature name="ExposureAuto" needSave="true" />
+        <Feature name="ExposureAutoLowerLimit" needSave="true" />
+        <Feature name="ExposureAutoUpperLimit" needSave="true" />
+        <Feature name="ExposureTargetBrightness" needSave="true" />
+        <Feature name="ExposureTime" needSave="true" />
+        <Feature name="AutoFunctionAOIHeight" needSave="true" />
+        <Feature name="AutoFunctionAOIOffsetX" needSave="true" />
+        <Feature name="AutoFunctionAOIOffsetY" needSave="true" />
+        <Feature name="AutoFunctionAOIWidth" needSave="true" />
+        <Feature name="BalanceWhiteAuto" needSave="true" />
+        <Feature name="HDRControl" needSave="true" />
+        <Feature name="HDREnable" needSave="true" />
+        <Feature name="Intrinsic" />
+        <Feature name="Distortion" />
+        <Feature name="Extrinsic" />
+        <Feature name="Extrinsic2" />       
+        <Feature name="Intrinsic2" />
+        <Feature name="IntrinsicHeight" />
+        <Feature name="IntrinsicWidth" />
+        <Feature name="Rotation" />
+        <Feature name="SensorHeight" />
+        <Feature name="SensorWidth" />
+        <Selector name="GainSelector">
+            <Feature name="Gain" needSave="true" />
+        </Selector>
+    </Selector>
+    <Selector name="LightControllerSelector">
+        <Feature name="LightBrightness" needSave="true" />
+        <Feature name="LightEnable" needSave="true" />
+    </Selector>
+    <Selector name="DeviceTemperatureSelector">
+        <Feature name="DeviceTemperature" />
+    </Selector>
+</FeatureInfoConfig>
