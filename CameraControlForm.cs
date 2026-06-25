@@ -1,8 +1,8 @@
 using System.Data;
-using material_box_storage_detection_system_Net.Config;
-using material_box_storage_detection_system_Net.Devices;
+using pallet_storage_detection_system_Net_V2.Config;
+using pallet_storage_detection_system_Net_V2.Devices;
 
-namespace material_box_storage_detection_system_Net
+namespace pallet_storage_detection_system_Net_V2
 {
     /// <summary>
     /// 相机批量控制工具 — 支持一键开启/关闭所有 2D、3D 相机。

@@ -1,9 +1,9 @@
-using material_box_storage_detection_system_Net.Communication;
-using material_box_storage_detection_system_Net.Control;
-using material_box_storage_detection_system_Net.Config;
-using material_box_storage_detection_system_Net.Devices;
+using pallet_storage_detection_system_Net_V2.Communication;
+using pallet_storage_detection_system_Net_V2.Control;
+using pallet_storage_detection_system_Net_V2.Config;
+using pallet_storage_detection_system_Net_V2.Devices;
 
-namespace material_box_storage_detection_system_Net
+namespace pallet_storage_detection_system_Net_V2
 {
     /// <summary>
     /// 主界面类，负责全系统的可视化呈现、用户交互及核心组件的生命周期绑定。
@@ -198,7 +198,7 @@ namespace material_box_storage_detection_system_Net
             }
 
             System.Drawing.Image? displayImage = null;
-            if (imageObj is material_box_storage_detection_system_Net.Devices.DepthFrameData depthFrame)
+            if (imageObj is pallet_storage_detection_system_Net_V2.Devices.DepthFrameData depthFrame)
             {
                 displayImage = depthFrame.PreviewImage;
             }

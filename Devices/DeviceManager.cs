@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using material_box_storage_detection_system_Net.Config;
+using pallet_storage_detection_system_Net_V2.Config;
 
-namespace material_box_storage_detection_system_Net.Devices
+namespace pallet_storage_detection_system_Net_V2.Devices
 {
     /// <summary>
     /// 设备管理器，负责全系统相机的生命周期管理、初始化及硬件对象的缓存。

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 
-namespace material_box_storage_detection_system_Net.Algorithms
+namespace pallet_storage_detection_system_Net_V2.Algorithms
 {
     /// <summary>
     /// 点云分割工具结果模型。

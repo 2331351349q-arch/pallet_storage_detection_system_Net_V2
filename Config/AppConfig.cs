@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.ComponentModel;
-using material_box_storage_detection_system_Net.Models;
+using pallet_storage_detection_system_Net_V2.Models;
 
-namespace material_box_storage_detection_system_Net.Config
+namespace pallet_storage_detection_system_Net_V2.Config
 {
     /// <summary>
     /// 全局应用配置根对象，直接在代码中定义系统所有的默认配置参数。

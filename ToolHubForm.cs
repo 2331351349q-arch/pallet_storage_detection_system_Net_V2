@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace material_box_storage_detection_system_Net
+namespace pallet_storage_detection_system_Net_V2
 {
     /// <summary>
     /// 工具中心 — 统一管理所有调试/标定工具的入口窗体。

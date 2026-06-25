@@ -8,7 +8,7 @@ using UCV.DataModel.Interop;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 
-namespace material_box_storage_detection_system_Net.Devices
+namespace pallet_storage_detection_system_Net_V2.Devices
 {
     /// <summary>
     /// 图漾 (Percipio/Tycam) 3D 相机驱动实现类。

@@ -1,4 +1,4 @@
-namespace material_box_storage_detection_system_Net
+namespace pallet_storage_detection_system_Net_V2
 {
     partial class MainForm
     {

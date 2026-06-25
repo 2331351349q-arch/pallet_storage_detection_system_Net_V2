@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
 
-namespace material_box_storage_detection_system_Net.Devices
+namespace pallet_storage_detection_system_Net_V2.Devices
 {
     public sealed class DepthFrameData
     {

@@ -4,10 +4,10 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
-using material_box_storage_detection_system_Net.Config;
-using material_box_storage_detection_system_Net.Devices;
+using pallet_storage_detection_system_Net_V2.Config;
+using pallet_storage_detection_system_Net_V2.Devices;
 
-namespace material_box_storage_detection_system_Net
+namespace pallet_storage_detection_system_Net_V2
 {
     public class RoiTunerForm : Form
     {

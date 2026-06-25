@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using material_box_storage_detection_system_Net.Devices;
-using material_box_storage_detection_system_Net.Models;
+using pallet_storage_detection_system_Net_V2.Devices;
+using pallet_storage_detection_system_Net_V2.Models;
 
-namespace material_box_storage_detection_system_Net.Algorithms
+namespace pallet_storage_detection_system_Net_V2.Algorithms
 {
     /// <summary>
     /// 3D 相机标定算法：RANSAC 平面拟合 + Rodrigues 旋转 + 平移求解。

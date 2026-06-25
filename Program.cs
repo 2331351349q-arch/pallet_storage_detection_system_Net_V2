@@ -2,7 +2,7 @@
 using System.Reflection;
 using System.IO;
 
-namespace material_box_storage_detection_system_Net
+namespace pallet_storage_detection_system_Net_V2
 {
     /// <summary>
     /// 应用程序入口类，负责底层运行环境准备与库加载路径注入。

@@ -4,12 +4,12 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
-using material_box_storage_detection_system_Net.Algorithms;
-using material_box_storage_detection_system_Net.Config;
-using material_box_storage_detection_system_Net.Devices;
-using material_box_storage_detection_system_Net.Models;
+using pallet_storage_detection_system_Net_V2.Algorithms;
+using pallet_storage_detection_system_Net_V2.Config;
+using pallet_storage_detection_system_Net_V2.Devices;
+using pallet_storage_detection_system_Net_V2.Models;
 
-namespace material_box_storage_detection_system_Net
+namespace pallet_storage_detection_system_Net_V2
 {
     /// <summary>
     /// 3D 相机外参标定窗体。

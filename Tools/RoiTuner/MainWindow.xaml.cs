@@ -8,8 +8,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
-using material_box_storage_detection_system_Net.Config;
-using material_box_storage_detection_system_Net.Devices;
+using pallet_storage_detection_system_Net_V2.Config;
+using pallet_storage_detection_system_Net_V2.Devices;
 
 namespace RoiTuner;
 
@@ -52,7 +52,7 @@ public partial class MainWindow : Window
         string? current = AppDomain.CurrentDomain.BaseDirectory;
         while (!string.IsNullOrWhiteSpace(current))
         {
-            string projectFile = Path.Combine(current, "material_box_storage_detection_system_Net.csproj");
+            string projectFile = Path.Combine(current, "pallet_storage_detection_system_Net_V2.csproj");
             if (File.Exists(projectFile)) return current;
             current = Directory.GetParent(current)?.FullName;
         }
@@ -302,7 +302,7 @@ public partial class MainWindow : Window
         {
             string current = Environment.ProcessPath ?? string.Empty;
             string currentName = Path.GetFileNameWithoutExtension(current);
-            return System.Diagnostics.Process.GetProcessesByName("material_box_storage_detection_system_Net")
+            return System.Diagnostics.Process.GetProcessesByName("pallet_storage_detection_system_Net_V2")
                 .Any(p => !string.Equals(p.ProcessName, currentName, StringComparison.OrdinalIgnoreCase));
         }
         catch

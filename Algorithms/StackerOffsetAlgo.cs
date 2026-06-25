@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using material_box_storage_detection_system_Net.Config;
-using material_box_storage_detection_system_Net.Devices;
-using material_box_storage_detection_system_Net.Models;
+using pallet_storage_detection_system_Net_V2.Config;
+using pallet_storage_detection_system_Net_V2.Devices;
+using pallet_storage_detection_system_Net_V2.Models;
 
-namespace material_box_storage_detection_system_Net.Algorithms
+namespace pallet_storage_detection_system_Net_V2.Algorithms
 {
     /// <summary>
     /// 堆垛机偏移检测算法类 (Flag 2)。

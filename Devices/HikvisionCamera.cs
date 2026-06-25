@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using MvCamCtrl.NET;
 using System.Runtime.InteropServices;
 
-namespace material_box_storage_detection_system_Net.Devices
+namespace pallet_storage_detection_system_Net_V2.Devices
 {
     /// <summary>
     /// 海康威视相机驱动实现类。

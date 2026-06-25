@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace material_box_storage_detection_system_Net.Properties {
+namespace pallet_storage_detection_system_Net_V2.Properties {
     using System;
     
     
@@ -39,7 +39,7 @@ namespace material_box_storage_detection_system_Net.Properties {
         internal static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
-                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("material_box_storage_detection_system_Net.Properties.Resources", typeof(Resources).Assembly);
+                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("pallet_storage_detection_system_Net_V2.Properties.Resources", typeof(Resources).Assembly);
                     resourceMan = temp;
                 }
                 return resourceMan;

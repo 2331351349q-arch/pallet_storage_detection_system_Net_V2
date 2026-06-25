@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace material_box_storage_detection_system_Net.Models
+namespace pallet_storage_detection_system_Net_V2.Models
 {
     /// <summary>
     /// 单台 3D 相机的标定参数。

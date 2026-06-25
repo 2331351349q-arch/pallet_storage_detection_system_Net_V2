@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
-using material_box_storage_detection_system_Net.Config;
-using material_box_storage_detection_system_Net.Devices;
+using pallet_storage_detection_system_Net_V2.Config;
+using pallet_storage_detection_system_Net_V2.Devices;
 
-namespace material_box_storage_detection_system_Net.Algorithms
+namespace pallet_storage_detection_system_Net_V2.Algorithms
 {
     /// <summary>
     /// 货位占用检测算法类 (Flag 1)。

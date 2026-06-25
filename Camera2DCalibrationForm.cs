@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using material_box_storage_detection_system_Net.Config;
+using pallet_storage_detection_system_Net_V2.Config;
 using OpenCvSharp;
 using WinForms = System.Windows.Forms;
 
@@ -14,7 +14,7 @@ using DrawPoint = System.Drawing.Point;
 using DrawSize  = System.Drawing.Size;
 using DrawRect  = System.Drawing.Rectangle;
 
-namespace material_box_storage_detection_system_Net
+namespace pallet_storage_detection_system_Net_V2
 {
     /// <summary>
     /// 2D 相机（海康）棋盘格内参标定工具。
@@ -1331,19 +1331,19 @@ namespace material_box_storage_detection_system_Net
             try
             {
                 AppendLog($"准备连接并采集图像: {sn}...");
-                if (!material_box_storage_detection_system_Net.Devices.DeviceManager.IsInitialized)
+                if (!pallet_storage_detection_system_Net_V2.Devices.DeviceManager.IsInitialized)
                 {
-                    material_box_storage_detection_system_Net.Devices.DeviceManager.Initialize(ConfigManager.Instance!.Cameras, AppendLog);
+                    pallet_storage_detection_system_Net_V2.Devices.DeviceManager.Initialize(ConfigManager.Instance!.Cameras, AppendLog);
                 }
 
-                var cam = material_box_storage_detection_system_Net.Devices.DeviceManager.GetCamera(sn);
+                var cam = pallet_storage_detection_system_Net_V2.Devices.DeviceManager.GetCamera(sn);
                 if (cam == null)
                 {
                     var cfg = ConfigManager.Instance!.Cameras.FirstOrDefault(c => c.Sn == sn);
                     if (cfg != null)
                     {
-                        material_box_storage_detection_system_Net.Devices.DeviceManager.Initialize(new List<material_box_storage_detection_system_Net.Config.CameraConfig> { cfg }, AppendLog);
-                        cam = material_box_storage_detection_system_Net.Devices.DeviceManager.GetCamera(sn);
+                        pallet_storage_detection_system_Net_V2.Devices.DeviceManager.Initialize(new List<pallet_storage_detection_system_Net_V2.Config.CameraConfig> { cfg }, AppendLog);
+                        cam = pallet_storage_detection_system_Net_V2.Devices.DeviceManager.GetCamera(sn);
                     }
                 }
 
@@ -1486,12 +1486,12 @@ namespace material_box_storage_detection_system_Net
                 _referenceOffsetX = refX;
 
                 if (ConfigManager.Instance?.Camera2DCalibrations == null)
-                    ConfigManager.Instance!.Camera2DCalibrations = new List<material_box_storage_detection_system_Net.Config.Camera2DCalibration>();
+                    ConfigManager.Instance!.Camera2DCalibrations = new List<pallet_storage_detection_system_Net_V2.Config.Camera2DCalibration>();
 
                 var calib = ConfigManager.Instance.Camera2DCalibrations.FirstOrDefault(c => c.CameraSn == sn);
                 if (calib == null)
                 {
-                    calib = new material_box_storage_detection_system_Net.Config.Camera2DCalibration { CameraSn = sn };
+                    calib = new pallet_storage_detection_system_Net_V2.Config.Camera2DCalibration { CameraSn = sn };
                     ConfigManager.Instance.Camera2DCalibrations.Add(calib);
                 }
 

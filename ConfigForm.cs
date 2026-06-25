@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
-using material_box_storage_detection_system_Net.Config;
+using pallet_storage_detection_system_Net_V2.Config;
 
-namespace material_box_storage_detection_system_Net
+namespace pallet_storage_detection_system_Net_V2
 {
     public partial class ConfigForm : Form
     {

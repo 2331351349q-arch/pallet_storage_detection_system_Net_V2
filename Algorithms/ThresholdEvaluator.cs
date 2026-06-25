@@ -1,7 +1,7 @@
 ﻿using System;
-using material_box_storage_detection_system_Net.Config;
+using pallet_storage_detection_system_Net_V2.Config;
 
-namespace material_box_storage_detection_system_Net.Algorithms
+namespace pallet_storage_detection_system_Net_V2.Algorithms
 {
     /// <summary>
     /// 表示单项指标的评价结果实体。

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace material_box_storage_detection_system_Net.Models
+namespace pallet_storage_detection_system_Net_V2.Models
 {
     /// <summary>
     /// 表示从 Redis 获取的任务数据实体类。

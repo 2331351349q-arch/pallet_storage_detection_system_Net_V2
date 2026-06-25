@@ -1,6 +1,6 @@
 using System;
 
-namespace material_box_storage_detection_system_Net.Algorithms
+namespace pallet_storage_detection_system_Net_V2.Algorithms
 {
     /// <summary>
     /// 横梁与立柱变形检测算法类 (Flag 3)。

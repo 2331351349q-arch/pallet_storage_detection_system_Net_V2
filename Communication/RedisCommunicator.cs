@@ -2,9 +2,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using material_box_storage_detection_system_Net.Models;
+using pallet_storage_detection_system_Net_V2.Models;
 
-namespace material_box_storage_detection_system_Net.Communication
+namespace pallet_storage_detection_system_Net_V2.Communication
 {
     /// <summary>
     /// Redis 通信器，负责监听外部触发信号、读写检测任务状态及其结果。

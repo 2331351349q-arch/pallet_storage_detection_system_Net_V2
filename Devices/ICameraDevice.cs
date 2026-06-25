@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 
-namespace material_box_storage_detection_system_Net.Devices
+namespace pallet_storage_detection_system_Net_V2.Devices
 {
     /// <summary>
     /// 通用相机设备接口，抽象了不同厂商（海康、图漾等）的底层实现差异。

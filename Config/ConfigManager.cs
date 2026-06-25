@@ -4,9 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using material_box_storage_detection_system_Net.Models;
+using pallet_storage_detection_system_Net_V2.Models;
 
-namespace material_box_storage_detection_system_Net.Config
+namespace pallet_storage_detection_system_Net_V2.Config
 {
     /// <summary>
     /// 全局配置管理器，负责基于 JSON 的持久化与内存单例管理。

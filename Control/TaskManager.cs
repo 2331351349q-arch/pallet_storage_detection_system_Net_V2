@@ -7,12 +7,12 @@ using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using material_box_storage_detection_system_Net.Models;
-using material_box_storage_detection_system_Net.Communication;
-using material_box_storage_detection_system_Net.Config;
-using material_box_storage_detection_system_Net.Devices;
+using pallet_storage_detection_system_Net_V2.Models;
+using pallet_storage_detection_system_Net_V2.Communication;
+using pallet_storage_detection_system_Net_V2.Config;
+using pallet_storage_detection_system_Net_V2.Devices;
 
-namespace material_box_storage_detection_system_Net.Control
+namespace pallet_storage_detection_system_Net_V2.Control
 {
     /// <summary>
     /// 任务管理器，作为全系统的核心调度中枢。

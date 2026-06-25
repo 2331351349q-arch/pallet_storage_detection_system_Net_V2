@@ -1,9 +1,9 @@
 using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
-using material_box_storage_detection_system_Net.Config;
+using pallet_storage_detection_system_Net_V2.Config;
 
-namespace material_box_storage_detection_system_Net.Models
+namespace pallet_storage_detection_system_Net_V2.Models
 {
     /// <summary>
     /// 表示视觉检测结果实体类，包含所有可能的检测项数据。
