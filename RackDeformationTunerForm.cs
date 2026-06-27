@@ -135,13 +135,18 @@ namespace pallet_storage_detection_system_Net_V2
             _cmbSide = new ComboBox { Width = FlowW, DropDownStyle = ComboBoxStyle.DropDownList };
             _cmbSide.Items.AddRange(new object[] { "left", "right" });
             _cmbSide.SelectedIndex = 0;
-            _cmbSide.SelectedIndexChanged += (_, __) => { UpdateCameraSnFromConfig(); LoadCameraParams(); };
+            _cmbSide.SelectedIndexChanged += (_, __) => { UpdateCameraSnFromConfig(); LoadRoiForCurrentCamera(); };
             flow.Controls.Add(_cmbSide);
 
             // 调参相机选择
             flow.Controls.Add(BoldLabel("当前调参相机 SN"));
             _cmbTuneCamera = new ComboBox { Width = FlowW, DropDownStyle = ComboBoxStyle.DropDownList };
-            _cmbTuneCamera.SelectedIndexChanged += (_, __) => LoadCameraParams();
+            _cmbTuneCamera.SelectedIndexChanged += (_, __) =>
+            {
+                LoadRoiForCurrentCamera();
+                UpdatePreviewImage();
+                Recalculate();
+            };
             flow.Controls.Add(_cmbTuneCamera);
 
             // 按鈕行
@@ -158,7 +163,7 @@ namespace pallet_storage_detection_system_Net_V2
             flow.Controls.Add(btnLine);
 
             // 标定状态
-            _lblCalibStatus = new Label { Width = FlowW, Height = 22, Font = new Font("Consolas", 8F), ForeColor = Color.Gray, TextAlign = ContentAlignment.MiddleLeft };
+            _lblCalibStatus = new Label { Width = FlowW, Height = 22, Font = new Font("Consolas", 8F), ForeColor = Color.Gray, TextAlign = ContentAlignment.MiddleLeft, Text = "📷 标定: — 未指定相机" };
             flow.Controls.Add(_lblCalibStatus);
 
             // 自动适配ROI按鈕
@@ -405,10 +410,12 @@ namespace pallet_storage_detection_system_Net_V2
             UpdateCameraSnFromConfig();
         }
 
-        private void LoadCameraParams()
+        /// <summary>仅加载当前相机 SN 对应的独立 ROI 参数（不触发完整 LoadConfigValues）。</summary>
+        private void LoadRoiForCurrentCamera()
         {
             string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             var camParam = ConfigManager.Instance?.Algorithms?.RackDeformation?.FindCameraParam(sn);
+            
             if (camParam != null)
             {
                 _numDepthMin.Value = Math.Clamp(camParam.ZMin, _numDepthMin.Minimum, _numDepthMin.Maximum);
@@ -433,6 +440,31 @@ namespace pallet_storage_detection_system_Net_V2
                 UpdateRefStatusLabel();
 
                 AppendLog($"切换到相机 [{sn}]", false);
+            }
+            UpdateCalibStatus();
+        }
+
+        private void UpdateCalibStatus()
+        {
+            string? sn = _cmbTuneCamera.SelectedItem?.ToString();
+            if (string.IsNullOrWhiteSpace(sn))
+            {
+                _lblCalibStatus.Text = "📷 标定: — 未指定相机";
+                _lblCalibStatus.ForeColor = Color.Gray;
+                return;
+            }
+            var calib = ConfigManager.GetCalibration(sn);
+            bool hasCalib = calib != null && calib.IsValid;
+            if (hasCalib)
+            {
+                string desc = StackerOffsetAlgo.GetDepthAxisDescription(sn);
+                _lblCalibStatus.Text = $"📷 标定: ✓ 已激活 | {desc} | T={calib!.TranslationVector[0]:F0},{calib.TranslationVector[1]:F0},{calib.TranslationVector[2]:F0}";
+                _lblCalibStatus.ForeColor = Color.LimeGreen;
+            }
+            else
+            {
+                _lblCalibStatus.Text = "📷 标定: ✗ 未激活 — 深度=SDK_X (未变换)";
+                _lblCalibStatus.ForeColor = Color.OrangeRed;
             }
         }
 
@@ -552,11 +584,20 @@ namespace pallet_storage_detection_system_Net_V2
             _lblResult.ForeColor = Color.White;
         }
 
+        private DepthFrameData? GetSelectedFrame()
+        {
+            var sn = _cmbTuneCamera.SelectedItem?.ToString();
+            if (_currentFrame1 != null && _currentFrame1.CameraSn == sn) return _currentFrame1;
+            if (_currentFrame2 != null && _currentFrame2.CameraSn == sn) return _currentFrame2;
+            return _currentFrame1 ?? _currentFrame2;
+        }
+
         // ============ 3D 点云绘制 ============
 
         private void RedrawCloud()
         {
-            if (_currentFrame1 == null && _currentFrame2 == null) return;
+            var selectedFrame = GetSelectedFrame();
+            if (selectedFrame == null) return;
 
             int w = Math.Max(320, _pbCloud.ClientSize.Width);
             int h = Math.Max(240, _pbCloud.ClientSize.Height);
@@ -577,14 +618,22 @@ namespace pallet_storage_detection_system_Net_V2
                 DrawDepthRangeCuboid(g, zMin, zMax, xMinViz, xMaxViz, yMinViz, yMaxViz, yaw, pitch, w, h);
                 
                 using var infoFont = new Font("Consolas", 9F, FontStyle.Bold);
+                using var hintFont = new Font("Microsoft YaHei UI", 7F);
+                string? sn = _cmbTuneCamera.SelectedItem?.ToString();
+                var calib = string.IsNullOrWhiteSpace(sn) ? null : ConfigManager.GetCalibration(sn);
+                bool hasCalib = calib != null && calib.IsValid;
+                string calibText = hasCalib
+                    ? $"✓ 标定已应用 (R|T) | SN={sn}"
+                    : $"⚠ 无标定 — SN={sn ?? "?"} 显示相机原始坐标";
+                Color calibColor = hasCalib ? Color.Lime : Color.OrangeRed;
+                g.DrawString(calibText, infoFont, new SolidBrush(calibColor), 10, h - 52);
                 g.DrawString($"缩放 ×{_zoomLevel:F1}", infoFont, Brushes.Gray, 10, h - 34);
+                g.DrawString("左键旋转 | Shift+拖/中键平移 | 滚轮缩放 | 右键复位", hintFont, Brushes.DimGray, 10, h - 18);
             }
 
             var basePts = new List<System.Numerics.Vector3>();
-            var pts1 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame1);
+            var pts1 = StackerOffsetAlgo.GetBasePointsFromFrame(selectedFrame);
             if (pts1 != null) basePts.AddRange(pts1);
-            var pts2 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame2);
-            if (pts2 != null) basePts.AddRange(pts2);
 
             if (basePts.Count == 0)
             {
@@ -845,22 +894,28 @@ namespace pallet_storage_detection_system_Net_V2
                 _currentFrame2 = results.Length > 1 ? results[1] as DepthFrameData : null;
 
                 if (_currentFrame1 != null) {
-                    _pbPreview.Image?.Dispose();
-                    _pbPreview.Image = (Image)_currentFrame1.PreviewImage.Clone();
-                    AppendLog($"抓图成功 (左) {_currentFrame1.CameraSn}", false);
+                    AppendLog($"抓图成功 (1) {_currentFrame1.CameraSn}", false);
                 }
                 if (_currentFrame2 != null) {
-                    if (_currentFrame1 == null) {
-                        _pbPreview.Image?.Dispose();
-                        _pbPreview.Image = (Image)_currentFrame2.PreviewImage.Clone();
-                    }
-                    AppendLog($"抓图成功 (右) {_currentFrame2.CameraSn}", false);
+                    AppendLog($"抓图成功 (2) {_currentFrame2.CameraSn}", false);
                 }
+
+                UpdatePreviewImage();
 
                 Recalculate();
             }
             catch (Exception ex) { AppendLog($"抓图失败: {ex.Message}", true); }
             finally { btn.Enabled = true; }
+        }
+
+        private void UpdatePreviewImage()
+        {
+            var targetFrame = GetSelectedFrame();
+            if (targetFrame != null)
+            {
+                _pbPreview.Image?.Dispose();
+                _pbPreview.Image = (Image)targetFrame.PreviewImage.Clone();
+            }
         }
 
         private void BtnAutoFitRoi_Click(object? sender, EventArgs e)

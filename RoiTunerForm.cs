@@ -32,6 +32,8 @@ namespace pallet_storage_detection_system_Net_V2
 
         private bool _isDraggingView;
         private Point _lastMousePoint;
+        private double _zoomLevel = 1.0;
+        private double _panX, _panY;
 
         private DepthFrameData? _currentFrame1;
         private DepthFrameData? _currentFrame2;
@@ -91,6 +93,7 @@ namespace pallet_storage_detection_system_Net_V2
             _cmbTuneCamera.SelectedIndexChanged += (_, __) =>
             {
                 LoadRoiForCurrentCamera();
+                UpdatePreviewImage();
                 RedrawCloudAndStats();
             };
             leftFlow.Controls.Add(_cmbTuneCamera);
@@ -157,6 +160,7 @@ namespace pallet_storage_detection_system_Net_V2
             _pbCloud.MouseMove += PbCloud_MouseMove;
             _pbCloud.MouseUp += PbCloud_MouseUp;
             _pbCloud.MouseLeave += (_, __) => _isDraggingView = false;
+            _pbCloud.MouseWheel += PbCloud_MouseWheel;
             _pbCloud.Cursor = Cursors.Hand;
             _rightSplit.Panel1.Controls.Add(_pbCloud);
 
@@ -190,10 +194,20 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void PbCloud_MouseDown(object? sender, MouseEventArgs e)
         {
-            if (e.Button != MouseButtons.Left) return;
-            _isDraggingView = true;
-            _lastMousePoint = e.Location;
-            _pbCloud.Cursor = Cursors.SizeAll;
+            if (e.Button == MouseButtons.Left)
+            {
+                _isDraggingView = true;
+                _lastMousePoint = e.Location;
+                _pbCloud.Cursor = Cursors.SizeAll;
+            }
+            else if (e.Button == MouseButtons.Right)
+            {
+                // 右键复位视角和缩放
+                _zoomLevel = 1.0;
+                _panX = 0; _panY = 0;
+                _numYaw.Value = 20;
+                _numPitch.Value = -12;
+            }
         }
 
         private void PbCloud_MouseMove(object? sender, MouseEventArgs e)
@@ -204,14 +218,23 @@ namespace pallet_storage_detection_system_Net_V2
             int dy = e.Y - _lastMousePoint.Y;
             _lastMousePoint = e.Location;
 
-            decimal yawStep = (decimal)(dx * 0.6);
-            decimal pitchStep = (decimal)(-dy * 0.45);
+            if ((ModifierKeys & Keys.Shift) != 0 || e.Button == MouseButtons.Middle)
+            {
+                _panX += dx;
+                _panY += dy;
+            }
+            else
+            {
+                decimal yawStep = (decimal)(dx * 0.6);
+                decimal pitchStep = (decimal)(-dy * 0.45);
 
-            decimal newYaw = Math.Clamp(_numYaw.Value + yawStep, _numYaw.Minimum, _numYaw.Maximum);
-            decimal newPitch = Math.Clamp(_numPitch.Value + pitchStep, _numPitch.Minimum, _numPitch.Maximum);
+                decimal newYaw = Math.Clamp(_numYaw.Value + yawStep, _numYaw.Minimum, _numYaw.Maximum);
+                decimal newPitch = Math.Clamp(_numPitch.Value + pitchStep, _numPitch.Minimum, _numPitch.Maximum);
 
-            _numYaw.Value = newYaw;
-            _numPitch.Value = newPitch;
+                _numYaw.Value = newYaw;
+                _numPitch.Value = newPitch;
+            }
+            RedrawCloudImageOnly();
         }
 
         private void PbCloud_MouseUp(object? sender, MouseEventArgs e)
@@ -219,7 +242,15 @@ namespace pallet_storage_detection_system_Net_V2
             if (e.Button != MouseButtons.Left) return;
             _isDraggingView = false;
             _pbCloud.Cursor = Cursors.Hand;
-            RedrawCloudAndStats(); // Fully redraw when dragging finishes
+            RedrawCloudAndStats();
+        }
+
+        private void PbCloud_MouseWheel(object? sender, MouseEventArgs e)
+        {
+            double factor = e.Delta > 0 ? 1.2 : 1.0 / 1.2;
+            _zoomLevel = Math.Clamp(_zoomLevel * factor, 0.2, 50.0);
+            RedrawCloudAndStats();
+            ((HandledMouseEventArgs)e).Handled = true;
         }
 
         private TextBox CreateRoiText(System.Windows.Forms.Control parent)
@@ -349,19 +380,13 @@ namespace pallet_storage_detection_system_Net_V2
                 _currentFrame2 = results.Length > 1 ? results[1] as DepthFrameData : null;
 
                 if (_currentFrame1 != null) {
-                    _pbPreview.Image?.Dispose();
-                    _pbPreview.Image = (Image)_currentFrame1.PreviewImage.Clone();
-                    _lblPreviewMeta.Text = $"预览: SN={_currentFrame1.CameraSn} | {_currentFrame1.Width}x{_currentFrame1.Height} | {DateTime.Now:HH:mm:ss.fff}";
-                    AppendLog($"抓图成功 (左) {_currentFrame1.CameraSn}", false);
+                    AppendLog($"抓图成功 (1) {_currentFrame1.CameraSn}", false);
                 }
                 if (_currentFrame2 != null) {
-                    if (_currentFrame1 == null) {
-                        _pbPreview.Image?.Dispose();
-                        _pbPreview.Image = (Image)_currentFrame2.PreviewImage.Clone();
-                        _lblPreviewMeta.Text = $"预览: SN={_currentFrame2.CameraSn} | {_currentFrame2.Width}x{_currentFrame2.Height} | {DateTime.Now:HH:mm:ss.fff}";
-                    }
-                    AppendLog($"抓图成功 (右) {_currentFrame2.CameraSn}", false);
+                    AppendLog($"抓图成功 (2) {_currentFrame2.CameraSn}", false);
                 }
+
+                UpdatePreviewImage();
 
                 RedrawCloudAndStats();
             }
@@ -412,6 +437,14 @@ namespace pallet_storage_detection_system_Net_V2
 
         private List<System.Numerics.Vector3> _mergedPtsCache = new List<System.Numerics.Vector3>();
 
+        private DepthFrameData? GetSelectedFrame()
+        {
+            var sn = _cmbTuneCamera.SelectedItem?.ToString();
+            if (_currentFrame1 != null && _currentFrame1.CameraSn == sn) return _currentFrame1;
+            if (_currentFrame2 != null && _currentFrame2.CameraSn == sn) return _currentFrame2;
+            return _currentFrame1 ?? _currentFrame2;
+        }
+
         private void RedrawCloudAndStats()
         {
             if (!TryReadRoi(out var roi))
@@ -420,90 +453,144 @@ namespace pallet_storage_detection_system_Net_V2
                 return;
             }
 
-            if (_currentFrame1 == null && _currentFrame2 == null)
+            var selectedFrame = GetSelectedFrame();
+            if (selectedFrame == null)
             {
                 _lblStats.Text = "当前无深度帧";
                 return;
             }
 
             _mergedPtsCache.Clear();
-            var pts1 = _currentFrame1?.GetPointCloud();
-            if (pts1 != null) _mergedPtsCache.AddRange(pts1);
-            var pts2 = _currentFrame2?.GetPointCloud();
-            if (pts2 != null) _mergedPtsCache.AddRange(pts2);
+            var pts = selectedFrame.GetPointCloud();
+            if (pts != null) _mergedPtsCache.AddRange(pts);
 
             RenderCloudImage(_mergedPtsCache, roi);
 
             int count = CountPointsInRoi(_mergedPtsCache, roi);
             int threshold = ConfigManager.Instance?.Algorithms?.SlotOccupancy?.PointThreshold ?? 10000;
-            _lblStats.Text = $"ROI内点数: {count} / 阈值: {threshold} / 判定: {(count > threshold ? "有货" : "无货")}";
+            string cameraLabel = selectedFrame.CameraSn?.Length > 6 ? "..." + selectedFrame.CameraSn[^6..] : selectedFrame.CameraSn ?? "?";
+            _lblStats.Text = $"相机: {cameraLabel} | ROI内点数: {count} / 阈值: {threshold} / 判定: {(count > threshold ? "有货" : "无货")}";
         }
 
         private void RedrawCloudImageOnly()
         {
             if (!TryReadRoi(out var roi)) return;
-            if (_currentFrame1 == null && _currentFrame2 == null) return;
+            if (GetSelectedFrame() == null) return;
             
             RenderCloudImage(_mergedPtsCache, roi);
+        }
+
+        private void UpdatePreviewImage()
+        {
+            var targetFrame = GetSelectedFrame();
+            if (targetFrame != null)
+            {
+                _pbPreview.Image?.Dispose();
+                _pbPreview.Image = (Image)targetFrame.PreviewImage.Clone();
+                _lblPreviewMeta.Text = $"预览: SN={targetFrame.CameraSn} | {targetFrame.Width}x{targetFrame.Height} | {DateTime.Now:HH:mm:ss.fff}";
+            }
         }
 
         private void RenderCloudImage(List<System.Numerics.Vector3> pointCloud, Roi3D roi)
         {
             int w = Math.Max(320, _pbCloud.ClientSize.Width);
             int h = Math.Max(240, _pbCloud.ClientSize.Height);
-            var bmp = new Bitmap(w, h);
+            var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
 
-            using var g = Graphics.FromImage(bmp);
-            g.Clear(Color.FromArgb(16, 16, 18));
+            // GDI 绘制背景 + ROI 框 + 文字
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.Clear(Color.FromArgb(16, 16, 18));
+                double yaw = (double)_numYaw.Value * Math.PI / 180.0;
+                double pitch = (double)_numPitch.Value * Math.PI / 180.0;
+                using var pen = new Pen(Color.OrangeRed, 1.5f) { DashStyle = DashStyle.Dash };
+                DrawRoiCube2D(g, pen, roi, yaw, pitch, w, h);
 
-            int step = _isDraggingView ? Math.Max(12, (int)_numSample.Value) : Math.Max(1, (int)_numSample.Value);
-            var yaw = (double)_numYaw.Value * Math.PI / 180.0;
-            var pitch = (double)_numPitch.Value * Math.PI / 180.0;
+                using var infoFont = new Font("Consolas", 9F, FontStyle.Bold);
+                using var hintFont = new Font("Microsoft YaHei UI", 7F);
+                string? sn = _cmbTuneCamera.SelectedItem?.ToString();
+                var calib = string.IsNullOrWhiteSpace(sn) ? null : ConfigManager.GetCalibration(sn);
+                bool hasCalib = calib != null && calib.IsValid;
+                string calibText = hasCalib
+                    ? $"✓ 标定已应用 (R|T) | SN={sn}"
+                    : $"⚠ 无标定 — SN={sn ?? "?"} 显示相机原始坐标";
+                Color calibColor = hasCalib ? Color.Lime : Color.OrangeRed;
+                g.DrawString(calibText, infoFont, new SolidBrush(calibColor), 10, h - 52);
+                g.DrawString($"缩放 ×{_zoomLevel:F1}", infoFont, Brushes.Gray, 10, h - 34);
+                g.DrawString("左键旋转 | Shift+拖/中键平移 | 滚轮缩放 | 右键复位", hintFont, Brushes.DimGray, 10, h - 18);
+            }
 
-            // Point cloud is already provided directly
+            // LockBits 高性能渲染点云
+            double yaw2 = (double)_numYaw.Value * Math.PI / 180.0;
+            double pitch2 = (double)_numPitch.Value * Math.PI / 180.0;
+
+            int step = _isDraggingView ? Math.Max(8, (int)_numSample.Value) : Math.Max(1, (int)_numSample.Value);
             int totalStep = step * step;
-            using var p = new SolidBrush(Color.Lime);
+
+            var drawList = new List<(int sx, int sy)>(pointCloud.Count / totalStep + 100);
             for (int i = 0; i < pointCloud.Count; i += totalStep)
             {
                 var pt = pointCloud[i];
-                if (ProjectPoint(pt.X, -pt.Y, pt.Z, yaw, pitch, w, h, out var sx, out var sy))
+                if (ProjectPt(pt.X, -pt.Y, pt.Z, yaw2, pitch2, w, h, out int sx, out int sy))
                 {
-                    g.FillRectangle(p, sx, sy, 2, 2);
+                    drawList.Add((sx, sy));
                 }
             }
 
-            using var pen = new Pen(Color.OrangeRed, 2f);
-            DrawRoiCube2D(g, pen, roi, yaw, pitch, w, h);
+            var rect = new Rectangle(0, 0, w, h);
+            var bmpData = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            try
+            {
+                int stride = bmpData.Stride;
+                int bufSize = stride * h;
+                byte[] buffer = new byte[bufSize];
+                System.Runtime.InteropServices.Marshal.Copy(bmpData.Scan0, buffer, 0, bufSize);
+
+                void SetPixel(byte[] buf, int px, int py, byte r, byte g, byte b)
+                {
+                    if ((uint)px >= (uint)w || (uint)py >= (uint)h) return;
+                    int off = py * stride + px * 4;
+                    buf[off] = b; buf[off + 1] = g; buf[off + 2] = r; buf[off + 3] = 255;
+                }
+
+                int dynamicSz = (int)(Math.Max(1.0, _zoomLevel * 0.8));
+                int dotSz = step <= 1 ? dynamicSz : 1;
+                int hsz = dotSz / 2;
+                byte r = 0, g = 255, b = 0; // 亮绿色点云
+
+                foreach (var (sx, sy) in drawList)
+                {
+                    for (int dy = -hsz; dy <= hsz; dy++)
+                        for (int dx = -hsz; dx <= hsz; dx++)
+                            SetPixel(buffer, sx + dx, sy + dy, r, g, b);
+                }
+
+                System.Runtime.InteropServices.Marshal.Copy(buffer, 0, bmpData.Scan0, bufSize);
+            }
+            finally
+            {
+                bmp.UnlockBits(bmpData);
+            }
 
             _pbCloud.Image?.Dispose();
             _pbCloud.Image = bmp;
         }
 
-        private static bool ProjectPoint(double x, double y, double z, double yaw, double pitch, int w, int h, out float sx, out float sy)
+        private bool ProjectPt(double x, double y, double z, double yaw, double pitch, int w, int h, out int sx, out int sy)
         {
-            double cosY = Math.Cos(yaw);
-            double sinY = Math.Sin(yaw);
-            double cosP = Math.Cos(pitch);
-            double sinP = Math.Sin(pitch);
-
+            double cosY = Math.Cos(yaw), sinY = Math.Sin(yaw);
+            double cosP = Math.Cos(pitch), sinP = Math.Sin(pitch);
             double x1 = x * cosY + z * sinY;
             double z1 = -x * sinY + z * cosY;
-
             double y2 = y * cosP - z1 * sinP;
             double z2 = y * sinP + z1 * cosP;
-
             double dist = 4000.0;
             double d = z2 + dist;
-            if (d <= 10)
-            {
-                sx = sy = 0;
-                return false;
-            }
-
-            double f = 900.0;
-            sx = (float)(w * 0.5 + x1 * f / d);
-            sy = (float)(h * 0.5 - y2 * f / d);
-            return sx >= 0 && sx < w && sy >= 0 && sy < h;
+            if (d <= 10) { sx = sy = 0; return false; }
+            double f = 900.0 * _zoomLevel;
+            sx = (int)(w * 0.5 + x1 * f / d + _panX);
+            sy = (int)(h * 0.5 - y2 * f / d + _panY);
+            return sx >= -10 && sx < w + 10 && sy >= -10 && sy < h + 10;
         }
 
         private void DrawRoiCube2D(Graphics g, Pen pen, Roi3D roi, double yaw, double pitch, int w, int h)
@@ -522,7 +609,7 @@ namespace pallet_storage_detection_system_Net_V2
 
             var pts = corners.Select(c =>
             {
-                bool ok = ProjectPoint(c.Item1, c.Item2, c.Item3, yaw, pitch, w, h, out var sx, out var sy);
+                bool ok = ProjectPt(c.Item1, c.Item2, c.Item3, yaw, pitch, w, h, out var sx, out var sy);
                 return (ok, p: new PointF(sx, sy));
             }).ToArray();
 

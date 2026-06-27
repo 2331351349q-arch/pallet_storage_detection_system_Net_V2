@@ -162,16 +162,16 @@ namespace pallet_storage_detection_system_Net_V2.Config
         public int PointThreshold { get; set; } = 10000;
 
         /// <summary>
-        /// 左侧 3D 感兴趣区域限制。
+        /// 左侧 3D 感兴趣区域限制（仅作 fallback，已由 CameraRoiParams 替代）。
         /// </summary>
-        [DisplayName("左侧 3D ROI 范围 (已废弃)"), Description("格式: minX, maxX, minY, maxY, minZ, maxZ")]
+        [Browsable(false)]
         [Obsolete("请使用 CameraRoiParams 代替全局设定", false)]
         public List<int> Roi3dLeft { get; set; } = new List<int> { -500, 500, -500, 500, 1000, 3000 };
 
         /// <summary>
-        /// 右侧 3D 感兴趣区域限制。
+        /// 右侧 3D 感兴趣区域限制（仅作 fallback，已由 CameraRoiParams 替代）。
         /// </summary>
-        [DisplayName("右侧 3D ROI 范围 (已废弃)"), Description("格式: minX, maxX, minY, maxY, minZ, maxZ")]
+        [Browsable(false)]
         [Obsolete("请使用 CameraRoiParams 代替全局设定", false)]
         public List<int> Roi3dRight { get; set; } = new List<int> { -500, 500, -500, 500, 1000, 3000 };
 

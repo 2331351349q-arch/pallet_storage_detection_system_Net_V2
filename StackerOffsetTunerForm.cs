@@ -129,8 +129,13 @@ namespace pallet_storage_detection_system_Net_V2
 
             // 调参相机选择
             flow.Controls.Add(BoldLabel("当前调参相机 SN"));
-            _cmbTuneCamera = new ComboBox { Width = FlowW, DropDownStyle = ComboBoxStyle.DropDownList };
-            _cmbTuneCamera.SelectedIndexChanged += (_, __) => LoadCameraParams();
+            _cmbTuneCamera = new ComboBox { Width = 340, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cmbTuneCamera.SelectedIndexChanged += (_, __) =>
+            {
+                LoadRoiForCurrentCamera();
+                UpdatePreviewImage();
+                Recalculate();
+            };
             flow.Controls.Add(_cmbTuneCamera);
 
             // 按鈕行
@@ -439,7 +444,7 @@ namespace pallet_storage_detection_system_Net_V2
         }
 
         /// <summary>仅加载当前相机 SN 对应的独立 ROI 参数（不触发完整 LoadConfigValues）。</summary>
-        private void LoadCameraParams()
+        private void LoadRoiForCurrentCamera()
         {
             string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             var camParam = ConfigManager.Instance?.Algorithms?.StackerOffset?.FindCameraParam(sn);
@@ -476,6 +481,8 @@ namespace pallet_storage_detection_system_Net_V2
             }
             UpdateRefLabel();
         }
+
+        private void LoadCameraParams() { LoadRoiForCurrentCamera(); }
 
         /// <summary>获取当前相机对应的 CameraRoiParam（如果存在）或 null。</summary>
         private CameraRoiParam? GetCurrentCameraParam()
@@ -613,11 +620,20 @@ namespace pallet_storage_detection_system_Net_V2
             _lblResult.ForeColor = Color.White;
         }
 
+        private DepthFrameData? GetSelectedFrame()
+        {
+            var sn = _cmbTuneCamera.SelectedItem?.ToString();
+            if (_currentFrame1 != null && _currentFrame1.CameraSn == sn) return _currentFrame1;
+            if (_currentFrame2 != null && _currentFrame2.CameraSn == sn) return _currentFrame2;
+            return _currentFrame1 ?? _currentFrame2;
+        }
+
         // ============ 3D 点云绘制 ============
 
         private void RedrawCloud()
         {
-            if (_currentFrame1 == null && _currentFrame2 == null) return;
+            var selectedFrame = GetSelectedFrame();
+            if (selectedFrame == null) return;
 
             int w = Math.Max(320, _pbCloud.ClientSize.Width);
             int h = Math.Max(240, _pbCloud.ClientSize.Height);
@@ -637,15 +653,15 @@ namespace pallet_storage_detection_system_Net_V2
                 double xMaxViz = (double)_numXMaxRoi.Value;
                 DrawDepthRangeCuboid(g, zMin, zMax, xMinViz, xMaxViz, yMinViz, yMaxViz, yaw, pitch, w, h);
 
-                // 叠加文字：标定状态 + 缩放 + 提示
+                // 叠加文字：相机SN + 标定状态 + 缩放 + 提示
                 using var infoFont = new Font("Consolas", 9F, FontStyle.Bold);
                 using var hintFont = new Font("Microsoft YaHei UI", 7F);
                 string? sn = _cmbTuneCamera.SelectedItem?.ToString();
                 var calib = string.IsNullOrWhiteSpace(sn) ? null : ConfigManager.GetCalibration(sn);
                 bool hasCalib = calib != null && calib.IsValid;
                 string calibText = hasCalib
-                    ? $"✓ 标定已应用 (R|T) | {StackerOffsetAlgo.GetDepthAxisDescription(sn!)}"
-                    : "⚠ 无标定 — 显示相机原始坐标";
+                    ? $"✓ 标定已应用 (R|T) | SN={sn} | {StackerOffsetAlgo.GetDepthAxisDescription(sn!)}"
+                    : $"⚠ 无标定 — SN={sn} 显示相机原始坐标";
                 Color calibColor = hasCalib ? Color.Lime : Color.OrangeRed;
                 g.DrawString(calibText, infoFont, new SolidBrush(calibColor), 10, h - 52);
                 g.DrawString($"缩放 ×{_zoomLevel:F1}", infoFont, Brushes.Gray, 10, h - 34);
@@ -666,10 +682,8 @@ namespace pallet_storage_detection_system_Net_V2
             double beamThresh = _currentDebug?.BeamZThreshold ?? (zMin2 * 0.8);
 
             var basePts = new List<System.Numerics.Vector3>();
-            var pts1 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame1);
+            var pts1 = StackerOffsetAlgo.GetBasePointsFromFrame(selectedFrame);
             if (pts1 != null) basePts.AddRange(pts1);
-            var pts2 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame2);
-            if (pts2 != null) basePts.AddRange(pts2);
 
             if (basePts.Count == 0)
             {
@@ -1121,6 +1135,8 @@ namespace pallet_storage_detection_system_Net_V2
         private async void BtnGrab_Click(object? sender, EventArgs e)
         {
             if (_currentSideSNs.Count == 0) { AppendLog("当前侧无相机配置", true); return; }
+            var btn = (Button)sender!;
+            btn.Enabled = false;
 
             var tasks = new List<Task<object>>();
             foreach (var sn in _currentSideSNs)
@@ -1131,7 +1147,7 @@ namespace pallet_storage_detection_system_Net_V2
                 tasks.Add(cam.GrabFrameAsync()!);
             }
 
-            if (tasks.Count == 0) return;
+            if (tasks.Count == 0) { btn.Enabled = true; return; }
 
             try
             {
@@ -1140,22 +1156,29 @@ namespace pallet_storage_detection_system_Net_V2
                 _currentFrame1 = results.Length > 0 ? results[0] as DepthFrameData : null;
                 _currentFrame2 = results.Length > 1 ? results[1] as DepthFrameData : null;
 
-                _pbPreview.Image?.Dispose();
-                var combinedPreview = new Bitmap(_pbPreview.Width, _pbPreview.Height); // Simplified preview merge for time
-                
                 if (_currentFrame1 != null) {
-                    _pbPreview.Image = (Image)_currentFrame1.PreviewImage.Clone();
-                    AppendLog($"抓图成功 (左) {_currentFrame1.CameraSn}", false);
+                    AppendLog($"抓图成功 (1) {_currentFrame1.CameraSn}", false);
                 }
                 if (_currentFrame2 != null) {
-                    // Just overwrite preview with camera2 if camera1 failed, or we could stitch them. For simplicity in Tuner UI, just show one of them for preview.
-                    if (_currentFrame1 == null) _pbPreview.Image = (Image)_currentFrame2.PreviewImage.Clone();
-                    AppendLog($"抓图成功 (右) {_currentFrame2.CameraSn}", false);
+                    AppendLog($"抓图成功 (2) {_currentFrame2.CameraSn}", false);
                 }
+
+                UpdatePreviewImage();
 
                 Recalculate();
             }
             catch (Exception ex) { AppendLog($"抓图失败: {ex.Message}", true); }
+            finally { btn.Enabled = true; }
+        }
+
+        private void UpdatePreviewImage()
+        {
+            var targetFrame = GetSelectedFrame();
+            if (targetFrame != null)
+            {
+                _pbPreview.Image?.Dispose();
+                _pbPreview.Image = (Image)targetFrame.PreviewImage.Clone();
+            }
         }
 
         /// <summary>
