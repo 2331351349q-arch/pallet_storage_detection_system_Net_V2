@@ -27,6 +27,7 @@ namespace pallet_storage_detection_system_Net_V2
             pictureBox_Camera1 = new PictureBox();
             pictureBox_Camera2 = new PictureBox();
             pictureBox_Camera3 = new PictureBox();
+            pictureBox_Camera4 = new PictureBox();
             groupBox_Logs = new GroupBox();
             listBox_Log = new ListBox();
             panel_Top.SuspendLayout();
@@ -36,6 +37,7 @@ namespace pallet_storage_detection_system_Net_V2
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera1).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera2).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera3).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox_Camera4).BeginInit();
             groupBox_Logs.SuspendLayout();
             SuspendLayout();
             // 
@@ -76,7 +78,7 @@ namespace pallet_storage_detection_system_Net_V2
             btn_LiveLeft.Name = "btn_LiveLeft";
             btn_LiveLeft.Size = new Size(180, 30);
             btn_LiveLeft.TabIndex = 1;
-            btn_LiveLeft.Text = "▶ 左侧实时预览 (2台)";
+            btn_LiveLeft.Text = "▶ 左侧触发采集 (4台)";
             btn_LiveLeft.UseVisualStyleBackColor = false;
             btn_LiveLeft.Click += btn_LiveLeft_Click;
             // 
@@ -90,7 +92,7 @@ namespace pallet_storage_detection_system_Net_V2
             btn_LiveRight.Name = "btn_LiveRight";
             btn_LiveRight.Size = new Size(180, 30);
             btn_LiveRight.TabIndex = 2;
-            btn_LiveRight.Text = "▶ 右侧实时预览 (2台)";
+            btn_LiveRight.Text = "▶ 右侧触发采集 (4台)";
             btn_LiveRight.UseVisualStyleBackColor = false;
             btn_LiveRight.Click += btn_LiveRight_Click;
             // 
@@ -100,7 +102,7 @@ namespace pallet_storage_detection_system_Net_V2
             btn_ToolHub.FlatStyle = FlatStyle.Flat;
             btn_ToolHub.Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Bold);
             btn_ToolHub.ForeColor = Color.FromArgb(30, 50, 80);
-            btn_ToolHub.Location = new Point(750, 5);
+            btn_ToolHub.Location = new Point(550, 5);
             btn_ToolHub.Name = "btn_ToolHub";
             btn_ToolHub.Size = new Size(255, 30);
             btn_ToolHub.TabIndex = 4;
@@ -145,6 +147,7 @@ namespace pallet_storage_detection_system_Net_V2
             tableLayoutPanel_Images.Controls.Add(pictureBox_Camera1, 0, 0);
             tableLayoutPanel_Images.Controls.Add(pictureBox_Camera2, 1, 0);
             tableLayoutPanel_Images.Controls.Add(pictureBox_Camera3, 0, 1);
+            tableLayoutPanel_Images.Controls.Add(pictureBox_Camera4, 1, 1);
             tableLayoutPanel_Images.Dock = DockStyle.Fill;
             tableLayoutPanel_Images.Location = new Point(3, 21);
             tableLayoutPanel_Images.Name = "tableLayoutPanel_Images";
@@ -186,6 +189,17 @@ namespace pallet_storage_detection_system_Net_V2
             pictureBox_Camera3.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox_Camera3.TabIndex = 2;
             pictureBox_Camera3.TabStop = false;
+            // 
+            // pictureBox_Camera4
+            // 
+            pictureBox_Camera4.BackColor = Color.Black;
+            pictureBox_Camera4.Dock = DockStyle.Fill;
+            pictureBox_Camera4.Location = new Point(505, 232);
+            pictureBox_Camera4.Name = "pictureBox_Camera4";
+            pictureBox_Camera4.Size = new Size(497, 224);
+            pictureBox_Camera4.SizeMode = PictureBoxSizeMode.Zoom;
+            pictureBox_Camera4.TabIndex = 3;
+            pictureBox_Camera4.TabStop = false;
             // 
             // groupBox_Logs
             // 
@@ -232,6 +246,7 @@ namespace pallet_storage_detection_system_Net_V2
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera1).EndInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera2).EndInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox_Camera3).EndInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox_Camera4).EndInit();
             groupBox_Logs.ResumeLayout(false);
             ResumeLayout(false);
         }
@@ -244,6 +259,7 @@ namespace pallet_storage_detection_system_Net_V2
         private System.Windows.Forms.PictureBox pictureBox_Camera1;
         private System.Windows.Forms.PictureBox pictureBox_Camera2;
         private System.Windows.Forms.PictureBox pictureBox_Camera3;
+        private System.Windows.Forms.PictureBox pictureBox_Camera4;
         private System.Windows.Forms.GroupBox groupBox_Logs;
         private System.Windows.Forms.ListBox listBox_Log;
         private System.Windows.Forms.Button btn_Config;

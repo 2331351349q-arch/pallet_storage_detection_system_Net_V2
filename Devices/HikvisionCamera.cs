@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Threading.Tasks;
 using MvCamCtrl.NET;
@@ -45,6 +45,8 @@ namespace pallet_storage_detection_system_Net_V2.Devices
         /// <returns>连接并开启配置是否成功。</returns>
         public bool Connect()
         {
+            if (IsConnected) return true;
+
             MyCamera.MV_CC_DEVICE_INFO_LIST stDevList = new MyCamera.MV_CC_DEVICE_INFO_LIST();
             // 枚举支持的物理传输后端
             int nRet = MyCamera.MV_CC_EnumDevices_NET(MyCamera.MV_GIGE_DEVICE | MyCamera.MV_USB_DEVICE, ref stDevList);

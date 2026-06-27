@@ -1,5 +1,7 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using UCV.CameraApi.Interop;
@@ -7,6 +9,7 @@ using UCV.CameraApi.Interop.Utils;
 using UCV.DataModel.Interop;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
+using pallet_storage_detection_system_Net_V2.Config;
 
 namespace pallet_storage_detection_system_Net_V2.Devices
 {
@@ -65,6 +68,7 @@ namespace pallet_storage_detection_system_Net_V2.Devices
         /// <returns>连接结果。</returns>
         public bool Connect()
         {
+            if (IsConnected) return true;
             if (!_isSdkInitialized) throw new Exception("【致命】TuYang SDK未能成功启用.");
 
             // 扫描当前拓扑结构并刷新列表。
@@ -94,6 +98,18 @@ namespace pallet_storage_detection_system_Net_V2.Devices
             if (_device.GetFeature("AcquisitionMode", out feat) == CameraApiStatus.Success)
             {
                 feat.SetValue(new CameraValue(CameraValueType.Int32, 2)); 
+            }
+
+            // 启用软件触发模式，解决红外串扰
+            if (_device.GetFeature("TriggerMode", out CameraFeature trigMode) == CameraApiStatus.Success)
+            {
+                var st = trigMode.SetValue(new CameraValue(CameraValueType.String, "On"));
+                if (st != CameraApiStatus.Success) trigMode.SetValue(new CameraValue(CameraValueType.Int32, 1));
+            }
+            if (_device.GetFeature("TriggerSource", out CameraFeature trigSrc) == CameraApiStatus.Success)
+            {
+                var st = trigSrc.SetValue(new CameraValue(CameraValueType.String, "Software"));
+                if (st != CameraApiStatus.Success) trigSrc.SetValue(new CameraValue(CameraValueType.Int32, 0));
             }
 
             // 注册底层 C++ 回调事件。
@@ -1144,53 +1160,186 @@ namespace pallet_storage_detection_system_Net_V2.Devices
         /// <returns>返回处理后的深度帧 DepthFrameData；超时返回红色警告 Bitmap。</returns>
         public async Task<object> GrabFrameAsync()
         {
-            bool wasColdStart = !IsCapturing;
-            if (!IsCapturing)
+            // 在冷启动或任何采集前，先排队获取通行证，保证红外互不干扰
+            await CameraTdmCoordinator.EnterAsync(SerialNumber);
+            try
             {
-                bool started = StartGrabbing();
-                if (!started)
+                bool wasColdStart = !IsCapturing;
+                if (!IsCapturing)
                 {
-                    Console.WriteLine($"[错误] 相机 {SerialNumber} 启动取流失败，可能未连接或硬件异常");
-                    var errBmp = new Bitmap(640, 480);
-                    using (var g = Graphics.FromImage(errBmp))
+                    bool started = StartGrabbing();
+                    if (!started)
+                    {
+                        Console.WriteLine($"[错误] 相机 {SerialNumber} 启动取流失败，可能未连接或硬件异常");
+                        var errBmp = new Bitmap(640, 480);
+                        using (var g = Graphics.FromImage(errBmp))
+                        {
+                            g.Clear(Color.DarkRed);
+                            g.DrawString($"START FAIL\nSN: {SerialNumber}", new Font("Arial", 24, FontStyle.Bold), Brushes.White, 40, 200);
+                        }
+                        return errBmp;
+                    }
+
+                    // 冷启动后等待 150ms 让 SDK 完成首帧初始化
+                    await Task.Delay(150);
+                }
+
+                _frameTcs = new TaskCompletionSource<object>();
+
+                // 发送软触发命令
+                if (_device.GetFeature("TriggerSoftware", out CameraFeature trigFeat) == CameraApiStatus.Success)
+                {
+                    var executeMethod = trigFeat.GetType().GetMethod("Execute", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (executeMethod != null)
+                    {
+                        executeMethod.Invoke(trigFeat, null);
+                    }
+                    else
+                    {
+                        trigFeat.SetValue(new CameraValue(CameraValueType.Int32, 1));
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[警告] {SerialNumber} 未找到 TriggerSoftware 特征。");
+                }
+
+                // 构建 5 秒超时熔断任务。
+                var timeoutTask = Task.Delay(5000);
+
+                // 并发竞争：看回调先到还是时间先到。
+                var completedTask = await Task.WhenAny(_frameTcs.Task, timeoutTask);
+
+                if (completedTask == _frameTcs.Task)
+                {
+                    return await _frameTcs.Task;
+                }
+                else
+                {
+                    string hint = wasColdStart ? "（冷启动）" : "";
+                    Console.WriteLine($"[警告] 从图漾 3D 相机 {SerialNumber} 抓图超时{hint}。返回占位图以保障流程。");
+                    _frameTcs.TrySetCanceled();
+
+                    // 生成红色警示背景的错误提示图。
+                    var failBmp = new Bitmap(640, 480);
+                    using (var g = Graphics.FromImage(failBmp))
                     {
                         g.Clear(Color.DarkRed);
-                        g.DrawString($"START FAIL\nSN: {SerialNumber}", new Font("Arial", 24, FontStyle.Bold), Brushes.White, 40, 200);
+                        g.DrawString($"TIMEOUT\nSN: {SerialNumber}\n{hint}", new Font("Arial", 24, FontStyle.Bold), Brushes.White, 80, 150);
                     }
-                    return errBmp;
+                    return failBmp;
                 }
-
-                // 冷启动后等待 150ms 让 SDK 完成首帧初始化
-                await Task.Delay(150);
             }
-
-            _frameTcs = new TaskCompletionSource<object>();
-
-            // 构建 5 秒超时熔断任务。
-            var timeoutTask = Task.Delay(5000);
-            
-            // 并发竞争：看回调先到还是时间先到。
-            var completedTask = await Task.WhenAny(_frameTcs.Task, timeoutTask);
-
-            if (completedTask == _frameTcs.Task)
+            finally
             {
-                return await _frameTcs.Task;
+                // 注意：在软件触发模式下，不需要频繁 StopGrabbing。
+                // 采集结束，只需退出交替组，保持硬件取流引擎开启（此时不会发射激光，直到下次软触发）。
+                CameraTdmCoordinator.Exit(SerialNumber);
             }
-            else
+        }
+    }
+
+    /// <summary>
+    /// 基于相机分组（左侧/右侧）的防串扰并发协调器。
+    /// 保证同侧相机可并发采集，对侧相机需排队等待。
+    /// </summary>
+    public static class CameraTdmCoordinator
+    {
+        private static readonly object _sync = new object();
+        private static string _activeSide = null;
+        private static int _activeCount = 0;
+        private static readonly Queue<(string side, TaskCompletionSource<bool> tcs)> _waitQueue = new();
+
+        /// <summary>
+        /// 申请进入当前侧别的采集通行区
+        /// </summary>
+        public static async Task EnterAsync(string sn)
+        {
+            string side = GetSideBySn(sn);
+
+            TaskCompletionSource<bool> tcs = null;
+            lock (_sync)
             {
-                string hint = wasColdStart ? "（冷启动）" : "";
-                Console.WriteLine($"[警告] 从图漾 3D 相机 {SerialNumber} 抓图超时{hint}。返回占位图以保障流程。");
-                _frameTcs.TrySetCanceled();
-                
-                // 生成红色警示背景的错误提示图。
-                var failBmp = new Bitmap(640, 480);
-                using (var g = Graphics.FromImage(failBmp))
+                if (_activeCount == 0)
                 {
-                    g.Clear(Color.DarkRed);
-                    g.DrawString($"TIMEOUT\nSN: {SerialNumber}\n{hint}", new Font("Arial", 24, FontStyle.Bold), Brushes.White, 80, 150);
+                    // 当前无人使用，直接进入
+                    _activeSide = side;
+                    _activeCount++;
+                    return;
                 }
-                return failBmp;
+                else if (_activeSide == side)
+                {
+                    // 同侧并发进入
+                    _activeCount++;
+                    return;
+                }
+
+                // 对侧正在占用，排队等待
+                tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _waitQueue.Enqueue((side, tcs));
             }
+
+            if (tcs != null)
+            {
+                await tcs.Task;
+            }
+        }
+
+        /// <summary>
+        /// 退出当前侧别的采集通行区，如果本侧全部退出则唤醒对面
+        /// </summary>
+        public static void Exit(string sn)
+        {
+            string side = GetSideBySn(sn);
+            lock (_sync)
+            {
+                _activeCount--;
+                if (_activeCount <= 0)
+                {
+                    _activeCount = 0;
+                    if (_waitQueue.Count > 0)
+                    {
+                        var next = _waitQueue.Peek();
+                        _activeSide = next.side;
+
+                        // 唤醒所有排队中的同侧相机，实现同侧并发
+                        var toWake = new List<TaskCompletionSource<bool>>();
+                        while (_waitQueue.Count > 0 && _waitQueue.Peek().side == _activeSide)
+                        {
+                            var item = _waitQueue.Dequeue();
+                            _activeCount++;
+                            toWake.Add(item.tcs);
+                        }
+
+                        foreach (var t in toWake)
+                        {
+                            t.SetResult(true);
+                        }
+                    }
+                    else
+                    {
+                        _activeSide = null; // 无人排队，清空状态
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 从全局配置解析相机 SN 属于左侧还是右侧
+        /// </summary>
+        private static string GetSideBySn(string sn)
+        {
+            try
+            {
+                var mapping = ConfigManager.Instance?.Algorithms?.SlotOccupancy?.CameraMapping;
+                if (mapping != null)
+                {
+                    if (mapping.LeftSideSns != null && mapping.LeftSideSns.Contains(sn)) return "Left";
+                    if (mapping.RightSideSns != null && mapping.RightSideSns.Contains(sn)) return "Right";
+                }
+            }
+            catch { }
+            return "Unknown_" + sn; // 找不到配置就当独立分组
         }
     }
 }

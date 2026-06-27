@@ -226,7 +226,8 @@ namespace pallet_storage_detection_system_Net_V2
                 }
                 else if (cameraIndex == 4)
                 {
-                    // 预留第4路相机图像显示
+                    pictureBox_Camera4.Image?.Dispose();
+                    pictureBox_Camera4.Image = (System.Drawing.Image)displayImage.Clone();
                 }
             }
         }
@@ -251,18 +252,18 @@ namespace pallet_storage_detection_system_Net_V2
             if (_ctsLiveRight != null && !_ctsLiveRight.IsCancellationRequested)
             {
                 _ctsLiveRight.Cancel();
-                btn_LiveRight.Text = "▶ 右侧实时预览 (2台)";
+                btn_LiveRight.Text = "▶ 右侧触发采集 (4台)";
                 btn_LiveRight.ForeColor = Color.FromArgb(30, 50, 80);
-                Manager_OnLogMessage("⏹ 已自动停止右侧实时预览。");
+                Manager_OnLogMessage("⏹ 已自动停止右侧触发采集。");
             }
 
             if (_ctsLiveLeft != null && !_ctsLiveLeft.IsCancellationRequested)
             {
                 // 关闭当前侧
                 _ctsLiveLeft.Cancel();
-                btn_LiveLeft.Text = "▶ 左侧实时预览 (2台)";
+                btn_LiveLeft.Text = "▶ 左侧触发采集 (4台)";
                 btn_LiveLeft.ForeColor = Color.FromArgb(30, 50, 80);
-                Manager_OnLogMessage("⏹ 已手动停止左侧实时预览。");
+                Manager_OnLogMessage("⏹ 已手动停止左侧触发采集。");
             }
             else
             {
@@ -283,18 +284,18 @@ namespace pallet_storage_detection_system_Net_V2
             if (_ctsLiveLeft != null && !_ctsLiveLeft.IsCancellationRequested)
             {
                 _ctsLiveLeft.Cancel();
-                btn_LiveLeft.Text = "▶ 左侧实时预览 (2台)";
+                btn_LiveLeft.Text = "▶ 左侧触发采集 (4台)";
                 btn_LiveLeft.ForeColor = Color.FromArgb(30, 50, 80);
-                Manager_OnLogMessage("⏹ 已自动停止左侧实时预览。");
+                Manager_OnLogMessage("⏹ 已自动停止左侧触发采集。");
             }
 
             if (_ctsLiveRight != null && !_ctsLiveRight.IsCancellationRequested)
             {
                 // 关闭当前侧
                 _ctsLiveRight.Cancel();
-                btn_LiveRight.Text = "▶ 右侧实时预览 (2台)";
+                btn_LiveRight.Text = "▶ 右侧触发采集 (4台)";
                 btn_LiveRight.ForeColor = Color.FromArgb(30, 50, 80);
-                Manager_OnLogMessage("⏹ 已手动停止右侧实时预览。");
+                Manager_OnLogMessage("⏹ 已手动停止右侧触发采集。");
             }
             else
             {
@@ -421,6 +422,7 @@ namespace pallet_storage_detection_system_Net_V2
             Wrap(pictureBox_Camera1, 0, 0, 1);
             Wrap(pictureBox_Camera2, 1, 0, 2);
             Wrap(pictureBox_Camera3, 0, 1, 3);
+            Wrap(pictureBox_Camera4, 1, 1, 4);
         }
 
         private string GetCameraDisplayName(string sn)
@@ -440,7 +442,7 @@ namespace pallet_storage_detection_system_Net_V2
         private void UpdateCameraLabels(string side)
         {
             var sns = GetPreviewSnsForSide(side);
-            for (int i = 0; i < sns.Length && i < 3; i++)
+            for (int i = 0; i < sns.Length && i < 4; i++)
             {
                 if (_cameraLabels.TryGetValue(i + 1, out var label))
                 {
