@@ -112,7 +112,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                         {
                             HTuple rows = new HTuple(new double[] { calib.RoiInventory[1], calib.RoiInventory[3], calib.RoiInventory[5], calib.RoiInventory[7] });
                             HTuple cols = new HTuple(new double[] { calib.RoiInventory[0], calib.RoiInventory[2], calib.RoiInventory[4], calib.RoiInventory[6] });
-                            HOperatorSet.GenRegionPolygon(out HObject ho_Region, rows, cols);
+                            HOperatorSet.GenRegionPolygonFilled(out HObject ho_Region, rows, cols);
                             HOperatorSet.ReduceDomain(ho_Image, ho_Region, out HObject ho_ImageReduced);
                             ho_Image.Dispose();
                             ho_Image = ho_ImageReduced;
@@ -125,9 +125,16 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     }
                 }
 
-                // 3. 创建 DataCode 句柄 (现场只有二维码，移除 1D Barcode 优化性能)
+                // 3. 创建 DataCode 句柄 (现场只有二维码)
                 HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "maximum_recognition", out hv_DataCodeHandle_ECC200);
-                HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "enhanced_recognition", out hv_DataCodeHandle_QR);
+                HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "maximum_recognition", out hv_DataCodeHandle_QR);
+
+                // 强制要求适应任何极性（黑底白码、白底黑码）、镜像反转等极端情况
+                HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_ECC200, "polarity", "any");
+                HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_ECC200, "mirrored", "any");
+                
+                HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "polarity", "any");
+                HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "mirrored", "any");
 
                 // 3. 寻找 DataMatrix
                 HObject ho_SymbolXLDs_ECC200 = null;
