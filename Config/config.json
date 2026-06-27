@@ -387,7 +387,8 @@
       "Cy": 0,
       "DistCoeffs": [],
       "RoiLeft": [],
-      "RoiRight": []
+      "RoiRight": [],
+      "RoiInventory": []
     },
     {
       "CameraSn": "DA9434653",
@@ -405,7 +406,17 @@
         6.784419274061076
       ],
       "RoiLeft": [],
-      "RoiRight": []
+      "RoiRight": [],
+      "RoiInventory": [
+        2878,
+        2085,
+        3573,
+        2085,
+        3528,
+        2473,
+        2864,
+        2427
+      ]
     },
     {
       "CameraSn": "DA9434361",
@@ -423,7 +434,17 @@
         23.54616348637948
       ],
       "RoiLeft": [],
-      "RoiRight": []
+      "RoiRight": [],
+      "RoiInventory": [
+        405,
+        1114,
+        4851,
+        1174,
+        4741,
+        2638,
+        433,
+        2466
+      ]
     },
     {
       "CameraSn": "DA9434623",
@@ -441,7 +462,8 @@
         -9.080320001462804
       ],
       "RoiLeft": [],
-      "RoiRight": []
+      "RoiRight": [],
+      "RoiInventory": []
     }
   ]
 }

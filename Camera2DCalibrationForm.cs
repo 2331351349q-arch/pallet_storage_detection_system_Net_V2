@@ -49,10 +49,15 @@ namespace pallet_storage_detection_system_Net_V2
         private Button _btnDrawRoiRight = null!;
         private Button _btnSaveRoiRef = null!;
 
+        private Button _btnDrawRoiInventory = null!;
+        private Button _btnSaveInventoryRoi = null!;
+
         private bool _isDrawingLeftRoi = false;
         private bool _isDrawingRightRoi = false;
+        private bool _isDrawingInventoryRoi = false;
         private List<DrawPoint> _roiLeft = new();
         private List<DrawPoint> _roiRight = new();
+        private List<DrawPoint> _roiInventory = new();
         private float? _referenceOffsetX = null;
         private List<DrawPoint> _currentDrawingPoints = new();
         private DrawPoint _mouseHoverPos;
@@ -465,18 +470,28 @@ namespace pallet_storage_detection_system_Net_V2
 
             _btnDrawRoiLeft = MakeAccentBtn("✏  框选左侧 ROI", Color.FromArgb(0, 122, 204));
             _btnDrawRoiLeft.Enabled = false;
-            _btnDrawRoiLeft.Click += (s, e) => { _isDrawingLeftRoi = true; _isDrawingRightRoi = false; AppendLog("✏ 请在左侧大图上依次点击4个点绘制左侧 ROI 多边形..."); };
+            _btnDrawRoiLeft.Click += (s, e) => { _isDrawingLeftRoi = true; _isDrawingRightRoi = false; _isDrawingInventoryRoi = false; AppendLog("✏ 请在左侧大图上依次点击4个点绘制左侧 ROI 多边形..."); };
             bar.Controls.Add(_btnDrawRoiLeft);
 
             _btnDrawRoiRight = MakeAccentBtn("✏  框选右侧 ROI", Color.FromArgb(0, 160, 100));
             _btnDrawRoiRight.Enabled = false;
-            _btnDrawRoiRight.Click += (s, e) => { _isDrawingRightRoi = true; _isDrawingLeftRoi = false; AppendLog("✏ 请在左侧大图上依次点击4个点绘制右侧 ROI 多边形..."); };
+            _btnDrawRoiRight.Click += (s, e) => { _isDrawingRightRoi = true; _isDrawingLeftRoi = false; _isDrawingInventoryRoi = false; AppendLog("✏ 请在左侧大图上依次点击4个点绘制右侧 ROI 多边形..."); };
             bar.Controls.Add(_btnDrawRoiRight);
 
             _btnSaveRoiRef = MakeAccentBtn("💾 保存基准与ROI", Color.FromArgb(200, 100, 0));
             _btnSaveRoiRef.Enabled = false;
             _btnSaveRoiRef.Click += BtnSaveRoiRef_Click;
             bar.Controls.Add(_btnSaveRoiRef);
+
+            _btnDrawRoiInventory = MakeAccentBtn("✏  框选盘库 ROI", Color.FromArgb(128, 0, 128));
+            _btnDrawRoiInventory.Enabled = false;
+            _btnDrawRoiInventory.Click += (s, e) => { _isDrawingInventoryRoi = true; _isDrawingLeftRoi = false; _isDrawingRightRoi = false; AppendLog("✏ 请在左侧大图上依次点击4个点绘制盘库 ROI 多边形..."); };
+            bar.Controls.Add(_btnDrawRoiInventory);
+
+            _btnSaveInventoryRoi = MakeAccentBtn("💾 保存盘库 ROI", Color.FromArgb(100, 0, 100));
+            _btnSaveInventoryRoi.Enabled = false;
+            _btnSaveInventoryRoi.Click += BtnSaveInventoryRoi_Click;
+            bar.Controls.Add(_btnSaveInventoryRoi);
 
             _btnClear = MakeAccentBtn("🗑  清除", Color.FromArgb(160, 60, 60));
             _btnClear.Click += BtnClear_Click;
@@ -710,10 +725,11 @@ namespace pallet_storage_detection_system_Net_V2
 
             DrawPoly(_roiLeft, Color.Blue, 3);
             DrawPoly(_roiRight, Color.Green, 3);
+            DrawPoly(_roiInventory, Color.Purple, 3);
 
-            if (_isDrawingLeftRoi || _isDrawingRightRoi)
+            if (_isDrawingLeftRoi || _isDrawingRightRoi || _isDrawingInventoryRoi)
             {
-                var color = _isDrawingLeftRoi ? Color.Blue : Color.Green;
+                var color = _isDrawingLeftRoi ? Color.Blue : (_isDrawingRightRoi ? Color.Green : Color.Purple);
                 DrawPoly(_currentDrawingPoints, color, 2);
                 
                 if (_currentDrawingPoints.Count > 0 && _currentDrawingPoints.Count < 4)
@@ -1009,6 +1025,9 @@ namespace pallet_storage_detection_system_Net_V2
             _btnDrawRoiLeft.Enabled = false;
             _btnDrawRoiRight.Enabled = false;
             _btnSaveRoiRef.Enabled = false;
+            _btnDrawRoiInventory.Enabled = false;
+            _btnSaveInventoryRoi.Enabled = false;
+            _btnClear.Enabled = false;
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -1297,6 +1316,7 @@ namespace pallet_storage_detection_system_Net_V2
             
             _roiLeft.Clear();
             _roiRight.Clear();
+            _roiInventory.Clear();
             _referenceOffsetX = null;
 
             if (calib != null)
@@ -1311,6 +1331,12 @@ namespace pallet_storage_detection_system_Net_V2
                 {
                     for (int i = 0; i < 8; i += 2)
                         _roiRight.Add(new DrawPoint(calib.RoiRight[i], calib.RoiRight[i+1]));
+                }
+
+                if (calib.RoiInventory != null && calib.RoiInventory.Count == 8)
+                {
+                    for (int i = 0; i < 8; i += 2)
+                        _roiInventory.Add(new DrawPoint(calib.RoiInventory[i], calib.RoiInventory[i+1]));
                 }
 
                 _referenceOffsetX = calib.ReferenceOffsetX;
@@ -1388,7 +1414,7 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void PbPreview_MouseDown(object? sender, MouseEventArgs e)
         {
-            if (!_isDrawingLeftRoi && !_isDrawingRightRoi) return;
+            if (!_isDrawingLeftRoi && !_isDrawingRightRoi && !_isDrawingInventoryRoi) return;
             if (_pbPreview.Image == null) return;
             if (e.Button != MouseButtons.Left) return;
 
@@ -1426,6 +1452,13 @@ namespace pallet_storage_detection_system_Net_V2
                     _isDrawingRightRoi = false;
                     AppendLog($"✅ 右侧 ROI 绘制完成 (4点)");
                 }
+                else if (_isDrawingInventoryRoi)
+                {
+                    _roiInventory.Clear();
+                    _roiInventory.AddRange(_currentDrawingPoints);
+                    _isDrawingInventoryRoi = false;
+                    AppendLog($"✅ 盘库 ROI 绘制完成 (4点)");
+                }
                 _currentDrawingPoints.Clear();
                 _pbPreview.Invalidate();
             }
@@ -1433,7 +1466,7 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void PbPreview_MouseMove(object? sender, MouseEventArgs e)
         {
-            if (!_isDrawingLeftRoi && !_isDrawingRightRoi) return;
+            if (!_isDrawingLeftRoi && !_isDrawingRightRoi && !_isDrawingInventoryRoi) return;
             
             float scaleX = (float)_pbPreview.Image!.Width / _pbPreview.Width;
             float scaleY = (float)_pbPreview.Image.Height / _pbPreview.Height;
@@ -1497,6 +1530,7 @@ namespace pallet_storage_detection_system_Net_V2
 
                 calib.RoiLeft = _roiLeft.SelectMany(p => new int[] { p.X, p.Y }).ToList();
                 calib.RoiRight = _roiRight.SelectMany(p => new int[] { p.X, p.Y }).ToList();
+                calib.RoiInventory = _roiInventory.SelectMany(p => new int[] { p.X, p.Y }).ToList();
                 calib.ReferenceOffsetX = _referenceOffsetX;
 
                 ConfigManager.SaveConfig();
@@ -1506,6 +1540,45 @@ namespace pallet_storage_detection_system_Net_V2
             catch(Exception ex)
             {
                 AppendLog($"❌ 保存基准发生异常: {ex.Message}");
+            }
+        }
+
+        private void BtnSaveInventoryRoi_Click(object? sender, EventArgs e)
+        {
+            var sn = GetSelectedSn();
+            if (string.IsNullOrEmpty(sn))
+            {
+                MessageBox.Show("请先选择一个相机 SN", "提示");
+                return;
+            }
+
+            if (_roiInventory == null || _roiInventory.Count != 4)
+            {
+                MessageBox.Show("请先绘制完整的盘库 ROI（4个点）", "提示");
+                return;
+            }
+
+            try
+            {
+                if (ConfigManager.Instance?.Camera2DCalibrations == null)
+                    ConfigManager.Instance!.Camera2DCalibrations = new List<pallet_storage_detection_system_Net_V2.Config.Camera2DCalibration>();
+
+                var calib = ConfigManager.Instance.Camera2DCalibrations.FirstOrDefault(c => c.CameraSn == sn);
+                if (calib == null)
+                {
+                    calib = new pallet_storage_detection_system_Net_V2.Config.Camera2DCalibration { CameraSn = sn };
+                    ConfigManager.Instance.Camera2DCalibrations.Add(calib);
+                }
+
+                calib.RoiInventory = _roiInventory.SelectMany(p => new int[] { p.X, p.Y }).ToList();
+
+                ConfigManager.SaveConfig();
+                AppendLog($"💾 盘库 ROI 已保存至配置中。");
+                MessageBox.Show("保存成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch(Exception ex)
+            {
+                AppendLog($"❌ 保存盘库 ROI 发生异常: {ex.Message}");
             }
         }
 
@@ -1531,6 +1604,9 @@ namespace pallet_storage_detection_system_Net_V2
             _btnDrawRoiLeft.Enabled = !busy && hasImages;
             _btnDrawRoiRight.Enabled = !busy && hasImages;
             _btnSaveRoiRef.Enabled = !busy && hasImages;
+            _btnDrawRoiInventory.Enabled = !busy && hasImages;
+            _btnSaveInventoryRoi.Enabled = !busy && hasImages;
+            _btnClear.Enabled = !busy && hasImages;
             Cursor                = busy ? Cursors.WaitCursor : Cursors.Default;
         }
 

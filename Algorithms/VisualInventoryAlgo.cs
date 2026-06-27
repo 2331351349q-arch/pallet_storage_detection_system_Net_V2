@@ -5,6 +5,7 @@ using System.Drawing.Imaging;
 using System.Linq;
 using HalconDotNet;
 using pallet_storage_detection_system_Net_V2.Models;
+using pallet_storage_detection_system_Net_V2.Config;
 
 namespace pallet_storage_detection_system_Net_V2.Algorithms
 {
@@ -14,7 +15,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
     /// </summary>
     public static class VisualInventoryAlgo
     {
-        public static bool Run(int flag, object img1, object img2, DetectionResult res, Action<string>? onLog = null)
+        public static bool Run(int flag, object img1, object img2, List<string> targetSNs, DetectionResult res, Action<string>? onLog = null)
         {
             var startTime = DateTime.Now;
             var bitmaps = new List<System.Drawing.Bitmap>();
@@ -34,7 +35,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             for (int i = 0; i < bitmaps.Count; i++)
             {
                 var decodeStart = DateTime.Now;
-                var barcodes = DecodeBarcodesHalcon(bitmaps[i], onLog, i + 1);
+                string sn = targetSNs != null && i < targetSNs.Count ? targetSNs[i] : "";
+                var barcodes = DecodeBarcodesHalcon(bitmaps[i], sn, onLog, i + 1);
                 var decodeMs = (DateTime.Now - decodeStart).TotalMilliseconds;
 
                 foreach (var b in barcodes)
@@ -78,13 +80,12 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             return true;
         }
 
-        private static List<string> DecodeBarcodesHalcon(System.Drawing.Bitmap bitmap, Action<string>? onLog, int cameraIndex)
+        private static List<string> DecodeBarcodesHalcon(System.Drawing.Bitmap bitmap, string sn, Action<string>? onLog, int cameraIndex)
         {
             var results = new HashSet<string>();
             HObject ho_Image = null;
             HTuple hv_DataCodeHandle_ECC200 = null;
             HTuple hv_DataCodeHandle_QR = null;
-            HTuple hv_BarCodeHandle = null;
 
             try
             {
@@ -101,15 +102,37 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     bitmap.UnlockBits(bmpData);
                 }
 
-                // 2. 初始化识别模型 (开启 enhanced_recognition 应对严重畸变/反光/模糊)
-                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "enhanced_recognition", out hv_DataCodeHandle_ECC200);
+                // 2. ROI 区域裁剪加速 (极其关键：减少 90% 运算量)
+                if (!string.IsNullOrEmpty(sn) && ConfigManager.Instance?.Camera2DCalibrations != null)
+                {
+                    var calib = ConfigManager.Instance.Camera2DCalibrations.FirstOrDefault(c => c.CameraSn == sn);
+                    if (calib != null && calib.RoiInventory != null && calib.RoiInventory.Count == 8)
+                    {
+                        try
+                        {
+                            HTuple rows = new HTuple(new double[] { calib.RoiInventory[1], calib.RoiInventory[3], calib.RoiInventory[5], calib.RoiInventory[7] });
+                            HTuple cols = new HTuple(new double[] { calib.RoiInventory[0], calib.RoiInventory[2], calib.RoiInventory[4], calib.RoiInventory[6] });
+                            HOperatorSet.GenRegionPolygon(out HObject ho_Region, rows, cols);
+                            HOperatorSet.ReduceDomain(ho_Image, ho_Region, out HObject ho_ImageReduced);
+                            ho_Image.Dispose();
+                            ho_Image = ho_ImageReduced;
+                            ho_Region.Dispose();
+                        }
+                        catch (Exception ex)
+                        {
+                            onLog?.Invoke($"⚠️ [{sn}] ROI 裁剪异常，回退至全局搜索: {ex.Message}");
+                        }
+                    }
+                }
+
+                // 3. 创建 DataCode 句柄 (现场只有二维码，移除 1D Barcode 优化性能)
+                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "maximum_recognition", out hv_DataCodeHandle_ECC200);
                 HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "enhanced_recognition", out hv_DataCodeHandle_QR);
-                HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
 
                 // 3. 寻找 DataMatrix
                 HObject ho_SymbolXLDs_ECC200 = null;
                 HTuple hv_ResultHandles_ECC200, hv_DecodedDataStrings_ECC200;
-                HOperatorSet.FindDataCode2d(ho_Image, out ho_SymbolXLDs_ECC200, hv_DataCodeHandle_ECC200, "train", "all", out hv_ResultHandles_ECC200, out hv_DecodedDataStrings_ECC200);
+                HOperatorSet.FindDataCode2d(ho_Image, out ho_SymbolXLDs_ECC200, hv_DataCodeHandle_ECC200, "stop_after_result_num", 1, out hv_ResultHandles_ECC200, out hv_DecodedDataStrings_ECC200);
                 if (ho_SymbolXLDs_ECC200 != null) ho_SymbolXLDs_ECC200.Dispose();
                 if (hv_DecodedDataStrings_ECC200 != null && hv_DecodedDataStrings_ECC200.Length > 0)
                 {
@@ -121,7 +144,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 // 4. 寻找 QR Code
                 HObject ho_SymbolXLDs_QR = null;
                 HTuple hv_ResultHandles_QR, hv_DecodedDataStrings_QR;
-                HOperatorSet.FindDataCode2d(ho_Image, out ho_SymbolXLDs_QR, hv_DataCodeHandle_QR, "train", "all", out hv_ResultHandles_QR, out hv_DecodedDataStrings_QR);
+                HOperatorSet.FindDataCode2d(ho_Image, out ho_SymbolXLDs_QR, hv_DataCodeHandle_QR, "stop_after_result_num", 1, out hv_ResultHandles_QR, out hv_DecodedDataStrings_QR);
                 if (ho_SymbolXLDs_QR != null) ho_SymbolXLDs_QR.Dispose();
                 if (hv_DecodedDataStrings_QR != null && hv_DecodedDataStrings_QR.Length > 0)
                 {
@@ -130,17 +153,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                         if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
                 }
 
-                // 5. 寻找 1D Barcode (一维码兜底)
-                HObject ho_SymbolRegions_1D = null;
-                HTuple hv_DecodedDataStrings_1D;
-                HOperatorSet.FindBarCode(ho_Image, out ho_SymbolRegions_1D, hv_BarCodeHandle, "auto", out hv_DecodedDataStrings_1D);
-                if (ho_SymbolRegions_1D != null) ho_SymbolRegions_1D.Dispose();
-                if (hv_DecodedDataStrings_1D != null && hv_DecodedDataStrings_1D.Length > 0)
-                {
-                    var strings = hv_DecodedDataStrings_1D.SArr;
-                    foreach (var s in strings)
-                        if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
-                }
+
             }
             catch (HalconException hex)
             {
@@ -156,7 +169,6 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 if (ho_Image != null) ho_Image.Dispose();
                 if (hv_DataCodeHandle_ECC200 != null) HOperatorSet.ClearDataCode2dModel(hv_DataCodeHandle_ECC200);
                 if (hv_DataCodeHandle_QR != null) HOperatorSet.ClearDataCode2dModel(hv_DataCodeHandle_QR);
-                if (hv_BarCodeHandle != null) HOperatorSet.ClearBarCodeModel(hv_BarCodeHandle);
             }
 
             return results.ToList();

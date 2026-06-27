@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using pallet_storage_detection_system_Net_V2.Models;
@@ -25,6 +26,11 @@ namespace pallet_storage_detection_system_Net_V2.Control
         private BlockingCollection<TaskData> _taskQueue;//线程安全集合
         private RedisCommunicator _redisComm;
         private CancellationTokenSource _cancellationTokenSource;
+
+        // 连续盘库专用状态
+        private CancellationTokenSource? _inventoryCts;
+        private Task? _inventoryTask;
+        private HashSet<string> _inventoryBarcodes = new HashSet<string>();
 
         /// <summary>
         /// 当产生新的日志消息时触发。用于 UI 实时展现系统状态。
@@ -129,9 +135,152 @@ namespace pallet_storage_detection_system_Net_V2.Control
                     bool algoSuccess;
                     var imagesToSave = new List<(String Name, Image Img)>();
 
-                    // 2. 统一抓图流程：所有 Flag 类型均通过相机抓图。
+                    // 2. 统一抓图流程：除 Flag 5 以外的所有任务类型均通过相机抓图。
+                    if (task.Flag == 5)
                     {
-                        // Flag=1,2,3,4,5 统一：按配置的 SN 数量抓取图像
+                        Log("ℹ️ [Flag 5] 收到盘库结束指令，正在停止连续扫描...");
+                        _inventoryCts?.Cancel();
+                        if (_inventoryTask != null)
+                        {
+                            try { await _inventoryTask; } catch { }
+                        }
+                        
+                        algoSuccess = true;
+                        var sortedBarcodes = _inventoryBarcodes.OrderBy(b => b).ToArray();
+                        result.ResultBarcodes = System.Text.Json.JsonSerializer.Serialize(sortedBarcodes);
+                        Log($"✅ [盘库结束] 汇总识别到 {_inventoryBarcodes.Count} 个唯一条码。");
+                        
+                        _inventoryCts = null;
+                        _inventoryTask = null;
+                        _inventoryBarcodes.Clear();
+                    }
+                    else if (task.Flag == 4)
+                    {
+                        Log("ℹ️ [Flag 4] 启动连续盘库扫描...");
+                        _inventoryCts?.Cancel();
+                        if (_inventoryTask != null)
+                        {
+                            try { await _inventoryTask; } catch { }
+                        }
+                        
+                        _inventoryBarcodes.Clear();
+                        _inventoryCts = new CancellationTokenSource();
+                        
+                        var token = _inventoryCts.Token;
+                        var side = task.Side;
+                        
+                        _inventoryTask = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                // 0. 执行任务前，先清空界面上所有四个相机的画面
+                                OnImageUpdated?.Invoke(1, null);
+                                OnImageUpdated?.Invoke(2, null);
+                                OnImageUpdated?.Invoke(3, null);
+                                OnImageUpdated?.Invoke(4, null);
+                                
+                                List<string> targetSNs = ConfigManager.GetTargetCameraSNs(4, side);
+                                int requiredCameraCount = targetSNs?.Count ?? 0;
+                                if (requiredCameraCount == 0) return;
+                                
+                                while (!token.IsCancellationRequested)
+                                {
+                                    var loopStart = DateTime.Now;
+                                    List<Task<object?>> grabTasks = new List<Task<object?>>();
+                                    for (int i = 0; i < requiredCameraCount; i++)
+                                    {
+                                        var camera = DeviceManager.GetCamera(targetSNs[i]);
+                                        if (camera != null) grabTasks.Add(GrabFrameSafeAsync(camera, 4, i + 1));
+                                    }
+                                    
+                                    var images = await Task.WhenAll(grabTasks);
+                                    if (token.IsCancellationRequested) break;
+                                    
+                                    var image1 = images.Length > 0 ? images[0] : null;
+                                    var image2 = images.Length > 1 ? images[1] : image1;
+                                    
+                                    // 刷新界面
+                                    for (int i = 0; i < images.Length && i < 4; i++)
+                                    {
+                                        if (images[i] != null)
+                                        {
+                                            int uiIndex = (side?.ToLower() == "left") ? (i + 3) : (i + 1);
+                                            OnImageUpdated?.Invoke(uiIndex, images[i]!);
+                                        }
+                                    }
+                                    
+                                    var tempRes = new DetectionResult();
+                                    bool success = await ExecuteAlgorithmAsync(4, side, image1, image2, targetSNs, tempRes);
+                                    
+                                    if (!string.IsNullOrEmpty(tempRes.ResultBarcodes))
+                                    {
+                                        try 
+                                        {
+                                            var arr = System.Text.Json.JsonSerializer.Deserialize<string[]>(tempRes.ResultBarcodes);
+                                            if (arr != null)
+                                            {
+                                                foreach(var code in arr)
+                                                {
+                                                    _inventoryBarcodes.Add(code);
+                                                }
+                                            }
+                                        } catch {}
+                                    }
+                                    
+                                    // 用户强烈要求：无论是否识别到条码，连续拍到的每一帧都必须保存。
+                                    try
+                                    {
+                                        string rootDir = @"E:\Images";
+                                        string dateStr = DateTime.Now.ToString("yyyy_MM_dd");
+                                        string timeStr = DateTime.Now.ToString("HH_mm_ss_fff");
+                                        string dirPath = Path.Combine(rootDir, $"flag4_continuous", dateStr, timeStr);
+                                        
+                                        if (!Directory.Exists(dirPath)) Directory.CreateDirectory(dirPath);
+                                        
+                                        for (int i = 0; i < images.Length; i++)
+                                        {
+                                            int uiIndex = (side?.ToLower() == "left") ? (i + 3) : (i + 1);
+                                            if (images[i] is Image img)
+                                            {
+                                                string fullPath = Path.Combine(dirPath, $"camera_{uiIndex}.png");
+                                                img.Save(fullPath, ImageFormat.Png);
+                                            }
+                                        }
+                                    }
+                                    catch { }
+                                    
+                                    for (int i = 0; i < images.Length; i++)
+                                    {
+                                        if (images[i] is Image img) { img.Dispose(); }
+                                    }
+                                    
+                                    var elapsed = (DateTime.Now - loopStart).TotalMilliseconds;
+                                    if (elapsed < 300)
+                                    {
+                                        await Task.Delay(300 - (int)elapsed, token);
+                                    }
+                                }
+                            }
+                            catch (OperationCanceledException) { }
+                            catch (Exception ex)
+                            {
+                                Log($"连续盘库异常: {ex.Message}");
+                            }
+                        }, token);
+                        
+                        algoSuccess = true;
+                        result.ResultBarcodes = "[]"; 
+                        Log("ℹ️ [Flag 4] 已转入后台连续扫描，主队列继续就绪。");
+                    }
+                    else
+                    {
+                        // 0. 执行任务前，先清空界面上所有四个相机的画面，避免上一次任务的残留导致用户误判
+                        OnImageUpdated?.Invoke(1, null);
+                        OnImageUpdated?.Invoke(2, null);
+                        OnImageUpdated?.Invoke(3, null);
+                        OnImageUpdated?.Invoke(4, null);
+
+                        // Flag=1,2,3 统一：按配置的 SN 数量抓取图像
                         List<string> targetSNs = ConfigManager.GetTargetCameraSNs(task.Flag, task.Side);
                         int requiredCameraCount = targetSNs?.Count ?? 0;
 
@@ -196,8 +345,39 @@ namespace pallet_storage_detection_system_Net_V2.Control
                             }
                         }
 
+                        // 4. 保存图像 (如果任务有要求且图像存在)
+                        if (imagesToSave.Count > 0)
+                        {
+                            try
+                            {
+                                string rootDir = @"E:\Images";
+                                string dateStr = DateTime.Now.ToString("yyyy_MM_dd");
+                                string timeStr = DateTime.Now.ToString("HH_mm_ss_fff");
+                                string dirPath = Path.Combine(rootDir, $"flag{task.Flag}", dateStr, timeStr);
+
+                                if (!Directory.Exists(dirPath))
+                                {
+                                    Directory.CreateDirectory(dirPath);
+                                }
+
+                                foreach (var item in imagesToSave)
+                                {
+                                    string fileName = $"{item.Name}.png";
+                                    string fullPath = Path.Combine(dirPath, fileName);
+                                    item.Img.Save(fullPath, ImageFormat.Png);
+                                    item.Img.Dispose(); 
+                                }
+
+                                Log($"💾 图像已保存: {dirPath} ({imagesToSave.Count} 张)");
+                            }
+                            catch (Exception ex)
+                            {
+                                Log($"保存图像失败: {ex.Message}");
+                            }
+                        }
+
                         var algoStartTime = DateTime.Now;
-                        algoSuccess = await ExecuteAlgorithmAsync(task.Flag, task.Side, image1, image2, result);
+                        algoSuccess = await ExecuteAlgorithmAsync(task.Flag, task.Side, image1, image2, targetSNs, result);
                         LogPhaseTime($"算法执行(Flag{task.Flag})", algoStartTime);
                     }
 
@@ -299,9 +479,10 @@ namespace pallet_storage_detection_system_Net_V2.Control
         /// <param name="side">测点侧位 ("left"/"right")。</param>
         /// <param name="img1">左侧原始采集到的图像对象（通常为 Bitmap）。</param>
         /// <param name="img2">右侧原始采集到的图像对象。</param>
+        /// <param name="targetSNs">抓取图像所对应的相机序列号列表。</param>
         /// <param name="res">外部传入的任务结果记录实体，算法将在此基础上填充计算后的数值。</param>
         /// <returns>算法处理是否成功。若为 false，系统将记录日志并中止该次上报。</returns>
-        private async Task<bool> ExecuteAlgorithmAsync(int flag, string side, object img1, object img2, DetectionResult res)
+        private async Task<bool> ExecuteAlgorithmAsync(int flag, string side, object img1, object img2, List<string> targetSNs, DetectionResult res)
         {
             // 在此模拟一个 500ms 的图像处理延迟，代表真实的 Halcon/OpenCV 计算开销。
             await Task.Delay(500);
@@ -326,7 +507,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                     case 4:
                     case 5:
                         // 视觉盘库逻辑：4 为启动任务，5 为停止任务 (Flag 4/5)
-                        return Algorithms.VisualInventoryAlgo.Run(flag, img1, img2, res, Log);
+                        return Algorithms.VisualInventoryAlgo.Run(flag, img1, img2, targetSNs, res, Log);
 
                     default:
                         Log($"无法识别的任务指令 Flag={flag}，取消算法路由。");
@@ -344,7 +525,10 @@ namespace pallet_storage_detection_system_Net_V2.Control
         {
             if (images == null || images.Count == 0)
             {
-                Log($"⚠️ 图像保存跳过: imagesToSave 为空 (Flag={task?.Flag})");
+                if (task != null && task.Flag != 4 && task.Flag != 5)
+                {
+                    Log($"⚠️ 图像保存跳过: imagesToSave 为空 (Flag={task?.Flag})");
+                }
                 return;
             }
 

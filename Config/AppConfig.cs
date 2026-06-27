@@ -431,11 +431,14 @@ namespace pallet_storage_detection_system_Net_V2.Config
         /// <summary>畸变系数 [k1, k2, p1, p2, k3]</summary>
         public List<double> DistCoeffs { get; set; } = new();
 
-        /// <summary>左侧立柱孔洞检测 ROI (X, Y, W, H)</summary>
+        /// <summary>左侧立柱孔洞检测 ROI (8点坐标集合)</summary>
         public List<int> RoiLeft { get; set; } = new();
 
-        /// <summary>右侧立柱孔洞检测 ROI (X, Y, W, H)</summary>
+        /// <summary>右侧立柱孔洞检测 ROI (8点坐标集合)</summary>
         public List<int> RoiRight { get; set; } = new();
+
+        /// <summary>盘库条码扫码检测 ROI (8点坐标集合: x1,y1,x2,y2,x3,y3,x4,y4)</summary>
+        public List<int> RoiInventory { get; set; } = new();
 
         /// <summary>标准位置堆垛机中心线 X 坐标参考值 (像素)</summary>
         public float? ReferenceOffsetX { get; set; }

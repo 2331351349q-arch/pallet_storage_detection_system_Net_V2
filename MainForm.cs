@@ -197,6 +197,15 @@ namespace pallet_storage_detection_system_Net_V2
                 return;
             }
 
+            if (imageObj == null)
+            {
+                if (cameraIndex == 1) { pictureBox_Camera1.Image?.Dispose(); pictureBox_Camera1.Image = null; }
+                else if (cameraIndex == 2) { pictureBox_Camera2.Image?.Dispose(); pictureBox_Camera2.Image = null; }
+                else if (cameraIndex == 3) { pictureBox_Camera3.Image?.Dispose(); pictureBox_Camera3.Image = null; }
+                else if (cameraIndex == 4) { pictureBox_Camera4.Image?.Dispose(); pictureBox_Camera4.Image = null; }
+                return;
+            }
+
             System.Drawing.Image? displayImage = null;
             if (imageObj is pallet_storage_detection_system_Net_V2.Devices.DepthFrameData depthFrame)
             {
