@@ -133,42 +133,46 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         /// 检测当前帧中货位开口中心，与配置中的标准位置 ReferenceGapCenterX 比较得到偏差。
         /// 优先使用该相机独立标定的 ROI 参数（CameraRoiParams），未配置时回退全局默认值。
         /// </summary>
-        /// <param name="img">深度帧数据（DepthFrameData）。</param>
+        /// <param name="img1">深度帧数据 1。</param>
+        /// <param name="img2">深度帧数据 2（可能为 null）。</param>
         /// <param name="res">检测结果模型，偏移量写入对应侧的值。</param>
         /// <returns>算法是否执行成功。</returns>
-        public static bool Run(object img, DetectionResult res)
+        public static bool Run(object img1, object img2, DetectionResult res)
         {
             try
             {
                 var cfg = ConfigManager.Instance?.Algorithms?.StackerOffset;
-                var frame = img as DepthFrameData;
+                var frame1 = img1 as DepthFrameData;
+                var frame2 = img2 as DepthFrameData;
 
-                // 查找该相机的独立 ROI 参数
-                var camParam = cfg?.FindCameraParam(frame?.CameraSn);
+                var basePoints = new List<Vector3>();
+                double reference = 0;
+                
+                // 处理第一台相机
+                if (frame1 != null)
+                {
+                    var pts1 = GetFilteredPoints(frame1, cfg, out double ref1);
+                    if (pts1 != null) basePoints.AddRange(pts1);
+                    reference = ref1; // 默认使用第一台相机的参考值
+                }
 
-                double zMin = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
-                double zMax = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
-                double reference = camParam?.ReferenceX ?? cfg?.ReferenceGapCenterX ?? 0.0;
-                double? xMinRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : null;
-                double? xMaxRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMax : null;
-                double? yMinRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMin : null;
-                double? yMaxRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMax : null;
+                // 处理第二台相机
+                if (frame2 != null)
+                {
+                    var pts2 = GetFilteredPoints(frame2, cfg, out double ref2);
+                    if (pts2 != null) basePoints.AddRange(pts2);
+                    // 如果 frame1 没拿到 reference，用 frame2 的
+                    if (frame1 == null && ref2 != 0) reference = ref2;
+                }
 
-                var basePoints = GetBasePointsFromFrame(frame);
-                if (basePoints == null)
+                if (basePoints.Count < MinPointCount)
                 {
                     res.OffsetLatMmValue = 0;
                     return false;
                 }
 
-                double cameraZ = 0;
-                var calib = ConfigManager.GetCalibration(frame?.CameraSn);
-                if (calib != null && calib.IsValid)
-                {
-                    cameraZ = calib.TranslationVector[2];
-                }
-
-                double currentGapCenter = ComputeLateralOffset(basePoints, cameraZ, zMin, zMax, yMinRoI, yMaxRoI, xMinRoI, xMaxRoI);
+                // 计算合并后的偏移（这里的 cameraZ 传 0 即可，因为后续处理已在基准坐标系）
+                double currentGapCenter = ComputeLateralOffset(basePoints, 0, -10000, 10000, null, null, null, null);
                 if (double.IsNaN(currentGapCenter))
                 {
                     res.OffsetLatMmValue = 0;
@@ -191,42 +195,50 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
 
         /// <summary>
         /// 调试模式：执行完整检测并返回中间可视化数据。
-        /// 用于调参工具实时预览。优先使用该相机独立标定的 ROI 参数。
+        /// 用于调参工具实时预览。处理双相机的点云合并。
         /// </summary>
-        /// <param name="frame">深度帧数据。</param>
-        /// <param name="zMin">DepthMin (mm)。</param>
-        /// <param name="zMax">DepthMax (mm)。</param>
+        /// <param name="frame1">深度帧数据1。</param>
+        /// <param name="frame2">深度帧数据2。</param>
+        /// <param name="zMin">全局 DepthMin (mm) 作为备用。</param>
+        /// <param name="zMax">全局 DepthMax (mm) 作为备用。</param>
         /// <param name="referenceGapCenterX">标准位置开口中心 X (mm)。</param>
-        /// <param name="xMinRoI">可选：X 轴 ROI 最小值，用于限定搜索范围。</param>
+        /// <param name="xMinRoI">可选：X 轴 ROI 最小值。</param>
         /// <param name="xMaxRoI">可选：X 轴 ROI 最大值。</param>
-        /// <param name="yMinRoI">可选：Y 轴 ROI 最小值，垂直地面方向。未指定时使用 ±BeamHeightHalfRange。</param>
-        /// <param name="yMaxRoI">可选：Y 轴 ROI 最大值，垂直地面方向。</param>
+        /// <param name="yMinRoI">可选：Y 轴 ROI 最小值。</param>
+        /// <param name="yMaxRoI">可选：Y 轴 ROI 最大值。</param>
+        /// <param name="tuneCameraSn">当前正在调参的相机SN，该相机的 ROI 参数将使用传入的这些参数。</param>
         /// <returns>包含所有中间数据的 DebugData。</returns>
-        public static DebugData RunDebug(DepthFrameData? frame, double zMin, double zMax,
+        public static DebugData RunDebug(DepthFrameData? frame1, DepthFrameData? frame2, double zMin, double zMax,
             double referenceGapCenterX = 0, double? xMinRoI = null, double? xMaxRoI = null,
-            double? yMinRoI = null, double? yMaxRoI = null)
+            double? yMinRoI = null, double? yMaxRoI = null, string tuneCameraSn = "")
         {
             var debug = new DebugData { ReferenceGapCenterX = referenceGapCenterX };
 
             try
             {
-                var basePoints = GetBasePointsFromFrame(frame);
-                if (basePoints == null || basePoints.Count < MinPointCount)
+                var cfg = ConfigManager.Instance?.Algorithms?.StackerOffset;
+                var basePoints = new List<Vector3>();
+
+                if (frame1 != null)
                 {
-                    debug.ErrorMessage = basePoints == null
-                        ? "无深度帧数据"
-                        : $"有效点数不足 ({basePoints.Count} < {MinPointCount})";
+                    var pts = GetFilteredPointsForDebug(frame1, cfg, tuneCameraSn, zMin, zMax, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI);
+                    if (pts != null) basePoints.AddRange(pts);
+                }
+
+                if (frame2 != null)
+                {
+                    var pts = GetFilteredPointsForDebug(frame2, cfg, tuneCameraSn, zMin, zMax, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI);
+                    if (pts != null) basePoints.AddRange(pts);
+                }
+
+                if (basePoints.Count < MinPointCount)
+                {
+                    debug.ErrorMessage = $"有效点数不足 ({basePoints.Count} < {MinPointCount})";
                     return debug;
                 }
 
-                double cameraZ = 0;
-                var calib = ConfigManager.GetCalibration(frame?.CameraSn);
-                if (calib != null && calib.IsValid)
-                {
-                    cameraZ = calib.TranslationVector[2];
-                }
-
-                debug = ComputeLateralOffsetDebug(basePoints, cameraZ, zMin, zMax, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI);
+                // 合并后不需要再传 zMin/zMax/ROI（传全局最大范围以保留合并结果）
+                debug = ComputeLateralOffsetDebug(basePoints, 0, -10000, 10000, null, null, null, null);
                 debug.ReferenceGapCenterX = referenceGapCenterX;
 
                 // 计算与标准位置的偏差
@@ -248,6 +260,71 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         // ============================================================
         // 点云获取与坐标变换
         // ============================================================
+
+        /// <summary>
+        /// 获取应用了相机各自 ROI 过滤后的基准点云。
+        /// </summary>
+        public static List<Vector3>? GetFilteredPoints(DepthFrameData frame, StackerOffsetConfig? cfg, out double reference)
+        {
+            reference = 0;
+            var pts = GetBasePointsFromFrame(frame);
+            if (pts == null) return null;
+
+            var camParam = cfg?.FindCameraParam(frame.CameraSn);
+            double zMin = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
+            double zMax = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
+            reference = camParam?.ReferenceX ?? cfg?.ReferenceGapCenterX ?? 0.0;
+            double? xMinRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : null;
+            double? xMaxRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMax : null;
+            double? yMinRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMin : null;
+            double? yMaxRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMax : null;
+
+            var filtered = new List<Vector3>(pts.Count);
+            foreach (var p in pts)
+            {
+                if (p.Z >= zMin && p.Z <= zMax &&
+                    (!xMinRoI.HasValue || p.X >= xMinRoI.Value) && (!xMaxRoI.HasValue || p.X <= xMaxRoI.Value) &&
+                    (!yMinRoI.HasValue || p.Y >= yMinRoI.Value) && (!yMaxRoI.HasValue || p.Y <= yMaxRoI.Value))
+                {
+                    filtered.Add(p);
+                }
+            }
+            return filtered;
+        }
+
+        private static List<Vector3>? GetFilteredPointsForDebug(DepthFrameData frame, StackerOffsetConfig? cfg, string tuneCameraSn, 
+            double zMin, double zMax, double? xMinRoI, double? xMaxRoI, double? yMinRoI, double? yMaxRoI)
+        {
+            var pts = GetBasePointsFromFrame(frame);
+            if (pts == null) return null;
+
+            double applyZMin = zMin, applyZMax = zMax;
+            double? applyXMin = xMinRoI, applyXMax = xMaxRoI, applyYMin = yMinRoI, applyYMax = yMaxRoI;
+
+            // 如果这个相机不是正在调参的那个相机，就用配置文件里存的值
+            if (frame.CameraSn != tuneCameraSn)
+            {
+                var camParam = cfg?.FindCameraParam(frame.CameraSn);
+                applyZMin = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
+                applyZMax = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
+                applyXMin = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : null;
+                applyXMax = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMax : null;
+                applyYMin = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMin : null;
+                applyYMax = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMax : null;
+            }
+
+            var filtered = new List<Vector3>(pts.Count);
+            foreach (var p in pts)
+            {
+                if (p.Z >= applyZMin && p.Z <= applyZMax &&
+                    (!applyXMin.HasValue || p.X >= applyXMin.Value) && (!applyXMax.HasValue || p.X <= applyXMax.Value) &&
+                    (!applyYMin.HasValue || p.Y >= applyYMin.Value) && (!applyYMax.HasValue || p.Y <= applyYMax.Value))
+                {
+                    filtered.Add(p);
+                }
+            }
+            return filtered;
+        }
 
         /// <summary>
         /// 从 DepthFrameData 获取点云并变换到基准坐标系，

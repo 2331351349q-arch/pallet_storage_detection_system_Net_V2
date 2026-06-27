@@ -34,6 +34,7 @@ public partial class MainWindow : Window
         txtConfigPath.Text = _configPath;
 
         txtSampleStep.Text = ((int)sldSampleStep.Value).ToString();
+        txtCameraSn.LostFocus += TxtCameraSn_LostFocus;
         LoadConfigAndRefreshUi();
     }
 
@@ -76,8 +77,8 @@ public partial class MainWindow : Window
                 _config = JsonSerializer.Deserialize<AppConfig>(json, CreateJsonOptions()) ?? new AppConfig();
             }
 
-            LoadRoiFromCurrentSide();
             UpdateCameraSnFromConfig();
+            LoadRoiForCurrentCamera();
             RedrawRoiAndStats();
             AppendLog("配置加载成功。", false);
         }
@@ -130,9 +131,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private void LoadRoiFromCurrentSide()
+    private void LoadRoiForCurrentCamera()
     {
-        var roi = ReadRoiFromConfig(CurrentSide());
+        var sn = txtCameraSn.Text.Trim();
+        var roi = ReadRoiFromConfig(sn);
         txtMinX.Text = roi.MinX.ToString("F0");
         txtMaxX.Text = roi.MaxX.ToString("F0");
         txtMinY.Text = roi.MinY.ToString("F0");
@@ -141,14 +143,26 @@ public partial class MainWindow : Window
         txtMaxZ.Text = roi.MaxZ.ToString("F0");
     }
 
-    private Roi3D ReadRoiFromConfig(string side)
+    private void TxtCameraSn_LostFocus(object sender, RoutedEventArgs e)
+    {
+        LoadRoiForCurrentCamera();
+        RedrawRoiAndStats();
+    }
+
+    private Roi3D ReadRoiFromConfig(string sn)
     {
         var fallback = new Roi3D(-500, 500, -500, 500, 1000, 3000);
 
         var slot = _config?.Algorithms?.SlotOccupancy;
         if (slot == null) return fallback;
 
-        var list = side == "right" ? slot.Roi3dRight : slot.Roi3dLeft;
+        var p = slot.FindCameraParam(sn);
+        if (p != null)
+        {
+            return new Roi3D(p.XMin, p.XMax, p.YMin, p.YMax, p.ZMin, p.ZMax);
+        }
+
+        var list = CurrentSide() == "right" ? slot.Roi3dRight : slot.Roi3dLeft;
         if (list == null || list.Count < 6) return fallback;
 
         return new Roi3D(list[0], list[1], list[2], list[3], list[4], list[5]);
@@ -460,29 +474,31 @@ public partial class MainWindow : Window
             return;
         }
 
-        var list = new List<int>
+        var sn = txtCameraSn.Text.Trim();
+        if (string.IsNullOrWhiteSpace(sn))
         {
-            (int)Math.Round(roi.MinX),
-            (int)Math.Round(roi.MaxX),
-            (int)Math.Round(roi.MinY),
-            (int)Math.Round(roi.MaxY),
-            (int)Math.Round(roi.MinZ),
-            (int)Math.Round(roi.MaxZ)
-        };
+            AppendLog("相机SN为空，无法保存特定的相机 ROI", true);
+            return;
+        }
 
-        if (CurrentSide() == "right")
+        var p = _config.Algorithms.SlotOccupancy.FindCameraParam(sn);
+        if (p == null)
         {
-            _config.Algorithms.SlotOccupancy.Roi3dRight = list;
+            p = new CameraRoiParam { CameraSn = sn };
+            _config.Algorithms.SlotOccupancy.CameraRoiParams.Add(p);
         }
-        else
-        {
-            _config.Algorithms.SlotOccupancy.Roi3dLeft = list;
-        }
+
+        p.XMin = roi.MinX;
+        p.XMax = roi.MaxX;
+        p.YMin = roi.MinY;
+        p.YMax = roi.MaxY;
+        p.ZMin = (int)roi.MinZ;
+        p.ZMax = (int)roi.MaxZ;
 
         try
         {
             SaveConfig();
-            AppendLog($"已保存 {CurrentSide()} ROI 到 config.json", false);
+            AppendLog($"已保存 ROI 到 config.json (SN={sn})", false);
         }
         catch (Exception ex)
         {
@@ -495,7 +511,7 @@ public partial class MainWindow : Window
         if (!IsLoaded) return;
         txtCameraSn.Text = string.Empty;
         UpdateCameraSnFromConfig();
-        LoadRoiFromCurrentSide();
+        LoadRoiForCurrentCamera();
         RedrawRoiAndStats();
     }
 

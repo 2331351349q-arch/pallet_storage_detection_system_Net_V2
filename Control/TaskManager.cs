@@ -131,12 +131,9 @@ namespace pallet_storage_detection_system_Net_V2.Control
 
                     // 2. 统一抓图流程：所有 Flag 类型均通过相机抓图。
                     {
-                        // Flag=4/5 盘库任务：按 VisualInventory 配置的 SN 数量抓取 2D 相机图像
-                        // 其他 Flag：按各自配置抓取 3D 相机图像（每侧 1 台）
+                        // Flag=1,2,3,4,5 统一：按配置的 SN 数量抓取图像
                         List<string> targetSNs = ConfigManager.GetTargetCameraSNs(task.Flag, task.Side);
-                        int requiredCameraCount = (task.Flag == 4 || task.Flag == 5)
-                            ? targetSNs?.Count ?? 0   // 盘库任务：按配置数量（左侧 1 台，右侧 2 台）
-                            : 1;
+                        int requiredCameraCount = targetSNs?.Count ?? 0;
 
                         if (targetSNs == null || targetSNs.Count < requiredCameraCount)
                         {
@@ -146,41 +143,25 @@ namespace pallet_storage_detection_system_Net_V2.Control
                         }
 
                         List<Task<object?>> grabTasks = new List<Task<object?>>();
-                        if (task.Flag == 1)
+                        for (int i = 0; i < requiredCameraCount; i++)
                         {
-                            string sn = targetSNs[0];
+                            string sn = targetSNs[i];
                             var camera = DeviceManager.GetCamera(sn);
-                            if (camera == null)
+                            if (camera != null)
+                            {
+                                grabTasks.Add(GrabFrameSafeAsync(camera, task.Flag, i + 1));
+                            }
+                            else
                             {
                                 Log($"警告: 系统硬件池中未找到 SN 为 {sn} 的在线相机");
-                                await _redisComm.ClearTaskKeysAsync();
-                                continue;
                             }
-
-                            grabTasks.Add(GrabFrameSafeAsync(camera, task.Flag, 1));
                         }
-                        else
-                        {
-                            for (int i = 0; i < requiredCameraCount; i++)
-                            {
-                                string sn = targetSNs[i];
-                                var camera = DeviceManager.GetCamera(sn);
-                                if (camera != null)
-                                {
-                                    grabTasks.Add(GrabFrameSafeAsync(camera, task.Flag, i + 1));
-                                }
-                                else
-                                {
-                                    Log($"警告: 系统硬件池中未找到 SN 为 {sn} 的在线相机");
-                                }
-                            }
 
-                            if (grabTasks.Count != requiredCameraCount)
-                            {
-                                Log($"有效抓取设备数目不满足要求（需 {requiredCameraCount} 台），任务失败！");
-                                await _redisComm.ClearTaskKeysAsync();
-                                continue;
-                            }
+                        if (grabTasks.Count != requiredCameraCount)
+                        {
+                            Log($"有效抓取设备数目不满足要求（需 {requiredCameraCount} 台），任务失败！");
+                            await _redisComm.ClearTaskKeysAsync();
+                            continue;
                         }
 
                         var grabStartTime = DateTime.Now;
@@ -331,16 +312,16 @@ namespace pallet_storage_detection_system_Net_V2.Control
                 switch (flag)
                 {
                     case 1:
-                        // 货位占用检查 (Flag 1)
-                        return Algorithms.SlotOccupancyAlgo.Run(side, img1, res);
+                        // 货位占用检查 (Flag 1) - 双相机输入
+                        return Algorithms.SlotOccupancyAlgo.Run(side, img1, img2, res);
 
                     case 2:
-                        // 堆垛机偏移检测 (Flag 2) — 单帧输入，与标准位置比较
-                        return Algorithms.StackerOffsetAlgo.Run(img1, res);
+                        // 堆垛机偏移检测 (Flag 2) — 双相机融合输入
+                        return Algorithms.StackerOffsetAlgo.Run(img1, img2, res);
 
                     case 3:
-                        // 货架横梁与立柱变形安全性评估 (Flag 3)
-                        return Algorithms.RackDeformationAlgo.Run(img1, res);
+                        // 货架立柱托臂变形检测 (Flag 3) — 双相机融合输入
+                        return Algorithms.RackDeformationAlgo.Run(img1, img2, res);
 
                     case 4:
                     case 5:

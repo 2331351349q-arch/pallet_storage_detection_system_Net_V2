@@ -12,7 +12,7 @@ namespace pallet_storage_detection_system_Net_V2
     public class RoiTunerForm : Form
     {
         private ComboBox _cmbSide = null!;
-        private TextBox _txtCameraSn = null!;
+        private ComboBox _cmbTuneCamera = null!;
         private NumericUpDown _numSample = null!;
         private NumericUpDown _numYaw = null!;
         private NumericUpDown _numPitch = null!;
@@ -33,13 +33,15 @@ namespace pallet_storage_detection_system_Net_V2
         private bool _isDraggingView;
         private Point _lastMousePoint;
 
-        private DepthFrameData? _currentFrame;
+        private DepthFrameData? _currentFrame1;
+        private DepthFrameData? _currentFrame2;
+        private List<string> _currentSideSNs = new List<string>();
 
         public RoiTunerForm()
         {
             InitializeUi();
-            LoadRoiFromCurrentSide();
             UpdateCameraSnFromConfig();
+            LoadRoiForCurrentCamera();
             RedrawCloudAndStats();
         }
 
@@ -76,14 +78,19 @@ namespace pallet_storage_detection_system_Net_V2
             _cmbSide.SelectedIndexChanged += (_, __) =>
             {
                 UpdateCameraSnFromConfig();
-                LoadRoiFromCurrentSide();
+                LoadRoiForCurrentCamera();
                 RedrawCloudAndStats();
             };
             leftFlow.Controls.Add(_cmbSide);
 
-            leftFlow.Controls.Add(new Label { Text = "目标相机 SN", Width = 340, Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold) });
-            _txtCameraSn = new TextBox { Width = 340 };
-            leftFlow.Controls.Add(_txtCameraSn);
+            leftFlow.Controls.Add(new Label { Text = "当前调参相机 SN", Width = 340, Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold) });
+            _cmbTuneCamera = new ComboBox { Width = 340, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cmbTuneCamera.SelectedIndexChanged += (_, __) =>
+            {
+                LoadRoiForCurrentCamera();
+                RedrawCloudAndStats();
+            };
+            leftFlow.Controls.Add(_cmbTuneCamera);
 
             var btnLine = new FlowLayoutPanel { Width = 340, Height = 36 };
             var btnInit = new Button { Text = "初始化目标相机", Width = 160, Height = 30 };
@@ -137,7 +144,7 @@ namespace pallet_storage_detection_system_Net_V2
             _pbCloud = new HighQualityPictureBox { Dock = DockStyle.Fill, BackColor = Color.Black, SizeMode = PictureBoxSizeMode.CenterImage };
             _pbCloud.Resize += (_, __) =>
             {
-                if (_currentFrame != null)
+                if (_currentFrame1 != null || _currentFrame2 != null)
                 {
                     RedrawCloudAndStats();
                 }
@@ -269,23 +276,38 @@ namespace pallet_storage_detection_system_Net_V2
             var mapping = ConfigManager.Instance?.Algorithms?.SlotOccupancy?.CameraMapping;
             if (mapping == null) return;
 
-            string sn = CurrentSide() == "right"
-                ? (mapping.RightSideSns?.FirstOrDefault() ?? string.Empty)
-                : (mapping.LeftSideSns?.FirstOrDefault() ?? string.Empty);
+            string side = CurrentSide();
+            _currentSideSNs = side == "right"
+                ? (mapping.RightSideSns ?? new List<string>())
+                : (mapping.LeftSideSns ?? new List<string>());
 
-            if (!string.IsNullOrWhiteSpace(sn))
+            _cmbTuneCamera.Items.Clear();
+            foreach (var sn in _currentSideSNs)
             {
-                _txtCameraSn.Text = sn;
+                if (!string.IsNullOrWhiteSpace(sn)) _cmbTuneCamera.Items.Add(sn);
             }
+            if (_cmbTuneCamera.Items.Count > 0)
+                _cmbTuneCamera.SelectedIndex = 0;
         }
 
-        private void LoadRoiFromCurrentSide()
+        private void LoadRoiForCurrentCamera()
         {
+            var sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             var cfg = ConfigManager.Instance?.Algorithms?.SlotOccupancy;
-            var roiList = CurrentSide() == "right" ? cfg?.Roi3dRight : cfg?.Roi3dLeft;
-            var roi = (roiList != null && roiList.Count >= 6)
-                ? new Roi3D(roiList[0], roiList[1], roiList[2], roiList[3], roiList[4], roiList[5])
-                : new Roi3D(-500, 500, -500, 500, 1000, 3000);
+            Roi3D roi;
+
+            var p = cfg?.FindCameraParam(sn);
+            if (p != null)
+            {
+                roi = new Roi3D(p.XMin, p.XMax, p.YMin, p.YMax, p.ZMin, p.ZMax);
+            }
+            else
+            {
+                var roiList = CurrentSide() == "right" ? cfg?.Roi3dRight : cfg?.Roi3dLeft;
+                roi = (roiList != null && roiList.Count >= 6)
+                    ? new Roi3D(roiList[0], roiList[1], roiList[2], roiList[3], roiList[4], roiList[5])
+                    : new Roi3D(-500, 500, -500, 500, 1000, 3000);
+            }
 
             _txtMinX.Text = roi.MinX.ToString("F0");
             _txtMaxX.Text = roi.MaxX.ToString("F0");
@@ -310,95 +332,80 @@ namespace pallet_storage_detection_system_Net_V2
 
         private async void BtnInit_Click(object? sender, EventArgs e)
         {
-            string sn = _txtCameraSn.Text.Trim();
-            if (string.IsNullOrWhiteSpace(sn))
+            if (_currentSideSNs.Count == 0) { AppendLog("当前侧无配置相机SN", true); return; }
+
+            var configsToInit = new List<CameraConfig>();
+            foreach (var sn in _currentSideSNs)
             {
-                AppendLog("请先填写相机SN", true);
-                return;
+                if (DeviceManager.GetCamera(sn) != null) continue;
+                var cfg = ConfigManager.Instance?.Cameras?.FirstOrDefault(c =>
+                    string.Equals(c.Sn, sn, StringComparison.OrdinalIgnoreCase));
+                if (cfg != null) configsToInit.Add(cfg);
             }
 
-            if (DeviceManager.GetCamera(sn) != null)
-            {
-                AppendLog($"相机已在设备池中: {sn}", false);
-                return;
-            }
+            if (configsToInit.Count == 0) { AppendLog("所有相关相机均已初始化", false); return; }
 
-            var cfg = ConfigManager.Instance?.Cameras?
-                .FirstOrDefault(c => string.Equals(c.Sn, sn, StringComparison.OrdinalIgnoreCase)
-                                     && (c.Type?.Contains("Tycam", StringComparison.OrdinalIgnoreCase) == true
-                                         || c.Type?.Contains("Percipio", StringComparison.OrdinalIgnoreCase) == true));
-            if (cfg == null)
-            {
-                AppendLog($"配置中未找到该SN的3D相机: {sn}", true);
-                return;
-            }
+            await Task.Run(() => DeviceManager.Initialize(configsToInit, m => BeginInvoke(new Action(() => AppendLog(m, false)))));
 
-            await Task.Run(() => DeviceManager.Initialize(new List<CameraConfig> { cfg }, m => BeginInvoke(new Action(() => AppendLog(m, false)))));
-
-            bool initOk = DeviceManager.GetCamera(sn) != null;
-            if (initOk)
+            foreach (var cfg in configsToInit)
             {
-                var calib = ConfigManager.GetCalibration(sn);
-                bool hasCalib = calib != null && calib.IsValid;
-                AppendLog($"相机初始化成功: {sn} | 外参标定: {(hasCalib ? "✓" : "✗ 未标定")}", false);
-            }
-            else
-            {
-                AppendLog($"相机初始化失败: {sn}", true);
+                if (DeviceManager.GetCamera(cfg.Sn) != null)
+                {
+                    var calib = ConfigManager.GetCalibration(cfg.Sn);
+                    bool hasCalib = calib != null && calib.IsValid;
+                    AppendLog($"相机初始化成功: {cfg.Sn} | 外参标定: {(hasCalib ? "✓" : "✗ 未标定")}", false);
+                }
+                else
+                {
+                    AppendLog($"相机初始化失败: {cfg.Sn}", true);
+                }
             }
         }
 
         private async void BtnGrab_Click(object? sender, EventArgs e)
         {
-            string sn = _txtCameraSn.Text.Trim();
-            if (string.IsNullOrWhiteSpace(sn))
-            {
-                AppendLog("请先填写相机SN", true);
-                return;
-            }
+            if (_currentSideSNs.Count == 0) { AppendLog("当前侧无相机配置", true); return; }
 
-            var cam = DeviceManager.GetCamera(sn);
-            if (cam == null)
-            {
-                AppendLog("相机不在设备池，先点\"初始化目标相机\"", true);
-                return;
-            }
-            if (!cam.IsConnected)
-            {
-                AppendLog("相机未连接，请检查硬件或重新初始化", true);
-                return;
-            }
-
+            var btn = (Button)sender!;
+            btn.Enabled = false;
             try
             {
-                var frameObj = await cam.GrabFrameAsync();
-                if (frameObj is Bitmap bmp)
+                AppendLog("正在抓取...", false);
+                var tasks = new List<Task<object>>();
+                foreach (var sn in _currentSideSNs)
                 {
-                    if (bmp.Width == 640 && bmp.Height == 480)
-                        AppendLog("抓图超时(5秒内无深度帧回调)，请: 1)重新初始化 2)检查相机是否被占用", true);
-                    else
-                        AppendLog("抓图返回2D图像而非深度帧", true);
-                    bmp.Dispose();
-                    return;
-                }
-                if (frameObj is not DepthFrameData depth)
-                {
-                    AppendLog("抓图返回非深度帧", true);
-                    return;
+                    var cam = DeviceManager.GetCamera(sn);
+                    if (cam == null) { AppendLog($"相机 {sn} 未初始化", true); continue; }
+                    if (!cam.IsConnected) { AppendLog($"相机 {sn} 未连接", true); continue; }
+                    tasks.Add(cam.GrabFrameAsync()!);
                 }
 
-                _currentFrame = depth;
-                _pbPreview.Image?.Dispose();
-                _pbPreview.Image = (Image)depth.PreviewImage.Clone();
-                _lblPreviewMeta.Text = $"预览: SN={depth.CameraSn} | {depth.Width}x{depth.Height} | {DateTime.Now:HH:mm:ss.fff}";
+                if (tasks.Count == 0) return;
+
+                var results = await Task.WhenAll(tasks);
+                
+                _currentFrame1 = results.Length > 0 ? results[0] as DepthFrameData : null;
+                _currentFrame2 = results.Length > 1 ? results[1] as DepthFrameData : null;
+
+                if (_currentFrame1 != null) {
+                    _pbPreview.Image?.Dispose();
+                    _pbPreview.Image = (Image)_currentFrame1.PreviewImage.Clone();
+                    _lblPreviewMeta.Text = $"预览: SN={_currentFrame1.CameraSn} | {_currentFrame1.Width}x{_currentFrame1.Height} | {DateTime.Now:HH:mm:ss.fff}";
+                    AppendLog($"抓图成功 (左) {_currentFrame1.CameraSn}", false);
+                }
+                if (_currentFrame2 != null) {
+                    if (_currentFrame1 == null) {
+                        _pbPreview.Image?.Dispose();
+                        _pbPreview.Image = (Image)_currentFrame2.PreviewImage.Clone();
+                        _lblPreviewMeta.Text = $"预览: SN={_currentFrame2.CameraSn} | {_currentFrame2.Width}x{_currentFrame2.Height} | {DateTime.Now:HH:mm:ss.fff}";
+                    }
+                    AppendLog($"抓图成功 (右) {_currentFrame2.CameraSn}", false);
+                }
 
                 RedrawCloudAndStats();
-                AppendLog($"抓图成功 {depth.CameraSn} {depth.Width}x{depth.Height}", false);
             }
-            catch (Exception ex)
-            {
-                AppendLog($"抓图失败: {ex.Message}", true);
-            }
+            catch (Exception ex) { AppendLog($"抓图异常: {ex.Message}", true); }
+            finally { btn.Enabled = true; }
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)
@@ -409,6 +416,13 @@ namespace pallet_storage_detection_system_Net_V2
                 return;
             }
 
+            var sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(sn))
+            {
+                AppendLog("相机SN为空，无法保存", true);
+                return;
+            }
+
             var slot = ConfigManager.Instance?.Algorithms?.SlotOccupancy;
             if (slot == null)
             {
@@ -416,21 +430,22 @@ namespace pallet_storage_detection_system_Net_V2
                 return;
             }
 
-            var roiList = new List<int>
+            var p = slot.FindCameraParam(sn);
+            if (p == null)
             {
-                (int)Math.Round(roi.MinX),
-                (int)Math.Round(roi.MaxX),
-                (int)Math.Round(roi.MinY),
-                (int)Math.Round(roi.MaxY),
-                (int)Math.Round(roi.MinZ),
-                (int)Math.Round(roi.MaxZ)
-            };
+                p = new CameraRoiParam { CameraSn = sn };
+                slot.CameraRoiParams.Add(p);
+            }
 
-            if (CurrentSide() == "right") slot.Roi3dRight = roiList;
-            else slot.Roi3dLeft = roiList;
+            p.XMin = roi.MinX;
+            p.XMax = roi.MaxX;
+            p.YMin = roi.MinY;
+            p.YMax = roi.MaxY;
+            p.ZMin = (int)roi.MinZ;
+            p.ZMax = (int)roi.MaxZ;
 
             ConfigManager.SaveConfig();
-            AppendLog($"ROI已保存到 config.json ({CurrentSide()})", false);
+            AppendLog($"ROI已保存到 config.json (SN={sn})", false);
             RedrawCloudAndStats();
         }
 
@@ -442,20 +457,27 @@ namespace pallet_storage_detection_system_Net_V2
                 return;
             }
 
-            if (_currentFrame == null)
+            if (_currentFrame1 == null && _currentFrame2 == null)
             {
                 _lblStats.Text = "当前无深度帧";
                 return;
             }
 
-            RenderCloudImage(_currentFrame, roi);
+            // We can just render frame1 or merge them for rendering. Let's merge if possible, or just render frame1 for simplicity in ROI tuner if it's not fully updated yet.
+            var basePts = new List<System.Numerics.Vector3>();
+            var pts1 = _currentFrame1?.GetPointCloud();
+            if (pts1 != null) basePts.AddRange(pts1);
+            var pts2 = _currentFrame2?.GetPointCloud();
+            if (pts2 != null) basePts.AddRange(pts2);
 
-            int count = CountPointsInRoi(_currentFrame, roi);
+            RenderCloudImage(basePts, roi);
+
+            int count = CountPointsInRoi(basePts, roi);
             int threshold = ConfigManager.Instance?.Algorithms?.SlotOccupancy?.PointThreshold ?? 10000;
             _lblStats.Text = $"ROI内点数: {count} / 阈值: {threshold} / 判定: {(count > threshold ? "有货" : "无货")}";
         }
 
-        private void RenderCloudImage(DepthFrameData frame, Roi3D roi)
+        private void RenderCloudImage(List<System.Numerics.Vector3> pointCloud, Roi3D roi)
         {
             int w = Math.Max(320, _pbCloud.ClientSize.Width);
             int h = Math.Max(240, _pbCloud.ClientSize.Height);
@@ -468,8 +490,7 @@ namespace pallet_storage_detection_system_Net_V2
             var yaw = (double)_numYaw.Value * Math.PI / 180.0;
             var pitch = (double)_numPitch.Value * Math.PI / 180.0;
 
-            // ★ 使用 SDK 原生点云（或回退手动公式），统一经过 GetPointCloud() 获取
-            var pointCloud = frame.GetPointCloud();
+            // Point cloud is already provided directly
             int totalStep = step * step;
             using var p = new SolidBrush(Color.Lime);
             for (int i = 0; i < pointCloud.Count; i += totalStep)
@@ -551,13 +572,10 @@ namespace pallet_storage_detection_system_Net_V2
             }
         }
 
-        private int CountPointsInRoi(DepthFrameData frame, Roi3D roi)
+        private int CountPointsInRoi(List<System.Numerics.Vector3> points, Roi3D roi)
         {
-            if (frame.Width <= 0 || frame.Height <= 0 || frame.DepthRaw == null || frame.DepthRaw.Length == 0)
-                return 0;
+            if (points == null || points.Count == 0) return 0;
 
-            // ★ 使用统一点云接口获取点云
-            var points = frame.GetPointCloud();
             int count = 0;
 
             foreach (var pt in points)

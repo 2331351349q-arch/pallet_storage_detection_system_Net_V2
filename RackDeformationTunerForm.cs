@@ -19,7 +19,7 @@ namespace pallet_storage_detection_system_Net_V2
     {
         // ---- 控件 ----
         private ComboBox _cmbSide = null!;
-        private TextBox _txtCameraSn = null!;
+        private ComboBox _cmbTuneCamera = null!;
         private NumericUpDown _numYaw = null!;
         private NumericUpDown _numPitch = null!;
         private NumericUpDown _numDepthMin = null!;
@@ -49,7 +49,9 @@ namespace pallet_storage_detection_system_Net_V2
         private TextBox _txtLog = null!;
 
         // ---- 状态 ----
-        private DepthFrameData? _currentFrame;
+        private DepthFrameData? _currentFrame1;
+        private DepthFrameData? _currentFrame2;
+        private List<string> _currentSideSNs = new List<string>();
         private SegmentationResult? _currentSeg;
         private bool _isDragging;
         private Point _lastMouse;
@@ -77,27 +79,31 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void OnFormClosed(object? sender, FormClosedEventArgs e)
         {
-            // 停止并断开通过本窗口初始化的相机
-            string sn = _txtCameraSn?.Text?.Trim() ?? string.Empty;
-            if (!string.IsNullOrWhiteSpace(sn))
+            // 停止并断开通过本窗口初始化的所有相机
+            foreach (var sn in _currentSideSNs)
             {
-                var cam = DeviceManager.GetCamera(sn);
-                if (cam != null)
+                if (!string.IsNullOrWhiteSpace(sn))
                 {
-                    try
+                    var cam = DeviceManager.GetCamera(sn);
+                    if (cam != null)
                     {
-                        if (cam.IsCapturing)
-                            cam.StopGrabbing();
+                        try
+                        {
+                            if (cam.IsCapturing)
+                                cam.StopGrabbing();
+                        }
+                        catch { /* 忽略异常 */ }
                     }
-                    catch { /* 忽略关闭时的异常 */ }
                 }
             }
+            
+            _currentFrame1?.PreviewImage?.Dispose();
+            _currentFrame2?.PreviewImage?.Dispose();
 
             // 释放图像资源
             _pbCloud?.Image?.Dispose();
             _pbProfile?.Image?.Dispose();
             _pbPreview?.Image?.Dispose();
-            _currentFrame?.PreviewImage?.Dispose();
         }
 
         // ============ UI 构建 ============
@@ -132,17 +138,21 @@ namespace pallet_storage_detection_system_Net_V2
             _cmbSide.SelectedIndexChanged += (_, __) => { UpdateCameraSnFromConfig(); LoadCameraParams(); };
             flow.Controls.Add(_cmbSide);
 
-            // 相机 SN
-            flow.Controls.Add(BoldLabel("目标相机 SN"));
-            _txtCameraSn = new TextBox { Width = FlowW };
-            flow.Controls.Add(_txtCameraSn);
+            // 调参相机选择
+            flow.Controls.Add(BoldLabel("当前调参相机 SN"));
+            _cmbTuneCamera = new ComboBox { Width = FlowW, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cmbTuneCamera.SelectedIndexChanged += (_, __) => LoadCameraParams();
+            flow.Controls.Add(_cmbTuneCamera);
 
             // 按鈕行
             var btnLine = new FlowLayoutPanel { Width = FlowW, Height = 44, WrapContents = false };
-            var btnGrab = new Button { Text = "📸 采集图像", Width = 190, Height = 40, Margin = new Padding(3, 2, 3, 2), BackColor = Color.FromArgb(40, 140, 90), ForeColor = Color.White, Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold), FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            var btnInit = new Button { Text = "🔌 初始化", Width = 120, Height = 40, Margin = new Padding(3, 2, 3, 2), BackColor = Color.FromArgb(80, 80, 80), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            btnInit.Click += BtnInit_Click;
+            var btnGrab = new Button { Text = "📸 采集", Width = 120, Height = 40, Margin = new Padding(3, 2, 3, 2), BackColor = Color.FromArgb(40, 140, 90), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnGrab.Click += BtnGrab_Click;
-            var btnSave = new Button { Text = "💾 保存到配置", Width = 190, Height = 40, Margin = new Padding(3, 2, 3, 2), BackColor = Color.FromArgb(60, 80, 130), ForeColor = Color.White, Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold), FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            var btnSave = new Button { Text = "💾 保存", Width = 120, Height = 40, Margin = new Padding(3, 2, 3, 2), BackColor = Color.FromArgb(60, 80, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnSave.Click += BtnSave_Click;
+            btnLine.Controls.Add(btnInit);
             btnLine.Controls.Add(btnGrab);
             btnLine.Controls.Add(btnSave);
             flow.Controls.Add(btnLine);
@@ -158,7 +168,7 @@ namespace pallet_storage_detection_system_Net_V2
 
             // 设为标准值按钮
             var btnSetRef = new Button { Text = "📐 设为标准值", Width = FlowW, Height = 30, BackColor = Color.FromArgb(180, 120, 30), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold) };
-            btnSetRef.Click += BtnSetRef_Click;
+            btnSetRef.Click += BtnCaptureRef_Click;
             flow.Controls.Add(btnSetRef);
 
             // 标准值状态
@@ -390,52 +400,14 @@ namespace pallet_storage_detection_system_Net_V2
 
         // ============ 逻辑 ============
 
-        private string CurrentSide() => _cmbSide.SelectedItem?.ToString() ?? "left";
-
         private void LoadConfigValues()
         {
-            var cfg = ConfigManager.Instance?.Algorithms?.RackDeformation;
-            if (cfg == null) return;
-
-            string sn = _txtCameraSn.Text.Trim();
-            var camParam = cfg.FindCameraParam(sn);
-
-            if (camParam != null)
-            {
-                _numDepthMin.Value = Math.Clamp(camParam.ZMin, _numDepthMin.Minimum, _numDepthMin.Maximum);
-                _numDepthMax.Value = Math.Clamp(camParam.ZMax, _numDepthMax.Minimum, _numDepthMax.Maximum);
-                if (camParam.XMax > camParam.XMin)
-                {
-                    _numXMinRoi.Value = Math.Clamp((decimal)camParam.XMin, _numXMinRoi.Minimum, _numXMinRoi.Maximum);
-                    _numXMaxRoi.Value = Math.Clamp((decimal)camParam.XMax, _numXMaxRoi.Minimum, _numXMaxRoi.Maximum);
-                }
-                if (camParam.YMax > camParam.YMin)
-                {
-                    _numYMinRoi.Value = Math.Clamp((decimal)camParam.YMin, _numYMinRoi.Minimum, _numYMinRoi.Maximum);
-                    _numYMaxRoi.Value = Math.Clamp((decimal)camParam.YMax, _numYMaxRoi.Minimum, _numYMaxRoi.Maximum);
-                }
-                AppendLog($"已从配置加载相机 [{sn}] 的独立 ROI 参数", false);
-
-                // 加载标准基准值
-                _refRackDefLeft  = camParam.RefRackDefLeft;
-                _refRackDefRight = camParam.RefRackDefRight;
-                _refArmAngleLeft = camParam.RefArmAngleLeft;
-                _refArmAngleRight = camParam.RefArmAngleRight;
-                UpdateRefStatusLabel();
-            }
-            else
-            {
-                _numDepthMin.Value = Math.Clamp(cfg.DepthMin, _numDepthMin.Minimum, _numDepthMin.Maximum);
-                _numDepthMax.Value = Math.Clamp(cfg.DepthMax, _numDepthMax.Minimum, _numDepthMax.Maximum);
-                AppendLog($"已加载全局默认深度区间参数", false);
-            }
-
             UpdateCameraSnFromConfig();
         }
 
         private void LoadCameraParams()
         {
-            string sn = _txtCameraSn.Text.Trim();
+            string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             var camParam = ConfigManager.Instance?.Algorithms?.RackDeformation?.FindCameraParam(sn);
             if (camParam != null)
             {
@@ -454,7 +426,6 @@ namespace pallet_storage_detection_system_Net_V2
                 }
                 else { _numYMinRoi.Value = -800; _numYMaxRoi.Value = 800; }
 
-                // 加载标准基准值
                 _refRackDefLeft  = camParam.RefRackDefLeft;
                 _refRackDefRight = camParam.RefRackDefRight;
                 _refArmAngleLeft = camParam.RefArmAngleLeft;
@@ -469,10 +440,19 @@ namespace pallet_storage_detection_system_Net_V2
         {
             var mapping = ConfigManager.Instance?.Algorithms?.RackDeformation?.CameraMapping;
             if (mapping == null) return;
-            string sn = CurrentSide() == "right"
-                ? (mapping.RightSideSns?.FirstOrDefault() ?? string.Empty)
-                : (mapping.LeftSideSns?.FirstOrDefault() ?? string.Empty);
-            if (!string.IsNullOrWhiteSpace(sn)) _txtCameraSn.Text = sn;
+            
+            _currentSideSNs = _cmbSide.SelectedItem?.ToString() == "right"
+                ? (mapping.RightSideSns ?? new List<string>())
+                : (mapping.LeftSideSns ?? new List<string>());
+
+            _cmbTuneCamera.Items.Clear();
+            foreach (var sn in _currentSideSNs)
+            {
+                if (!string.IsNullOrWhiteSpace(sn))
+                    _cmbTuneCamera.Items.Add(sn);
+            }
+            if (_cmbTuneCamera.Items.Count > 0)
+                _cmbTuneCamera.SelectedIndex = 0;
         }
 
         private void SyncTrackbarAndRecalc(NumericUpDown nud, TrackBar tb, Label lbl)
@@ -496,8 +476,6 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void Recalculate()
         {
-            if (_currentFrame == null) return;
-
             double zMin = (double)_numDepthMin.Value;
             double zMax = (double)_numDepthMax.Value;
             double xMinRoiNum = (double)_numXMinRoi.Value;
@@ -511,8 +489,13 @@ namespace pallet_storage_detection_system_Net_V2
             double yMinRoI = (Math.Abs(yMinRoiNum) > 0.5 || Math.Abs(yMaxRoiNum) > 0.5) ? yMinRoiNum : -800;
             double yMaxRoI = (Math.Abs(yMinRoiNum) > 0.5 || Math.Abs(yMaxRoiNum) > 0.5) ? yMaxRoiNum : 800;
 
-            var basePts = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame);
-            if (basePts == null || basePts.Count == 0) return;
+            var basePts = new List<System.Numerics.Vector3>();
+            var pts1 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame1);
+            if (pts1 != null) basePts.AddRange(pts1);
+            var pts2 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame2);
+            if (pts2 != null) basePts.AddRange(pts2);
+
+            if (basePts.Count == 0) return;
 
             _currentSeg = CloudSegmentationHelper.Segment(
                 basePts, zMin, zMax, yMinRoI, yMaxRoI, xMinRoI, xMaxRoI,
@@ -547,7 +530,6 @@ namespace pallet_storage_detection_system_Net_V2
             double armL = RackDeformationAlgo.ComputeArmAngle(d.LeftArmPoints, _usedArmPtsL);
             double armR = RackDeformationAlgo.ComputeArmAngle(d.RightArmPoints, _usedArmPtsR);
 
-            // 计算差值 (当前值 - 标准值)
             double diffRackL = rackL - _refRackDefLeft;
             double diffRackR = rackR - _refRackDefRight;
             double diffArmL  = armL  - _refArmAngleLeft;
@@ -574,7 +556,7 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void RedrawCloud()
         {
-            if (_currentFrame == null) return;
+            if (_currentFrame1 == null && _currentFrame2 == null) return;
 
             int w = Math.Max(320, _pbCloud.ClientSize.Width);
             int h = Math.Max(240, _pbCloud.ClientSize.Height);
@@ -592,15 +574,19 @@ namespace pallet_storage_detection_system_Net_V2
                 double xMinViz = (double)_numXMinRoi.Value;
                 double xMaxViz = (double)_numXMaxRoi.Value;
                 
-                // Draw outline box
                 DrawDepthRangeCuboid(g, zMin, zMax, xMinViz, xMaxViz, yMinViz, yMaxViz, yaw, pitch, w, h);
                 
                 using var infoFont = new Font("Consolas", 9F, FontStyle.Bold);
                 g.DrawString($"缩放 ×{_zoomLevel:F1}", infoFont, Brushes.Gray, 10, h - 34);
             }
 
-            var basePts = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame);
-            if (basePts == null || basePts.Count == 0)
+            var basePts = new List<System.Numerics.Vector3>();
+            var pts1 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame1);
+            if (pts1 != null) basePts.AddRange(pts1);
+            var pts2 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame2);
+            if (pts2 != null) basePts.AddRange(pts2);
+
+            if (basePts.Count == 0)
             {
                 _pbCloud.Image?.Dispose();
                 _pbCloud.Image = bmp;
@@ -614,26 +600,11 @@ namespace pallet_storage_detection_system_Net_V2
 
             var drawList = new List<(int sx, int sy, byte r, byte g, byte b)>(basePts.Count / totalStep + 100);
 
-            // Create sets or use bounds from currentSeg
-            double bThresh = _currentSeg?.BeamZThreshold ?? double.MaxValue;
-            double lxInner = _currentSeg?.RefinedLeftBeamInnerX ?? double.NaN;
-            double rxInner = _currentSeg?.RefinedRightBeamInnerX ?? double.NaN;
-
-            if (_currentSeg != null && _currentSeg.Success && _currentSeg.BeamRegions.Count >= 2)
-            {
-                // To determine if a point is in left beam region or right beam region
-                // Find the best left and right index roughly
-                // But we don't have the best index in SegmentationResult directly.
-                // We'll just rely on x < lxInner + width and x > rxInner - width
-            }
-
-            // Simplistic approach: just use the separated lists to draw!
             HashSet<System.Numerics.Vector3>? lcol = _currentSeg?.LeftColumnPoints != null ? new HashSet<System.Numerics.Vector3>(_currentSeg.LeftColumnPoints) : null;
             HashSet<System.Numerics.Vector3>? rcol = _currentSeg?.RightColumnPoints != null ? new HashSet<System.Numerics.Vector3>(_currentSeg.RightColumnPoints) : null;
             HashSet<System.Numerics.Vector3>? larm = _currentSeg?.LeftArmPoints != null ? new HashSet<System.Numerics.Vector3>(_currentSeg.LeftArmPoints) : null;
             HashSet<System.Numerics.Vector3>? rarm = _currentSeg?.RightArmPoints != null ? new HashSet<System.Numerics.Vector3>(_currentSeg.RightArmPoints) : null;
 
-            // 实际用于计算的托臂点云（品红色高亮标记）
             HashSet<System.Numerics.Vector3>? usedL = _usedArmPtsL.Count > 0 ? new HashSet<System.Numerics.Vector3>(_usedArmPtsL) : null;
             HashSet<System.Numerics.Vector3>? usedR = _usedArmPtsR.Count > 0 ? new HashSet<System.Numerics.Vector3>(_usedArmPtsR) : null;
 
@@ -643,14 +614,13 @@ namespace pallet_storage_detection_system_Net_V2
                 if (!ProjectPt(pt.X, -pt.Y, pt.Z, yaw2, pitch2, w, h, out int sx, out int sy))
                     continue;
 
-                byte r = 105, g = 105, b = 105; // Default Gray
-                // 计算用点优先级最高（品红色）
-                if (usedL != null && usedL.Contains(pt)) { r = 255; g = 0; b = 255; } // Magenta
-                else if (usedR != null && usedR.Contains(pt)) { r = 255; g = 0; b = 255; } // Magenta
-                else if (lcol != null && lcol.Contains(pt)) { r = 255; g = 165; b = 0; } // Orange
-                else if (rcol != null && rcol.Contains(pt)) { r = 255; g = 255; b = 0; } // Yellow
-                else if (larm != null && larm.Contains(pt)) { r = 0; g = 255; b = 255; } // Cyan
-                else if (rarm != null && rarm.Contains(pt)) { r = 50; g = 205; b = 50; } // LimeGreen
+                byte r = 105, g = 105, b = 105;
+                if (usedL != null && usedL.Contains(pt)) { r = 255; g = 0; b = 255; }
+                else if (usedR != null && usedR.Contains(pt)) { r = 255; g = 0; b = 255; }
+                else if (lcol != null && lcol.Contains(pt)) { r = 255; g = 165; b = 0; }
+                else if (rcol != null && rcol.Contains(pt)) { r = 255; g = 255; b = 0; }
+                else if (larm != null && larm.Contains(pt)) { r = 0; g = 255; b = 255; }
+                else if (rarm != null && rarm.Contains(pt)) { r = 50; g = 205; b = 50; }
 
                 drawList.Add((sx, sy, r, g, b));
             }
@@ -662,17 +632,13 @@ namespace pallet_storage_detection_system_Net_V2
                 int stride = bmpData.Stride;
                 int bufSize = stride * h;
                 byte[] buffer = new byte[bufSize];
-
                 System.Runtime.InteropServices.Marshal.Copy(bmpData.Scan0, buffer, 0, bufSize);
 
                 void SetPixel(byte[] buf, int px, int py, byte c_r, byte c_g, byte c_b)
                 {
                     if ((uint)px >= (uint)w || (uint)py >= (uint)h) return;
                     int off = py * stride + px * 4;
-                    buf[off] = c_b;
-                    buf[off + 1] = c_g;
-                    buf[off + 2] = c_r;
-                    buf[off + 3] = 255;
+                    buf[off] = c_b; buf[off + 1] = c_g; buf[off + 2] = c_r; buf[off + 3] = 255;
                 }
 
                 int dynamicSz = (int)(Math.Max(1.0, _zoomLevel * 0.8));
@@ -685,13 +651,9 @@ namespace pallet_storage_detection_system_Net_V2
                         for (int dx = -hsz; dx <= hsz; dx++)
                             SetPixel(buffer, sx + dx, sy + dy, c_r, c_g, c_b);
                 }
-
                 System.Runtime.InteropServices.Marshal.Copy(buffer, 0, bmpData.Scan0, bufSize);
             }
-            finally
-            {
-                bmp.UnlockBits(bmpData);
-            }
+            finally { bmp.UnlockBits(bmpData); }
 
             _pbCloud.Image?.Dispose();
             _pbCloud.Image = bmp;
@@ -719,26 +681,15 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void DrawDepthRangeCuboid(Graphics g, double zMin, double zMax, double xMin, double xMax, double yMin, double yMax, double yaw, double pitch, int w, int h)
         {
-            // X ROI 为 0 时使用自动检测范围
             double xLo, xHi;
             bool xAuto = Math.Abs(xMin) < 0.5 && Math.Abs(xMax) < 0.5;
             if (xAuto && _currentSeg != null && _currentSeg.XMax > _currentSeg.XMin)
             {
-                xLo = _currentSeg.XMin;
-                xHi = _currentSeg.XMax;
+                xLo = _currentSeg.XMin; xHi = _currentSeg.XMax;
             }
-            else if (xAuto)
-            {
-                xLo = -600;
-                xHi = 600;
-            }
-            else
-            {
-                xLo = xMin;
-                xHi = xMax;
-            }
+            else if (xAuto) { xLo = -600; xHi = 600; }
+            else { xLo = xMin; xHi = xMax; }
 
-            // 构建立方体 8 个角点
             float[] xs = { (float)xLo, (float)xHi, (float)xHi, (float)xLo, (float)xLo, (float)xHi, (float)xHi, (float)xLo };
             float[] ys = { (float)yMin, (float)yMin, (float)yMax, (float)yMax, (float)yMin, (float)yMin, (float)yMax, (float)yMax };
             float[] zs = { (float)zMin, (float)zMin, (float)zMin, (float)zMin, (float)zMax, (float)zMax, (float)zMax, (float)zMax };
@@ -754,7 +705,6 @@ namespace pallet_storage_detection_system_Net_V2
             int[][] edges = { new[] { 0, 1 }, new[] { 1, 2 }, new[] { 2, 3 }, new[] { 3, 0 }, new[] { 4, 5 }, new[] { 5, 6 }, new[] { 6, 7 }, new[] { 7, 4 }, new[] { 0, 4 }, new[] { 1, 5 }, new[] { 2, 6 }, new[] { 3, 7 } };
             foreach (var e in edges) g.DrawLine(pen, pts[e[0]], pts[e[1]]);
 
-            // Z 标签
             using var f = new Font("Consolas", 9F);
             float yLabel = (float)yMin - 50;
             ProjectPt(0, (float)-yLabel, (float)zMin, yaw, pitch, w, h, out int lx, out int ly);
@@ -762,14 +712,6 @@ namespace pallet_storage_detection_system_Net_V2
             g.DrawString($"Z≈{zMin:F0}", f, bLo, lx, ly);
             ProjectPt(0, (float)-yLabel, (float)zMax, yaw, pitch, w, h, out lx, out ly);
             g.DrawString($"Z≈{zMax:F0}", f, Brushes.LightGreen, lx, ly);
-
-            // X 标签
-            float xLabelY = (float)yMin - 100;
-            ProjectPt((float)xMin, (float)-xLabelY, (float)zMin, yaw, pitch, w, h, out int xx1, out _);
-            ProjectPt((float)xMax, (float)-xLabelY, (float)zMin, yaw, pitch, w, h, out int xx2, out _);
-            using var bx = new SolidBrush(Color.FromArgb(200, 200, 255));
-            g.DrawString($"X={xMin:F0}", f, bx, xx1 - 20, ly + 16);
-            g.DrawString($"X={xMax:F0}", f, bx, xx2 - 20, ly + 16);
         }
 
         // ============ 2D 剖面绘制 ============
@@ -813,7 +755,6 @@ namespace pallet_storage_detection_system_Net_V2
                 if (pts.Count > 1)
                     g.DrawLines(new Pen(Color.FromArgb(100, 150, 255), 1.5f), pts.ToArray());
 
-                // 绘制阈值线
                 float thZ = MapZ(d.BeamZThreshold);
                 using (var pen = new Pen(Color.Red, 1f) { DashStyle = DashStyle.Dash })
                 {
@@ -821,7 +762,6 @@ namespace pallet_storage_detection_system_Net_V2
                     g.DrawString($"Thresh={d.BeamZThreshold:F0}", new Font("Consolas", 8), Brushes.Red, w - Pad + 5, thZ - 6);
                 }
 
-                // 绘制区域
                 foreach (var b in d.BeamRegions)
                 {
                     float l = MapX(b.leftX), r = MapX(b.rightX);
@@ -847,30 +787,79 @@ namespace pallet_storage_detection_system_Net_V2
             _txtLog.ScrollToCaret();
         }
 
+        private async void BtnInit_Click(object? sender, EventArgs e)
+        {
+            if (_currentSideSNs.Count == 0) { AppendLog("当前侧无配置相机SN", true); return; }
+
+            var configsToInit = new List<CameraConfig>();
+            foreach (var sn in _currentSideSNs)
+            {
+                if (DeviceManager.GetCamera(sn) != null) continue;
+                var cfg = ConfigManager.Instance?.Cameras?.FirstOrDefault(c =>
+                    string.Equals(c.Sn, sn, StringComparison.OrdinalIgnoreCase));
+                if (cfg != null) configsToInit.Add(cfg);
+            }
+
+            if (configsToInit.Count == 0) { AppendLog("所有相关相机均已初始化", false); return; }
+
+            await Task.Run(() => DeviceManager.Initialize(configsToInit, m => BeginInvoke(new Action(() => AppendLog(m, false)))));
+
+            foreach (var cfg in configsToInit)
+            {
+                if (DeviceManager.GetCamera(cfg.Sn) != null)
+                {
+                    var calib = ConfigManager.GetCalibration(cfg.Sn);
+                    bool hasCalib = calib != null && calib.IsValid;
+                    AppendLog($"相机初始化成功: {cfg.Sn} | 外参标定: {(hasCalib ? "✓" : "✗")}", false);
+                }
+                else
+                {
+                    AppendLog($"相机初始化失败: {cfg.Sn}", true);
+                }
+            }
+        }
 
         private async void BtnGrab_Click(object? sender, EventArgs e)
         {
-            string sn = _txtCameraSn.Text.Trim();
-            if (string.IsNullOrEmpty(sn)) return;
-
-            var cam = DeviceManager.GetCamera(sn);
-            if (cam == null) { AppendLog("未找到指定的相机", true); return; }
+            if (_currentSideSNs.Count == 0) { AppendLog("当前侧无相机配置", true); return; }
 
             var btn = (Button)sender!;
             btn.Enabled = false;
             try
             {
                 AppendLog("正在抓取...");
-                var frame = await cam.GrabFrameAsync() as DepthFrameData;
-                if (frame != null)
+                var tasks = new List<Task<object>>();
+                foreach (var sn in _currentSideSNs)
                 {
-                    _currentFrame = frame;
-                    _pbPreview.Image?.Dispose();
-                    _pbPreview.Image = (Image)frame.PreviewImage.Clone();
-                    AppendLog($"抓取成功. 点云数: {frame.GetPointCloud()?.Count ?? 0}");
-                    Recalculate();
+                    var cam = DeviceManager.GetCamera(sn);
+                    if (cam == null) { AppendLog($"相机 {sn} 未初始化", true); continue; }
+                    if (!cam.IsConnected) { AppendLog($"相机 {sn} 未连接", true); continue; }
+                    tasks.Add(cam.GrabFrameAsync()!);
                 }
+
+                if (tasks.Count == 0) return;
+
+                var results = await Task.WhenAll(tasks);
+                
+                _currentFrame1 = results.Length > 0 ? results[0] as DepthFrameData : null;
+                _currentFrame2 = results.Length > 1 ? results[1] as DepthFrameData : null;
+
+                if (_currentFrame1 != null) {
+                    _pbPreview.Image?.Dispose();
+                    _pbPreview.Image = (Image)_currentFrame1.PreviewImage.Clone();
+                    AppendLog($"抓图成功 (左) {_currentFrame1.CameraSn}", false);
+                }
+                if (_currentFrame2 != null) {
+                    if (_currentFrame1 == null) {
+                        _pbPreview.Image?.Dispose();
+                        _pbPreview.Image = (Image)_currentFrame2.PreviewImage.Clone();
+                    }
+                    AppendLog($"抓图成功 (右) {_currentFrame2.CameraSn}", false);
+                }
+
+                Recalculate();
             }
+            catch (Exception ex) { AppendLog($"抓图失败: {ex.Message}", true); }
             finally { btn.Enabled = true; }
         }
 
@@ -884,23 +873,20 @@ namespace pallet_storage_detection_system_Net_V2
             }
         }
 
-        private void BtnSetRef_Click(object? sender, EventArgs e)
+        private void BtnCaptureRef_Click(object? sender, EventArgs e)
         {
-            var d = _currentSeg;
-            if (d == null || !d.Success)
+            if (_currentSeg == null || !_currentSeg.Success)
             {
-                AppendLog("请先采集图像并确保检测成功", true);
+                AppendLog("请先抓取一帧并确保检测成功", true);
                 return;
             }
 
-            // 将当前检测的原始值设为标准基准
-            _refRackDefLeft  = RackDeformationAlgo.ComputeColumnDeformation(d.LeftColumnPoints);
-            _refRackDefRight = RackDeformationAlgo.ComputeColumnDeformation(d.RightColumnPoints);
-            _refArmAngleLeft = RackDeformationAlgo.ComputeArmAngle(d.LeftArmPoints);
-            _refArmAngleRight = RackDeformationAlgo.ComputeArmAngle(d.RightArmPoints);
+            _refRackDefLeft  = RackDeformationAlgo.ComputeColumnDeformation(_currentSeg.LeftColumnPoints);
+            _refRackDefRight = RackDeformationAlgo.ComputeColumnDeformation(_currentSeg.RightColumnPoints);
+            _refArmAngleLeft = RackDeformationAlgo.ComputeArmAngle(_currentSeg.LeftArmPoints, _usedArmPtsL);
+            _refArmAngleRight = RackDeformationAlgo.ComputeArmAngle(_currentSeg.RightArmPoints, _usedArmPtsR);
 
             UpdateRefStatusLabel();
-            UpdateResultLabel();  // 刷新结果显示（差值将变为 0）
             AppendLog($"✅ 已设为标准值: 立柱L={_refRackDefLeft:F2} R={_refRackDefRight:F2}, 托臂L={_refArmAngleLeft:F2}° R={_refArmAngleRight:F2}°", false);
         }
 
@@ -925,8 +911,8 @@ namespace pallet_storage_detection_system_Net_V2
             var cfg = ConfigManager.Instance?.Algorithms?.RackDeformation;
             if (cfg == null) { AppendLog("配置对象不可用", true); return; }
 
-            string sn = _txtCameraSn.Text.Trim();
-            if (string.IsNullOrWhiteSpace(sn)) { AppendLog("请先填写相机SN", true); return; }
+            string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(sn)) { AppendLog("请先选择调参相机SN", true); return; }
 
             int zMinVal = (int)_numDepthMin.Value;
             int zMaxVal = (int)_numDepthMax.Value;

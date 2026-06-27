@@ -11,37 +11,45 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         /// 执行货架本体安全性评价 (立柱变形量、托臂下垂角度)。
         /// 单相机视角，提取左右立柱及托臂点云进行拟合计算。
         /// </summary>
-        /// <param name="img">深度帧数据。</param>
+        /// <param name="img1">深度帧数据 1。</param>
+        /// <param name="img2">深度帧数据 2（可能为 null）。</param>
         /// <param name="res">结果载体。</param>
         /// <returns>算法是否执行成功。</returns>
-        public static bool Run(object img, Models.DetectionResult res)
+        public static bool Run(object img1, object img2, Models.DetectionResult res)
         {
             try
             {
-                var frame = img as Devices.DepthFrameData;
-                var basePoints = StackerOffsetAlgo.GetBasePointsFromFrame(frame);
-                if (basePoints == null || basePoints.Count < 500)
+                var cfg = Config.ConfigManager.Instance?.Algorithms?.RackDeformation;
+                var frame1 = img1 as Devices.DepthFrameData;
+                var frame2 = img2 as Devices.DepthFrameData;
+
+                var basePoints = new System.Collections.Generic.List<System.Numerics.Vector3>();
+
+                // 为 RackDeformation 伪造一个 StackerOffsetConfig 用于复用 GetFilteredPoints
+                // （因为需要读取各自相机的 ZMin, ZMax, XMin 等）
+                // 更优雅的做法是将 ROI 提取抽离到公共类，这里暂用简单映射
+                if (frame1 != null)
+                {
+                    var pts1 = GetFilteredPoints(frame1, cfg);
+                    if (pts1 != null) basePoints.AddRange(pts1);
+                }
+
+                if (frame2 != null)
+                {
+                    var pts2 = GetFilteredPoints(frame2, cfg);
+                    if (pts2 != null) basePoints.AddRange(pts2);
+                }
+
+                if (basePoints.Count < 500)
                 {
                     res.RackDefMmLeftValue = 0; res.RackDefMmRightValue = 0;
                     res.ArmDefAngleLeftValue = 0; res.ArmDefAngleRightValue = 0;
                     return false;
                 }
 
-                var cfg = Config.ConfigManager.Instance?.Algorithms?.RackDeformation;
-                var camParam = cfg?.FindCameraParam(frame?.CameraSn);
-
-                double zMin = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
-                double zMax = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
-                double? xMinRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : null;
-                double? xMaxRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMax : null;
-                double? yMinRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMin : null;
-                double? yMaxRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMax : null;
-
-                double yMin = yMinRoI ?? -800;
-                double yMax = yMaxRoI ?? 800;
-
+                // 合并后，直接全范围交给 Segment（因为已经在 GetFilteredPoints 里裁剪过了）
                 var segRes = CloudSegmentationHelper.Segment(
-                    basePoints, zMin, zMax, yMin, yMax, xMinRoI, xMaxRoI,
+                    basePoints, -10000, 10000, -10000, 10000, null, null,
                     5.0, 3, 500, extractComponentClouds: true);
 
                 if (!segRes.Success)
@@ -56,7 +64,9 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 double rawArmL  = ComputeArmAngle(segRes.LeftArmPoints);
                 double rawArmR  = ComputeArmAngle(segRes.RightArmPoints);
 
-                // 减去标准基准值（与堆垛机偏移的 ReferenceX 机制一致）
+                // 减去标准基准值（合并两相机时，暂且取第一个相机的基准，或配置中的默认）
+                var camParam = cfg?.FindCameraParam(frame1?.CameraSn ?? frame2?.CameraSn);
+                
                 double refRackL = camParam?.RefRackDefLeft  ?? 0.0;
                 double refRackR = camParam?.RefRackDefRight ?? 0.0;
                 double refArmL  = camParam?.RefArmAngleLeft ?? 0.0;
@@ -75,6 +85,34 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 res.ArmDefAngleLeftValue = 0; res.ArmDefAngleRightValue = 0;
                 return false;
             }
+        }
+
+        public static System.Collections.Generic.List<System.Numerics.Vector3>? GetFilteredPoints(Devices.DepthFrameData frame, Config.RackDeformationConfig? cfg)
+        {
+            var pts = StackerOffsetAlgo.GetBasePointsFromFrame(frame);
+            if (pts == null) return null;
+
+            var camParam = cfg?.FindCameraParam(frame.CameraSn);
+            double zMin = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
+            double zMax = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
+            double? xMinRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : null;
+            double? xMaxRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMax : null;
+            double? yMinRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMin : null;
+            double? yMaxRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMax : null;
+
+            double yLo = yMinRoI ?? -800;
+            double yHi = yMaxRoI ?? 800;
+
+            var filtered = new System.Collections.Generic.List<System.Numerics.Vector3>(pts.Count);
+            foreach (var p in pts)
+            {
+                if (p.Z >= zMin && p.Z <= zMax && p.Y >= yLo && p.Y <= yHi &&
+                    (!xMinRoI.HasValue || p.X >= xMinRoI.Value) && (!xMaxRoI.HasValue || p.X <= xMaxRoI.Value))
+                {
+                    filtered.Add(p);
+                }
+            }
+            return filtered;
         }
 
         /// <summary>

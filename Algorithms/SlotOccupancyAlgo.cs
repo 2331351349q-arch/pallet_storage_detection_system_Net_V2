@@ -14,28 +14,33 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
     {
         /// <summary>
         /// 执行货位占用检测。
-        /// 单帧策略：检测单帧图像的有效点云数量或有效像素。
+        /// 双帧策略：检测两台相机各自的有效点云数量或有效像素，且均满足条件。
         /// </summary>
-        public static bool Run(string side, object img1, Models.DetectionResult res)
+        public static bool Run(string side, object img1, object img2, Models.DetectionResult res)
         {
             try
             {
                 var cfg = ConfigManager.Instance?.Algorithms?.SlotOccupancy;
                 int threshold = cfg?.PointThreshold ?? 10000;
                 
-                var roiSource = (side?.ToLower() == "right") ? cfg?.Roi3dRight : cfg?.Roi3dLeft;
-                var roi3d = ResolveRoi3d(roiSource);
+                var sns = ConfigManager.GetTargetCameraSNs(1, side);
+                string sn1 = sns != null && sns.Count > 0 ? sns[0] : "";
+                string sn2 = sns != null && sns.Count > 1 ? sns[1] : sn1;
 
-                var f1 = EvaluateSingleFrame(img1, threshold, roi3d);
+                var roi1 = ResolveRoi3d(cfg, sn1, side);
+                var roi2 = ResolveRoi3d(cfg, sn2, side);
+
+                var f1 = EvaluateSingleFrame(img1, threshold, roi1);
+                var f2 = EvaluateSingleFrame(img2, threshold, roi2);
                 
-                if (!f1.Valid)
+                if (!f1.Valid || !f2.Valid)
                 {
-                    Console.WriteLine("❌ [Flag1] 单帧采集图像失败，按无货返回。");
+                    Console.WriteLine("❌ [Flag1] 存在采集图像失败，按无货返回。");
                     res.SlotOccupied = false;
                     return true;
                 }
-                res.SlotOccupied = f1.Occupied;
-                Console.WriteLine($"[Flag1] 单帧判定: occupied={f1.Occupied}, count={f1.Count}, threshold={threshold}");
+                res.SlotOccupied = f1.Occupied && f2.Occupied;
+                Console.WriteLine($"[Flag1] 双相判定: occupied={res.SlotOccupied}, c1={f1.Count}, c2={f2.Count}, threshold={threshold}");
                 return true;
             }
             catch (Exception ex)
@@ -85,11 +90,18 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             return count;
         }
 
-        private static (double MinX, double MaxX, double MinY, double MaxY, double MinZ, double MaxZ) ResolveRoi3d(List<int>? roi)
+        private static (double MinX, double MaxX, double MinY, double MaxY, double MinZ, double MaxZ) ResolveRoi3d(SlotOccupancyConfig? cfg, string sn, string side)
         {
-            if (roi != null && roi.Count >= 6)
+            var p = cfg?.FindCameraParam(sn);
+            if (p != null)
             {
-                return (roi[0], roi[1], roi[2], roi[3], roi[4], roi[5]);
+                return (p.XMin, p.XMax, p.YMin, p.YMax, p.ZMin, p.ZMax);
+            }
+
+            var roiList = (side?.ToLower() == "right") ? cfg?.Roi3dRight : cfg?.Roi3dLeft;
+            if (roiList != null && roiList.Count >= 6)
+            {
+                return (roiList[0], roiList[1], roiList[2], roiList[3], roiList[4], roiList[5]);
             }
 
             return (-500, 500, -500, 500, 1000, 3000);

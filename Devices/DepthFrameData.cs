@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
+using pallet_storage_detection_system_Net_V2.Config;
 
 namespace pallet_storage_detection_system_Net_V2.Devices
 {
@@ -91,6 +92,23 @@ namespace pallet_storage_detection_system_Net_V2.Devices
 
             var points = new List<Vector3>();
             var data = _sdkPackedXyz!;
+            
+            var calib = ConfigManager.GetCalibration(CameraSn);
+            bool applyExtrinsic = calib != null && calib.IsValid;
+            float r00 = 1, r01 = 0, r02 = 0;
+            float r10 = 0, r11 = 1, r12 = 0;
+            float r20 = 0, r21 = 0, r22 = 1;
+            float tx = 0, ty = 0, tz = 0;
+            
+            if (applyExtrinsic)
+            {
+                var r = calib!.GetRotationMatrix();
+                var t = calib.GetTranslationVector();
+                r00 = (float)r[0, 0]; r01 = (float)r[0, 1]; r02 = (float)r[0, 2];
+                r10 = (float)r[1, 0]; r11 = (float)r[1, 1]; r12 = (float)r[1, 2];
+                r20 = (float)r[2, 0]; r21 = (float)r[2, 1]; r22 = (float)r[2, 2];
+                tx = (float)t[0]; ty = (float)t[1]; tz = (float)t[2];
+            }
             for (int v = y0; v < y1; v++)
             {
                 int rowBase = v * Width;
@@ -101,7 +119,19 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                     float y = data[idx + 1];
                     float z = data[idx + 2];
                     if (z > 0 && z <= 10000)
-                        points.Add(new Vector3(x, y, z));
+                    {
+                        if (applyExtrinsic)
+                        {
+                            float wx = r00 * x + r01 * y + r02 * z + tx;
+                            float wy = r10 * x + r11 * y + r12 * z + ty;
+                            float wz = r20 * x + r21 * y + r22 * z + tz;
+                            points.Add(new Vector3(wx, wy, wz));
+                        }
+                        else
+                        {
+                            points.Add(new Vector3(x, y, z));
+                        }
+                    }
                 }
             }
 
@@ -141,6 +171,23 @@ namespace pallet_storage_detection_system_Net_V2.Devices
             }
 
             var points = new List<Vector3>();
+            
+            var calib = ConfigManager.GetCalibration(CameraSn);
+            bool applyExtrinsic = calib != null && calib.IsValid;
+            float r00 = 1, r01 = 0, r02 = 0;
+            float r10 = 0, r11 = 1, r12 = 0;
+            float r20 = 0, r21 = 0, r22 = 1;
+            float tx = 0, ty = 0, tz = 0;
+            
+            if (applyExtrinsic)
+            {
+                var r = calib!.GetRotationMatrix();
+                var t = calib.GetTranslationVector();
+                r00 = (float)r[0, 0]; r01 = (float)r[0, 1]; r02 = (float)r[0, 2];
+                r10 = (float)r[1, 0]; r11 = (float)r[1, 1]; r12 = (float)r[1, 2];
+                r20 = (float)r[2, 0]; r21 = (float)r[2, 1]; r22 = (float)r[2, 2];
+                tx = (float)t[0]; ty = (float)t[1]; tz = (float)t[2];
+            }
             for (int v = y0; v < y1; v++)
             {
                 int rowBase = v * Width;
@@ -152,7 +199,22 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                     double zMm = z;
                     double xMm = (u - cx) * zMm / fx;
                     double yMm = (v - cy) * zMm / fy;
-                    points.Add(new Vector3((float)xMm, (float)yMm, (float)zMm));
+                    
+                    float x = (float)xMm;
+                    float y = (float)yMm;
+                    float zz = (float)zMm;
+                    
+                    if (applyExtrinsic)
+                    {
+                        float wx = r00 * x + r01 * y + r02 * zz + tx;
+                        float wy = r10 * x + r11 * y + r12 * zz + ty;
+                        float wz = r20 * x + r21 * y + r22 * zz + tz;
+                        points.Add(new Vector3(wx, wy, wz));
+                    }
+                    else
+                    {
+                        points.Add(new Vector3(x, y, zz));
+                    }
                 }
             }
 

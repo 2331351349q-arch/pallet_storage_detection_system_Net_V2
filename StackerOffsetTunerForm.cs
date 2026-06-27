@@ -20,7 +20,7 @@ namespace pallet_storage_detection_system_Net_V2
     {
         // ---- 控件 ----
         private ComboBox _cmbSide = null!;
-        private TextBox _txtCameraSn = null!;
+        private ComboBox _cmbTuneCamera = null!;
         private NumericUpDown _numYaw = null!;
         private NumericUpDown _numPitch = null!;
         private NumericUpDown _numDepthMin = null!;
@@ -50,7 +50,9 @@ namespace pallet_storage_detection_system_Net_V2
         private TextBox _txtLog = null!;
 
         // ---- 状态 ----
-        private DepthFrameData? _currentFrame;
+        private DepthFrameData? _currentFrame1;
+        private DepthFrameData? _currentFrame2;
+        private List<string> _currentSideSNs = new List<string>();
         private StackerOffsetAlgo.DebugData? _currentDebug;
         private bool _isDragging;
         private Point _lastMouse;
@@ -67,19 +69,21 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void OnFormClosed(object? sender, FormClosedEventArgs e)
         {
-            // 停止并断开通过本窗口初始化的相机
-            string sn = _txtCameraSn?.Text?.Trim() ?? string.Empty;
-            if (!string.IsNullOrWhiteSpace(sn))
+            // 停止并断开通过本窗口初始化的所有相机
+            foreach (var sn in _currentSideSNs)
             {
-                var cam = DeviceManager.GetCamera(sn);
-                if (cam != null)
+                if (!string.IsNullOrWhiteSpace(sn))
                 {
-                    try
+                    var cam = DeviceManager.GetCamera(sn);
+                    if (cam != null)
                     {
-                        if (cam.IsCapturing)
-                            cam.StopGrabbing();
+                        try
+                        {
+                            if (cam.IsCapturing)
+                                cam.StopGrabbing();
+                        }
+                        catch { /* 忽略关闭时的异常 */ }
                     }
-                    catch { /* 忽略关闭时的异常 */ }
                 }
             }
 
@@ -87,7 +91,8 @@ namespace pallet_storage_detection_system_Net_V2
             _pbCloud?.Image?.Dispose();
             _pbProfile?.Image?.Dispose();
             _pbPreview?.Image?.Dispose();
-            _currentFrame?.PreviewImage?.Dispose();
+            _currentFrame1?.PreviewImage?.Dispose();
+            _currentFrame2?.PreviewImage?.Dispose();
         }
 
         // ============ UI 构建 ============
@@ -122,10 +127,11 @@ namespace pallet_storage_detection_system_Net_V2
             _cmbSide.SelectedIndexChanged += (_, __) => { UpdateCameraSnFromConfig(); LoadCameraParams(); };
             flow.Controls.Add(_cmbSide);
 
-            // 相机 SN
-            flow.Controls.Add(BoldLabel("目标相机 SN"));
-            _txtCameraSn = new TextBox { Width = FlowW };
-            flow.Controls.Add(_txtCameraSn);
+            // 调参相机选择
+            flow.Controls.Add(BoldLabel("当前调参相机 SN"));
+            _cmbTuneCamera = new ComboBox { Width = FlowW, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cmbTuneCamera.SelectedIndexChanged += (_, __) => LoadCameraParams();
+            flow.Controls.Add(_cmbTuneCamera);
 
             // 按鈕行
             var btnLine = new FlowLayoutPanel { Width = FlowW, Height = 36 };
@@ -395,7 +401,7 @@ namespace pallet_storage_detection_system_Net_V2
             var cfg = ConfigManager.Instance?.Algorithms?.StackerOffset;
             if (cfg == null) return;
 
-            string sn = _txtCameraSn.Text.Trim();
+            string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             var camParam = cfg.FindCameraParam(sn);
 
             if (camParam != null)
@@ -435,7 +441,7 @@ namespace pallet_storage_detection_system_Net_V2
         /// <summary>仅加载当前相机 SN 对应的独立 ROI 参数（不触发完整 LoadConfigValues）。</summary>
         private void LoadCameraParams()
         {
-            string sn = _txtCameraSn.Text.Trim();
+            string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             var camParam = ConfigManager.Instance?.Algorithms?.StackerOffset?.FindCameraParam(sn);
             if (camParam != null)
             {
@@ -474,7 +480,7 @@ namespace pallet_storage_detection_system_Net_V2
         /// <summary>获取当前相机对应的 CameraRoiParam（如果存在）或 null。</summary>
         private CameraRoiParam? GetCurrentCameraParam()
         {
-            string sn = _txtCameraSn.Text.Trim();
+            string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             return ConfigManager.Instance?.Algorithms?.StackerOffset?.FindCameraParam(sn);
         }
 
@@ -491,10 +497,19 @@ namespace pallet_storage_detection_system_Net_V2
         {
             var mapping = ConfigManager.Instance?.Algorithms?.StackerOffset?.CameraMapping;
             if (mapping == null) return;
-            string sn = CurrentSide() == "right"
-                ? (mapping.RightSideSns?.FirstOrDefault() ?? string.Empty)
-                : (mapping.LeftSideSns?.FirstOrDefault() ?? string.Empty);
-            if (!string.IsNullOrWhiteSpace(sn)) _txtCameraSn.Text = sn;
+            
+            _currentSideSNs = CurrentSide() == "right"
+                ? (mapping.RightSideSns ?? new List<string>())
+                : (mapping.LeftSideSns ?? new List<string>());
+
+            _cmbTuneCamera.Items.Clear();
+            foreach (var sn in _currentSideSNs)
+            {
+                if (!string.IsNullOrWhiteSpace(sn))
+                    _cmbTuneCamera.Items.Add(sn);
+            }
+            if (_cmbTuneCamera.Items.Count > 0)
+                _cmbTuneCamera.SelectedIndex = 0;
         }
 
         private void SyncTrackbarAndRecalc(NumericUpDown nud, TrackBar tb, Label lbl)
@@ -523,7 +538,7 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void Recalculate()
         {
-            if (_currentFrame == null) return;
+            if (_currentFrame1 == null && _currentFrame2 == null) return;
 
             double zMin = (double)_numDepthMin.Value;
             double zMax = (double)_numDepthMax.Value;
@@ -544,7 +559,8 @@ namespace pallet_storage_detection_system_Net_V2
             double? yMinRoI = (Math.Abs(yMinRoiNum) > 0.5 || Math.Abs(yMaxRoiNum) > 0.5) ? yMinRoiNum : null;
             double? yMaxRoI = (Math.Abs(yMinRoiNum) > 0.5 || Math.Abs(yMaxRoiNum) > 0.5) ? yMaxRoiNum : null;
 
-            _currentDebug = StackerOffsetAlgo.RunDebug(_currentFrame, zMin, zMax, refGap, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI);
+            string tuneCameraSn = _cmbTuneCamera.SelectedItem?.ToString() ?? "";
+            _currentDebug = StackerOffsetAlgo.RunDebug(_currentFrame1, _currentFrame2, zMin, zMax, refGap, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI, tuneCameraSn);
 
             // 显示检测到的 X 范围
             if (_currentDebug != null && _currentDebug.Success)
@@ -553,7 +569,7 @@ namespace pallet_storage_detection_system_Net_V2
                 _lblDetectedXRange.Text = "检测范围: --";
 
             // 显示检测到的 Y 范围
-            if (_currentFrame != null)
+            if (_currentFrame1 != null || _currentFrame2 != null)
                 _lblDetectedYRange.Text = $"ROI Y=[{yMinRoiNum:F0}, {yMaxRoiNum:F0}] mm";
             else
                 _lblDetectedYRange.Text = "检测范围: --";
@@ -601,7 +617,7 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void RedrawCloud()
         {
-            if (_currentFrame == null) return;
+            if (_currentFrame1 == null && _currentFrame2 == null) return;
 
             int w = Math.Max(320, _pbCloud.ClientSize.Width);
             int h = Math.Max(240, _pbCloud.ClientSize.Height);
@@ -624,7 +640,7 @@ namespace pallet_storage_detection_system_Net_V2
                 // 叠加文字：标定状态 + 缩放 + 提示
                 using var infoFont = new Font("Consolas", 9F, FontStyle.Bold);
                 using var hintFont = new Font("Microsoft YaHei UI", 7F);
-                string? sn = _txtCameraSn?.Text?.Trim();
+                string? sn = _cmbTuneCamera.SelectedItem?.ToString();
                 var calib = string.IsNullOrWhiteSpace(sn) ? null : ConfigManager.GetCalibration(sn);
                 bool hasCalib = calib != null && calib.IsValid;
                 string calibText = hasCalib
@@ -649,8 +665,13 @@ namespace pallet_storage_detection_system_Net_V2
             double? xMaxRoI2 = (Math.Abs(xMinRoiNum) > 0.5 || Math.Abs(xMaxRoiNum) > 0.5) ? xMaxRoiNum : null;
             double beamThresh = _currentDebug?.BeamZThreshold ?? (zMin2 * 0.8);
 
-            var basePts = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame);
-            if (basePts == null || basePts.Count == 0)
+            var basePts = new List<System.Numerics.Vector3>();
+            var pts1 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame1);
+            if (pts1 != null) basePts.AddRange(pts1);
+            var pts2 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame2);
+            if (pts2 != null) basePts.AddRange(pts2);
+
+            if (basePts.Count == 0)
             {
                 _pbCloud.Image?.Dispose();
                 _pbCloud.Image = bmp;
@@ -744,7 +765,7 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void UpdateCalibStatus()
         {
-            string? sn = _txtCameraSn?.Text?.Trim();
+            string? sn = _cmbTuneCamera.SelectedItem?.ToString();
             if (string.IsNullOrWhiteSpace(sn))
             {
                 _lblCalibStatus.Text = "📷 标定: — 未指定相机";
@@ -1065,71 +1086,105 @@ namespace pallet_storage_detection_system_Net_V2
 
         private async void BtnInit_Click(object? sender, EventArgs e)
         {
-            string sn = _txtCameraSn.Text.Trim();
-            if (string.IsNullOrWhiteSpace(sn)) { AppendLog("请先填写相机SN", true); return; }
-            if (DeviceManager.GetCamera(sn) != null) { AppendLog($"相机已在池中: {sn}", false); return; }
+            if (_currentSideSNs.Count == 0) { AppendLog("当前侧无配置相机SN", true); return; }
 
-            var cfg = ConfigManager.Instance?.Cameras?.FirstOrDefault(c =>
-                string.Equals(c.Sn, sn, StringComparison.OrdinalIgnoreCase) &&
-                (c.Type?.Contains("Tycam", StringComparison.OrdinalIgnoreCase) == true ||
-                 c.Type?.Contains("Percipio", StringComparison.OrdinalIgnoreCase) == true));
-            if (cfg == null) { AppendLog($"配置中未找到该SN的3D相机: {sn}", true); return; }
-
-            await Task.Run(() => DeviceManager.Initialize(new List<CameraConfig> { cfg }, m => BeginInvoke(new Action(() => AppendLog(m, false)))));
-
-            bool initOk = DeviceManager.GetCamera(sn) != null;
-            if (initOk)
+            var configsToInit = new List<CameraConfig>();
+            foreach (var sn in _currentSideSNs)
             {
-                var calib = ConfigManager.GetCalibration(sn);
-                bool hasCalib = calib != null && calib.IsValid;
-                AppendLog($"相机初始化成功: {sn} | 外参标定: {(hasCalib ? "✓" : "✗ 未标定")} | ROI参数: {(ConfigManager.Instance?.Algorithms?.StackerOffset?.FindCameraParam(sn) != null ? "✓" : "待配置")}", false);
+                if (DeviceManager.GetCamera(sn) != null) continue;
+                var cfg = ConfigManager.Instance?.Cameras?.FirstOrDefault(c =>
+                    string.Equals(c.Sn, sn, StringComparison.OrdinalIgnoreCase) &&
+                    (c.Type?.Contains("Tycam", StringComparison.OrdinalIgnoreCase) == true ||
+                     c.Type?.Contains("Percipio", StringComparison.OrdinalIgnoreCase) == true));
+                if (cfg != null) configsToInit.Add(cfg);
             }
-            else
+
+            if (configsToInit.Count == 0) { AppendLog("所有相关相机均已初始化", false); return; }
+
+            await Task.Run(() => DeviceManager.Initialize(configsToInit, m => BeginInvoke(new Action(() => AppendLog(m, false)))));
+
+            foreach (var cfg in configsToInit)
             {
-                AppendLog($"相机初始化失败: {sn}", true);
+                if (DeviceManager.GetCamera(cfg.Sn) != null)
+                {
+                    var calib = ConfigManager.GetCalibration(cfg.Sn);
+                    bool hasCalib = calib != null && calib.IsValid;
+                    AppendLog($"相机初始化成功: {cfg.Sn} | 外参标定: {(hasCalib ? "✓" : "✗")}", false);
+                }
+                else
+                {
+                    AppendLog($"相机初始化失败: {cfg.Sn}", true);
+                }
             }
         }
 
         private async void BtnGrab_Click(object? sender, EventArgs e)
         {
-            string sn = _txtCameraSn.Text.Trim();
-            if (string.IsNullOrWhiteSpace(sn)) { AppendLog("请先填写相机SN", true); return; }
-            var cam = DeviceManager.GetCamera(sn);
-            if (cam == null) { AppendLog("相机不在设备池，请先初始化", true); return; }
-            if (!cam.IsConnected) { AppendLog("相机未连接，请检查硬件或重新初始化", true); return; }
+            if (_currentSideSNs.Count == 0) { AppendLog("当前侧无相机配置", true); return; }
+
+            var tasks = new List<Task<object>>();
+            foreach (var sn in _currentSideSNs)
+            {
+                var cam = DeviceManager.GetCamera(sn);
+                if (cam == null) { AppendLog($"相机 {sn} 未初始化", true); continue; }
+                if (!cam.IsConnected) { AppendLog($"相机 {sn} 未连接", true); continue; }
+                tasks.Add(cam.GrabFrameAsync()!);
+            }
+
+            if (tasks.Count == 0) return;
 
             try
             {
-                var obj = await cam.GrabFrameAsync();
-                if (obj is Bitmap bmp)
-                {
-                    // 超时返回的红色错误图（640x480），说明相机取流超时
-                    if (bmp.Width == 640 && bmp.Height == 480)
-                    {
-                        AppendLog("抓图超时(5秒内无深度帧回调)，请检查: 1)相机是否正常取流 2)是否被其他程序占用 3)重新初始化后重试", true);
-                    }
-                    else
-                    {
-                        AppendLog("抓图返回2D图像而非深度帧，请确认相机类型为3D深度相机", true);
-                    }
-                    bmp.Dispose();
-                    return;
-                }
-                if (obj is not DepthFrameData depth) { AppendLog("抓图返回非深度帧", true); return; }
+                var results = await Task.WhenAll(tasks);
+                
+                _currentFrame1 = results.Length > 0 ? results[0] as DepthFrameData : null;
+                _currentFrame2 = results.Length > 1 ? results[1] as DepthFrameData : null;
 
-                _currentFrame = depth;
                 _pbPreview.Image?.Dispose();
-                _pbPreview.Image = (Image)depth.PreviewImage.Clone();
-
-                // 显示标定状态
-                var calib = ConfigManager.GetCalibration(sn);
-                bool hasCalib = calib != null && calib.IsValid;
-                string calibStatus = hasCalib ? "标定✓" : "未标定";
-                AppendLog($"抓图成功 {depth.CameraSn} {depth.Width}x{depth.Height} | {calibStatus} | {(hasCalib ? $"R|T已应用" : "使用原始坐标")}", false);
+                var combinedPreview = new Bitmap(_pbPreview.Width, _pbPreview.Height); // Simplified preview merge for time
+                
+                if (_currentFrame1 != null) {
+                    _pbPreview.Image = (Image)_currentFrame1.PreviewImage.Clone();
+                    AppendLog($"抓图成功 (左) {_currentFrame1.CameraSn}", false);
+                }
+                if (_currentFrame2 != null) {
+                    // Just overwrite preview with camera2 if camera1 failed, or we could stitch them. For simplicity in Tuner UI, just show one of them for preview.
+                    if (_currentFrame1 == null) _pbPreview.Image = (Image)_currentFrame2.PreviewImage.Clone();
+                    AppendLog($"抓图成功 (右) {_currentFrame2.CameraSn}", false);
+                }
 
                 Recalculate();
             }
             catch (Exception ex) { AppendLog($"抓图失败: {ex.Message}", true); }
+        }
+
+        /// <summary>
+        /// 自动适配ROI：根据当前检测结果自动调整 ROI 范围。
+        /// </summary>
+        private void BtnAutoFitRoi_Click(object? sender, EventArgs e)
+        {
+            if (_currentDebug == null || !_currentDebug.Success || _currentDebug.BeamRegions.Count == 0)
+            {
+                AppendLog("自动适配失败: 当前没有成功检测到两根完整的梁，请确保深度图中有清晰的货位开口。", true);
+                return;
+            }
+
+            var d = _currentDebug;
+            if (d.AllGaps.Count == 0)
+            {
+                AppendLog("自动适配失败: 无法找到合适的开口。", true);
+                return;
+            }
+
+            double gapCenter = d.GapCenterX;
+            double targetHalfWidth = 600.0;
+            
+            // 为当前调参的相机设置 ROI
+            _numXMinRoi.Value = (decimal)(Math.Round((gapCenter - targetHalfWidth) / 50.0) * 50.0);
+            _numXMaxRoi.Value = (decimal)(Math.Round((gapCenter + targetHalfWidth) / 50.0) * 50.0);
+
+            AppendLog($"自动适配 ROI 成功: 围绕开口中心 {gapCenter:F0}，设定 X 范围 [{_numXMinRoi.Value:F0}, {_numXMaxRoi.Value:F0}]", false);
+            Recalculate();
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)
@@ -1137,8 +1192,8 @@ namespace pallet_storage_detection_system_Net_V2
             var cfg = ConfigManager.Instance?.Algorithms?.StackerOffset;
             if (cfg == null) { AppendLog("配置对象不可用", true); return; }
 
-            string sn = _txtCameraSn.Text.Trim();
-            if (string.IsNullOrWhiteSpace(sn)) { AppendLog("请先填写相机SN", true); return; }
+            string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(sn)) { AppendLog("请先选择当前调参相机SN", true); return; }
 
             int zMinVal = (int)_numDepthMin.Value;
             int zMaxVal = (int)_numDepthMax.Value;
@@ -1189,17 +1244,21 @@ namespace pallet_storage_detection_system_Net_V2
         /// 自动适配ROI：根据当前帧的点云包围盒，自动设置所有ROI范围控件。
         /// 解决标定后坐标轴变化导致 ROI 框与点云方向不一致的问题。
         /// </summary>
-        private void BtnAutoFitRoi_Click(object? sender, EventArgs e)
+        private void BtnAutoFitRoi2_Click(object? sender, EventArgs e)
         {
-            if (_currentFrame == null)
+            if (_currentFrame1 == null && _currentFrame2 == null)
             {
                 AppendLog("请先抓取一帧", true);
                 return;
             }
 
-            // GetBasePointsFromFrame 返回标定后的基准坐标系点云，直接计算包围盒即可
-            var basePts = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame);
-            if (basePts == null || basePts.Count == 0)
+            var basePts = new List<System.Numerics.Vector3>();
+            var pts1 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame1);
+            if (pts1 != null) basePts.AddRange(pts1);
+            var pts2 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame2);
+            if (pts2 != null) basePts.AddRange(pts2);
+
+            if (basePts.Count == 0)
             {
                 AppendLog("无法获取点云数据（可能没有深度帧或点数不足）", true);
                 return;
@@ -1238,7 +1297,7 @@ namespace pallet_storage_detection_system_Net_V2
             _numYMinRoi.Value = Math.Clamp((decimal)(yMin - yM), _numYMinRoi.Minimum, _numYMinRoi.Maximum);
             _numYMaxRoi.Value = Math.Clamp((decimal)(yMax + yM), _numYMaxRoi.Minimum, _numYMaxRoi.Maximum);
 
-            string sn = _txtCameraSn.Text.Trim();
+            string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             string calibInfo = StackerOffsetAlgo.GetDepthAxisDescription(sn);
             AppendLog($"🎯 自动适配完成 | 包围盒: X=[{xMin:F0},{xMax:F0}] Y=[{yMin:F0},{yMax:F0}] Z(深度)=[{zMin:F0},{zMax:F0}] | {calibInfo}", false);
 
@@ -1256,7 +1315,7 @@ namespace pallet_storage_detection_system_Net_V2
             var cfg = ConfigManager.Instance?.Algorithms?.StackerOffset;
             if (cfg == null) { AppendLog("配置对象不可用", true); return; }
 
-            string sn = _txtCameraSn.Text.Trim();
+            string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             double newRef = Math.Round(_currentDebug.GapCenterX, 2);
 
             // 保存到相机独立参数

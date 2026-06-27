@@ -164,14 +164,22 @@ namespace pallet_storage_detection_system_Net_V2.Config
         /// <summary>
         /// 左侧 3D 感兴趣区域限制。
         /// </summary>
-        [DisplayName("左侧 3D ROI 范围"), Description("格式: minX, maxX, minY, maxY, minZ, maxZ")]
+        [DisplayName("左侧 3D ROI 范围 (已废弃)"), Description("格式: minX, maxX, minY, maxY, minZ, maxZ")]
+        [Obsolete("请使用 CameraRoiParams 代替全局设定", false)]
         public List<int> Roi3dLeft { get; set; } = new List<int> { -500, 500, -500, 500, 1000, 3000 };
 
         /// <summary>
         /// 右侧 3D 感兴趣区域限制。
         /// </summary>
-        [DisplayName("右侧 3D ROI 范围"), Description("格式: minX, maxX, minY, maxY, minZ, maxZ")]
+        [DisplayName("右侧 3D ROI 范围 (已废弃)"), Description("格式: minX, maxX, minY, maxY, minZ, maxZ")]
+        [Obsolete("请使用 CameraRoiParams 代替全局设定", false)]
         public List<int> Roi3dRight { get; set; } = new List<int> { -500, 500, -500, 500, 1000, 3000 };
+
+        /// <summary>
+        /// 每台相机的独立 ROI 参数。按相机 SN 匹配。
+        /// </summary>
+        [Browsable(false)]
+        public List<CameraRoiParam> CameraRoiParams { get; set; } = new();
 
         /// <summary>
         /// 该算法对应的相机 SN 映射关系。
@@ -182,6 +190,16 @@ namespace pallet_storage_detection_system_Net_V2.Config
             LeftSideSns = new List<string> { "207000168918", "207000169627" },
             RightSideSns = new List<string> { "207000168577", "207000168598" }
         };
+
+        /// <summary>
+        /// 根据相机 SN 查找对应的 ROI 参数，未找到返回 null。
+        /// </summary>
+        public CameraRoiParam? FindCameraParam(string? sn)
+        {
+            if (string.IsNullOrWhiteSpace(sn)) return null;
+            return CameraRoiParams?.FirstOrDefault(p =>
+                string.Equals(p.CameraSn, sn, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     /// <summary>
