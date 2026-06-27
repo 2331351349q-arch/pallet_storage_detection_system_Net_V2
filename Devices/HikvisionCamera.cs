@@ -88,6 +88,22 @@ namespace pallet_storage_detection_system_Net_V2.Devices
             nRet = _device.MV_CC_OpenDevice_NET();
             if (nRet != MyCamera.MV_OK) throw new Exception($"打开海康相机失败: {nRet:X}");
 
+            // 1. 优化网络包大小 (仅限 GigE 相机)，防止因 Jumbo Frame 未开启导致 80000007 无数据报错
+            if (actualDev.nTLayerType == MyCamera.MV_GIGE_DEVICE)
+            {
+                int nPacketSize = _device.MV_CC_GetOptimalPacketSize_NET();
+                if (nPacketSize > 0)
+                {
+                    _device.MV_CC_SetIntValue_NET("GevSCPSPacketSize", (uint)nPacketSize);
+                }
+            }
+
+            // 2. 强制使用软触发模式 (TriggerMode=1, TriggerSource=7)
+            // 这样既不会因为连续采图把网络千兆带宽塞满(导致丢包和 80000007)，
+            // 又能确保软件调用时随时能拍到当前最新画面。
+            _device.MV_CC_SetEnumValue_NET("TriggerMode", 1);
+            _device.MV_CC_SetEnumValueByString_NET("TriggerSource", "Software");
+
             IsConnected = true;
             return true;
         }
@@ -141,10 +157,20 @@ namespace pallet_storage_detection_system_Net_V2.Devices
         public async Task<object> GrabFrameAsync()
         {
             if (!IsConnected) throw new Exception("相机未连接");
-            if (!IsCapturing) StartGrabbing();
+            if (!IsCapturing) 
+            {
+                if (!StartGrabbing()) throw new Exception($"海康相机 {SerialNumber} 开启采集流失败");
+            }
 
             return await Task.Run(() =>
             {
+                // 发送软件触发指令，要求相机立刻拍一张
+                int nRetTrigger = _device.MV_CC_SetCommandValue_NET("TriggerSoftware");
+                if (nRetTrigger != MyCamera.MV_OK)
+                {
+                    Console.WriteLine($"警告: 相机 {SerialNumber} 软触发命令发送失败: {nRetTrigger:X}");
+                }
+
                 MyCamera.MV_FRAME_OUT stFrameOut = new MyCamera.MV_FRAME_OUT();
                 int nRet = _device.MV_CC_GetImageBuffer_NET(ref stFrameOut, 1500); // 1.5s 物理抓拍超时
                 if (nRet != MyCamera.MV_OK) throw new Exception($"海康相机 {SerialNumber} 抓图超时或报错: {nRet:X}");

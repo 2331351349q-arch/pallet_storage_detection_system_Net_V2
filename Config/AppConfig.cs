@@ -397,7 +397,7 @@ namespace pallet_storage_detection_system_Net_V2.Config
         [Browsable(false)]
         public CameraMapping CameraMapping { get; set; } = new CameraMapping
         {
-            LeftSideSns = new List<string> { "DA9434623" },
+            LeftSideSns = new List<string> { "DA9434411", "DA9434623" },
             RightSideSns = new List<string> { "DA9434653", "DA9434361" }
         };
     }

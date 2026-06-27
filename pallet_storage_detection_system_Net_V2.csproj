@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -42,8 +42,6 @@
     <PackageReference Include="StackExchange.Redis" Version="2.12.8" />
     <PackageReference Include="System.Text.Json" Version="9.0.0" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
-    <PackageReference Include="ZXing.Net" Version="0.16.11" />
-    <PackageReference Include="ZXing.Net.Bindings.Windows.Compatibility" Version="0.16.14" />
   </ItemGroup>
 
   <ItemGroup>

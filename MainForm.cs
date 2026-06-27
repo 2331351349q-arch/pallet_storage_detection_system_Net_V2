@@ -274,7 +274,7 @@ namespace pallet_storage_detection_system_Net_V2
                 string[] sns = GetPreviewSnsForSide("left");
                 UpdateCameraLabels("left");
                 Manager_OnLogMessage($"▶ 正在开启左侧 {sns.Length} 路相机实时连续采集...");
-                Task.Run(() => StartLivePreviewAsync(sns, _ctsLiveLeft.Token));
+                Task.Run(() => StartLivePreviewAsync(sns, _ctsLiveLeft.Token, "left"));
             }
         }
 
@@ -306,7 +306,7 @@ namespace pallet_storage_detection_system_Net_V2
                 string[] sns = GetPreviewSnsForSide("right");
                 UpdateCameraLabels("right");
                 Manager_OnLogMessage($"▶ 正在开启右侧 {sns.Length} 路相机实时连续采集...");
-                Task.Run(() => StartLivePreviewAsync(sns, _ctsLiveRight.Token));
+                Task.Run(() => StartLivePreviewAsync(sns, _ctsLiveRight.Token, "right"));
             }
         }
 
@@ -350,7 +350,7 @@ namespace pallet_storage_detection_system_Net_V2
             return merged.ToArray();
         }
 
-        private async Task StartLivePreviewAsync(string[] sns, System.Threading.CancellationToken token)
+        private async Task StartLivePreviewAsync(string[] sns, System.Threading.CancellationToken token, string side)
         {
             while (!token.IsCancellationRequested)
             {
@@ -362,7 +362,7 @@ namespace pallet_storage_detection_system_Net_V2
                         var cam = DeviceManager.GetCamera(sns[i]);
                         if (cam != null && cam.IsConnected)
                         {
-                            int index = i + 1; // PictureBox index 1-4
+                            int index = (side == "left") ? (i + 3) : (i + 1); // PictureBox index 1-4
                             tasks.Add(cam.GrabFrameAsync().ContinueWith(t => 
                             {
                                 if (t.Result != null && !token.IsCancellationRequested)
@@ -444,7 +444,8 @@ namespace pallet_storage_detection_system_Net_V2
             var sns = GetPreviewSnsForSide(side);
             for (int i = 0; i < sns.Length && i < 4; i++)
             {
-                if (_cameraLabels.TryGetValue(i + 1, out var label))
+                int labelIndex = (side == "left") ? (i + 3) : (i + 1);
+                if (_cameraLabels.TryGetValue(labelIndex, out var label))
                 {
                     string name = GetCameraDisplayName(sns[i]);
                     label.Text = $"  {name}   {sns[i]}";

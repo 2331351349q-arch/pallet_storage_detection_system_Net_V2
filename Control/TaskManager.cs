@@ -177,13 +177,15 @@ namespace pallet_storage_detection_system_Net_V2.Control
                         {
                             if (images[i] != null)
                             {
-                                OnImageUpdated?.Invoke(i + 1, images[i]!);
+                                int uiIndex = (task.Side?.ToLower() == "left") ? (i + 3) : (i + 1);
+                                OnImageUpdated?.Invoke(uiIndex, images[i]!);
                             }
                         }
 
                         for (int i = 0; i < images.Length; i++)
                         {
-                            string name = $"camera_{i + 1}";
+                            int uiIndex = (task.Side?.ToLower() == "left") ? (i + 3) : (i + 1);
+                            string name = $"camera_{uiIndex}";
                             if (images[i] is Image img)
                             {
                                 imagesToSave.Add((name, (Image)img.Clone()));
