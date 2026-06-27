@@ -20,7 +20,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
     /// </summary>
     public class TaskManager
     {
-        private const string ImageRootPath = @"E:\Images";
+        private static readonly string ImageRootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Images");
 
         private BlockingCollection<TaskData> _taskQueue;//线程安全集合
         private RedisCommunicator _redisComm;
@@ -172,26 +172,24 @@ namespace pallet_storage_detection_system_Net_V2.Control
                         var image2 = images.Length > 1 ? images[1] : image1;
                         Log($"{images.Length} 帧图像抓取完毕，进入算法周期。");
 
-                        // 同步推送至 UI 渲染界面（最多更新 4 个窗口）。
+                        // 同步推送至 UI 渲染界面（最多更新 4 个窗口，索引从 1 起）。
                         for (int i = 0; i < images.Length && i < 4; i++)
                         {
                             if (images[i] != null)
                             {
-                                int uiIndex = task.Flag == 1 ? 1 : i + 1;
-                                OnImageUpdated?.Invoke(uiIndex, images[i]!);
+                                OnImageUpdated?.Invoke(i + 1, images[i]!);
                             }
                         }
 
                         for (int i = 0; i < images.Length; i++)
                         {
+                            string name = $"camera_{i + 1}";
                             if (images[i] is Image img)
                             {
-                                string name = task.Flag == 1 ? $"camera_1_f{i + 1}" : $"camera_{i + 1}";
                                 imagesToSave.Add((name, (Image)img.Clone()));
                             }
                             else if (images[i] is DepthFrameData depthFrame)
                             {
-                                string name = task.Flag == 1 ? $"camera_1_f{i + 1}" : $"camera_{i + 1}";
                                 imagesToSave.Add((name, (Image)depthFrame.PreviewImage.Clone()));
                             }
                         }
