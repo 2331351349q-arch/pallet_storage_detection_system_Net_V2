@@ -55,7 +55,10 @@ namespace pallet_storage_detection_system_Net_V2
             _mainSplit = new SplitContainer
             {
                 Dock = DockStyle.Fill,
-                SplitterWidth = 6
+                SplitterWidth = 6,
+                FixedPanel = FixedPanel.Panel1,
+                SplitterDistance = 380,
+                Panel1MinSize = 380
             };
             Controls.Add(_mainSplit);
 
@@ -109,8 +112,8 @@ namespace pallet_storage_detection_system_Net_V2
             leftFlow.Controls.Add(new Label { Text = "视角 Yaw / Pitch (度)", Width = 340, Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold) });
             _numYaw = new NumericUpDown { Width = 340, Minimum = -180, Maximum = 180, Value = 20 };
             _numPitch = new NumericUpDown { Width = 340, Minimum = -80, Maximum = 80, Value = -12 };
-            _numYaw.ValueChanged += (_, __) => RedrawCloudAndStats();
-            _numPitch.ValueChanged += (_, __) => RedrawCloudAndStats();
+            _numYaw.ValueChanged += (_, __) => RedrawCloudImageOnly();
+            _numPitch.ValueChanged += (_, __) => RedrawCloudImageOnly();
             leftFlow.Controls.Add(_numYaw);
             leftFlow.Controls.Add(_numPitch);
 
@@ -137,7 +140,8 @@ namespace pallet_storage_detection_system_Net_V2
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Horizontal,
-                SplitterWidth = 6
+                SplitterWidth = 6,
+                SplitterDistance = (int)(Height * 0.74)
             };
             _mainSplit.Panel2.Controls.Add(_rightSplit);
 
@@ -182,50 +186,6 @@ namespace pallet_storage_detection_system_Net_V2
             _pbPreview.ContextMenuStrip = previewMenu;
             previewPanel.Controls.Add(_pbPreview);
 
-            Shown += (_, __) => ApplyBestLayoutProportion();
-            Resize += (_, __) => ApplyBestLayoutProportion();
-        }
-
-        private void ApplyBestLayoutProportion()
-        {
-            if (_mainSplit == null || _mainSplit.IsDisposed) return;
-
-            int totalWidth = _mainSplit.ClientSize.Width;
-            if (totalWidth <= 120) return;
-
-            int leftMin = Math.Min(320, Math.Max(80, totalWidth - _mainSplit.SplitterWidth - 120));
-            int rightMin = Math.Min(760, Math.Max(80, totalWidth - _mainSplit.SplitterWidth - leftMin));
-
-            _mainSplit.Panel1MinSize = leftMin;
-            _mainSplit.Panel2MinSize = rightMin;
-
-            int minLeft = _mainSplit.Panel1MinSize;
-            int maxLeft = totalWidth - _mainSplit.Panel2MinSize - _mainSplit.SplitterWidth;
-            if (maxLeft < minLeft) maxLeft = minLeft;
-
-            int desiredLeft = (int)(totalWidth * 0.26);
-            desiredLeft = Math.Min(460, desiredLeft);
-            desiredLeft = Math.Clamp(desiredLeft, minLeft, maxLeft);
-            _mainSplit.SplitterDistance = desiredLeft;
-
-            if (_rightSplit == null || _rightSplit.IsDisposed) return;
-
-            int totalHeight = _rightSplit.ClientSize.Height;
-            if (totalHeight <= 120) return;
-
-            int topMin = Math.Min(360, Math.Max(80, totalHeight - _rightSplit.SplitterWidth - 100));
-            int bottomMin = Math.Min(180, Math.Max(80, totalHeight - _rightSplit.SplitterWidth - topMin));
-
-            _rightSplit.Panel1MinSize = topMin;
-            _rightSplit.Panel2MinSize = bottomMin;
-
-            int minTop = _rightSplit.Panel1MinSize;
-            int maxTop = totalHeight - _rightSplit.Panel2MinSize - _rightSplit.SplitterWidth;
-            if (maxTop < minTop) maxTop = minTop;
-
-            int desiredTop = (int)(totalHeight * 0.74);
-            desiredTop = Math.Clamp(desiredTop, minTop, maxTop);
-            _rightSplit.SplitterDistance = desiredTop;
         }
 
         private void PbCloud_MouseDown(object? sender, MouseEventArgs e)
@@ -259,6 +219,7 @@ namespace pallet_storage_detection_system_Net_V2
             if (e.Button != MouseButtons.Left) return;
             _isDraggingView = false;
             _pbCloud.Cursor = Cursors.Hand;
+            RedrawCloudAndStats(); // Fully redraw when dragging finishes
         }
 
         private TextBox CreateRoiText(System.Windows.Forms.Control parent)
@@ -449,6 +410,8 @@ namespace pallet_storage_detection_system_Net_V2
             RedrawCloudAndStats();
         }
 
+        private List<System.Numerics.Vector3> _mergedPtsCache = new List<System.Numerics.Vector3>();
+
         private void RedrawCloudAndStats()
         {
             if (!TryReadRoi(out var roi))
@@ -463,18 +426,25 @@ namespace pallet_storage_detection_system_Net_V2
                 return;
             }
 
-            // We can just render frame1 or merge them for rendering. Let's merge if possible, or just render frame1 for simplicity in ROI tuner if it's not fully updated yet.
-            var basePts = new List<System.Numerics.Vector3>();
+            _mergedPtsCache.Clear();
             var pts1 = _currentFrame1?.GetPointCloud();
-            if (pts1 != null) basePts.AddRange(pts1);
+            if (pts1 != null) _mergedPtsCache.AddRange(pts1);
             var pts2 = _currentFrame2?.GetPointCloud();
-            if (pts2 != null) basePts.AddRange(pts2);
+            if (pts2 != null) _mergedPtsCache.AddRange(pts2);
 
-            RenderCloudImage(basePts, roi);
+            RenderCloudImage(_mergedPtsCache, roi);
 
-            int count = CountPointsInRoi(basePts, roi);
+            int count = CountPointsInRoi(_mergedPtsCache, roi);
             int threshold = ConfigManager.Instance?.Algorithms?.SlotOccupancy?.PointThreshold ?? 10000;
             _lblStats.Text = $"ROI内点数: {count} / 阈值: {threshold} / 判定: {(count > threshold ? "有货" : "无货")}";
+        }
+
+        private void RedrawCloudImageOnly()
+        {
+            if (!TryReadRoi(out var roi)) return;
+            if (_currentFrame1 == null && _currentFrame2 == null) return;
+            
+            RenderCloudImage(_mergedPtsCache, roi);
         }
 
         private void RenderCloudImage(List<System.Numerics.Vector3> pointCloud, Roi3D roi)
@@ -486,7 +456,7 @@ namespace pallet_storage_detection_system_Net_V2
             using var g = Graphics.FromImage(bmp);
             g.Clear(Color.FromArgb(16, 16, 18));
 
-            int step = Math.Max(1, (int)_numSample.Value);
+            int step = _isDraggingView ? Math.Max(12, (int)_numSample.Value) : Math.Max(1, (int)_numSample.Value);
             var yaw = (double)_numYaw.Value * Math.PI / 180.0;
             var pitch = (double)_numPitch.Value * Math.PI / 180.0;
 
