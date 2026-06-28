@@ -82,7 +82,20 @@
           "ReferenceX": 0,
           "RefRackDefLeft": 0,
           "RefRackDefRight": 0,
-          "RefBeamDef": 0
+          "RefBeamDef": 0,
+          "Role": "",
+          "ColXMin": 0,
+          "ColXMax": 0,
+          "ColYMin": 0,
+          "ColYMax": 0,
+          "ColZMin": 0,
+          "ColZMax": 0,
+          "BeamXMin": 0,
+          "BeamXMax": 0,
+          "BeamYMin": 0,
+          "BeamYMax": 0,
+          "BeamZMin": 0,
+          "BeamZMax": 0
         },
         {
           "CameraSn": "207000169627",
@@ -95,7 +108,20 @@
           "ReferenceX": 0,
           "RefRackDefLeft": 0,
           "RefRackDefRight": 0,
-          "RefBeamDef": 0
+          "RefBeamDef": 0,
+          "Role": "",
+          "ColXMin": 0,
+          "ColXMax": 0,
+          "ColYMin": 0,
+          "ColYMax": 0,
+          "ColZMin": 0,
+          "ColZMax": 0,
+          "BeamXMin": 0,
+          "BeamXMax": 0,
+          "BeamYMin": 0,
+          "BeamYMax": 0,
+          "BeamZMin": 0,
+          "BeamZMax": 0
         },
         {
           "CameraSn": "207000168577",
@@ -108,7 +134,20 @@
           "ReferenceX": 0,
           "RefRackDefLeft": 0,
           "RefRackDefRight": 0,
-          "RefBeamDef": 0
+          "RefBeamDef": 0,
+          "Role": "",
+          "ColXMin": 0,
+          "ColXMax": 0,
+          "ColYMin": 0,
+          "ColYMax": 0,
+          "ColZMin": 0,
+          "ColZMax": 0,
+          "BeamXMin": 0,
+          "BeamXMax": 0,
+          "BeamYMin": 0,
+          "BeamYMax": 0,
+          "BeamZMin": 0,
+          "BeamZMax": 0
         },
         {
           "CameraSn": "207000168598",
@@ -121,7 +160,20 @@
           "ReferenceX": 0,
           "RefRackDefLeft": 0,
           "RefRackDefRight": 0,
-          "RefBeamDef": 0
+          "RefBeamDef": 0,
+          "Role": "",
+          "ColXMin": 0,
+          "ColXMax": 0,
+          "ColYMin": 0,
+          "ColYMax": 0,
+          "ColZMin": 0,
+          "ColZMax": 0,
+          "BeamXMin": 0,
+          "BeamXMax": 0,
+          "BeamYMin": 0,
+          "BeamYMax": 0,
+          "BeamZMin": 0,
+          "BeamZMax": 0
         }
       ],
       "CameraMapping": {
@@ -183,7 +235,112 @@
           "207000168598"
         ]
       },
-      "CameraRoiParams": []
+      "CameraRoiParams": [
+        {
+          "CameraSn": "207000168918",
+          "XMin": -583,
+          "XMax": 1570,
+          "YMin": 2300,
+          "YMax": 3224,
+          "ZMin": 900,
+          "ZMax": 1100,
+          "ReferenceX": 0,
+          "RefRackDefLeft": 0,
+          "RefRackDefRight": 0,
+          "RefBeamDef": 0,
+          "Role": "",
+          "ColXMin": -583,
+          "ColXMax": -214,
+          "ColYMin": 2300,
+          "ColYMax": 2950,
+          "ColZMin": 900,
+          "ColZMax": 1100,
+          "BeamXMin": -135,
+          "BeamXMax": 1570,
+          "BeamYMin": 2975,
+          "BeamYMax": 3224,
+          "BeamZMin": 900,
+          "BeamZMax": 1100
+        },
+        {
+          "CameraSn": "207000168577",
+          "XMin": -583,
+          "XMax": 1204,
+          "YMin": 1121,
+          "YMax": 2399,
+          "ZMin": 950,
+          "ZMax": 1258,
+          "ReferenceX": 0,
+          "RefRackDefLeft": 0,
+          "RefRackDefRight": 0,
+          "RefBeamDef": 0,
+          "Role": "",
+          "ColXMin": -583,
+          "ColXMax": -374,
+          "ColYMin": 1121,
+          "ColYMax": 1937,
+          "ColZMin": 1050,
+          "ColZMax": 1181,
+          "BeamXMin": -292,
+          "BeamXMax": 1204,
+          "BeamYMin": 2170,
+          "BeamYMax": 2399,
+          "BeamZMin": 950,
+          "BeamZMax": 1258
+        },
+        {
+          "CameraSn": "207000168598",
+          "XMin": -1162,
+          "XMax": 704,
+          "YMin": 1171,
+          "YMax": 2396,
+          "ZMin": 1000,
+          "ZMax": 1130,
+          "ReferenceX": 0,
+          "RefRackDefLeft": 0,
+          "RefRackDefRight": 79.38,
+          "RefBeamDef": 17.44,
+          "Role": "",
+          "ColXMin": 504,
+          "ColXMax": 704,
+          "ColYMin": 1171,
+          "ColYMax": 1937,
+          "ColZMin": 1030,
+          "ColZMax": 1130,
+          "BeamXMin": -1162,
+          "BeamXMax": 443,
+          "BeamYMin": 2178,
+          "BeamYMax": 2396,
+          "BeamZMin": 1000,
+          "BeamZMax": 1100
+        },
+        {
+          "CameraSn": "207000169627",
+          "XMin": -1480,
+          "XMax": 762,
+          "YMin": 2425,
+          "YMax": 3124,
+          "ZMin": 850,
+          "ZMax": 1300,
+          "ReferenceX": 0,
+          "RefRackDefLeft": 0,
+          "RefRackDefRight": 0,
+          "RefBeamDef": 0,
+          "Role": "",
+          "ColXMin": 370,
+          "ColXMax": 720,
+          "ColYMin": 2425,
+          "ColYMax": 3024,
+          "ColZMin": 850,
+          "ColZMax": 1050,
+          "BeamXMin": -1480,
+          "BeamXMax": 762,
+          "BeamYMin": 2875,
+          "BeamYMax": 3124,
+          "BeamZMin": 1050,
+          "BeamZMax": 1300
+        }
+      ]
     },
     "VisualInventory": {
       "CameraMapping": {
@@ -289,19 +446,19 @@
       "CameraSn": "207000168918",
       "RotationMatrix": [
         [
-          0.9996217806917316,
-          -0.01071800074993853,
-          0.025326271470865167
+          0.9999409820481429,
+          7.009179923314127E-05,
+          -0.01086404656357134
         ],
         [
-          -0.01071800074993853,
-          0.6962726715311843,
-          0.7176973535821015
+          7.009179923314127E-05,
+          0.9999167565094155,
+          0.012902524513831894
         ],
         [
-          -0.025326271470865167,
-          -0.7176973535821015,
-          0.6958944522229159
+          0.01086404656357134,
+          -0.012902524513831894,
+          0.9998577385575583
         ]
       ],
       "TranslationVector": [
@@ -315,36 +472,36 @@
         1
       ],
       "RefPlaneNormalCam": [
-        -0.025326271470865167,
-        -0.7176973535821015,
-        0.6958944522229159
+        0.010864046563571338,
+        -0.012902524513831894,
+        0.9998577385575583
       ],
-      "CalibratedAt": "2026-06-27T15:32:16.7333528+08:00",
+      "CalibratedAt": "2026-06-28T16:56:21.2911005+08:00",
       "Fx": 524.3572387695312,
       "Fy": 326.46636962890625,
       "Cx": 524.3572387695312,
       "Cy": 233.67276000976562,
       "MeasuredDistanceMm": 0,
-      "PlaneD": -1500.720762337134,
+      "PlaneD": -1320.5197576610026,
       "IsValid": true
     },
     {
       "CameraSn": "207000169627",
       "RotationMatrix": [
         [
-          0.9994675254964045,
-          -0.012706125003235565,
-          0.030053616512763733
+          0.999034347796068,
+          5.7362396087468E-05,
+          -0.043935960593124115
         ],
         [
-          -0.012706125003235565,
-          0.6968012336596723,
-          0.7171517239453316
+          5.7362396087468E-05,
+          0.9999965925159477,
+          0.002609916866304448
         ],
         [
-          -0.030053616512763733,
-          -0.7171517239453316,
-          0.6962687591560768
+          0.043935960593124115,
+          -0.002609916866304448,
+          0.9990309403120158
         ]
       ],
       "TranslationVector": [
@@ -358,17 +515,17 @@
         1
       ],
       "RefPlaneNormalCam": [
-        -0.030053616512763733,
-        -0.7171517239453316,
-        0.6962687591560768
+        0.043935960593124115,
+        -0.002609916866304448,
+        0.9990309403120158
       ],
-      "CalibratedAt": "2026-06-27T15:32:32.320621+08:00",
+      "CalibratedAt": "2026-06-28T16:56:37.0828866+08:00",
       "Fx": 531.6846313476562,
       "Fy": 329.75439453125,
       "Cx": 531.6846313476562,
       "Cy": 245.5567169189453,
       "MeasuredDistanceMm": 0,
-      "PlaneD": -1514.792810081532,
+      "PlaneD": -1394.0173420783997,
       "IsValid": true
     }
   ],

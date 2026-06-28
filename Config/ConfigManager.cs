@@ -110,8 +110,8 @@ namespace pallet_storage_detection_system_Net_V2.Config
             try
             {
                 var current = AppDomain.CurrentDomain.BaseDirectory;
-                // 从输出目录（如 bin/Debug/net8.0-windows7.0/）向上最多走 5 层找项目根目录
-                for (int i = 0; i < 5; i++)
+                // 从输出目录（如 bin/Debug/net8.0-windows7.0/win-x64/）向上最多走 8 层找项目根目录
+                for (int i = 0; i < 8; i++)
                 {
                     var parent = Directory.GetParent(current);
                     if (parent == null) break;
