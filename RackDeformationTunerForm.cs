@@ -64,6 +64,11 @@ namespace pallet_storage_detection_system_Net_V2
         private double _panX, _panY;               // 3D 视图平移偏移 (pixels)
         private Label _lblCalibStatus = null!;      // 标定状态指示
 
+        // ---- 调节目标 (立柱 ROI 或 横梁 ROI) ----
+        private ComboBox _cmbRoiTarget = null!;
+        private Roi3D _colRoi;
+        private Roi3D _beamRoi;
+
         // ---- 标准基准值（从配置加载 / 由"设为标准值"按钮写入）----
         private double _refRackDefLeft;
         private double _refRackDefRight;
@@ -158,6 +163,18 @@ namespace pallet_storage_detection_system_Net_V2
                 Recalculate();
             };
             flow.Controls.Add(_cmbTuneCamera);
+
+            // 调节目标选择
+            flow.Controls.Add(BoldLabel("当前调节 ROI"));
+            _cmbRoiTarget = new ComboBox { Width = FlowW, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cmbRoiTarget.Items.AddRange(new object[] { "立柱 ROI (Column)", "横梁 ROI (Beam)" });
+            _cmbRoiTarget.SelectedIndex = 0;
+            _cmbRoiTarget.SelectedIndexChanged += (_, __) =>
+            {
+                LoadRoiForCurrentCamera();
+                Recalculate();
+            };
+            flow.Controls.Add(_cmbRoiTarget);
 
             // 按鈕行
             var btnLine = new FlowLayoutPanel { Width = FlowW, Height = 44, WrapContents = false };
@@ -430,18 +447,37 @@ namespace pallet_storage_detection_system_Net_V2
             
             if (camParam != null)
             {
-                _numDepthMin.Value = Math.Clamp(camParam.ZMin, _numDepthMin.Minimum, _numDepthMin.Maximum);
-                _numDepthMax.Value = Math.Clamp(camParam.ZMax, _numDepthMax.Minimum, _numDepthMax.Maximum);
-                if (camParam.XMax > camParam.XMin)
+                bool isBeam = _cmbRoiTarget.SelectedIndex == 1;
+                double xMin = isBeam ? camParam.BeamXMin : camParam.ColXMin;
+                double xMax = isBeam ? camParam.BeamXMax : camParam.ColXMax;
+                double yMin = isBeam ? camParam.BeamYMin : camParam.ColYMin;
+                double yMax = isBeam ? camParam.BeamYMax : camParam.ColYMax;
+                int zMin = isBeam ? camParam.BeamZMin : camParam.ColZMin;
+                int zMax = isBeam ? camParam.BeamZMax : camParam.ColZMax;
+
+                // 若未配置过对应的双 ROI 范围，Fallback 回退到原单 ROI 配置值
+                if (xMax <= xMin)
                 {
-                    _numXMinRoi.Value = Math.Clamp((decimal)camParam.XMin, _numXMinRoi.Minimum, _numXMinRoi.Maximum);
-                    _numXMaxRoi.Value = Math.Clamp((decimal)camParam.XMax, _numXMaxRoi.Minimum, _numXMaxRoi.Maximum);
+                    xMin = camParam.XMin;
+                    xMax = camParam.XMax;
+                    yMin = camParam.YMin;
+                    yMax = camParam.YMax;
+                    zMin = camParam.ZMin;
+                    zMax = camParam.ZMax;
+                }
+
+                _numDepthMin.Value = Math.Clamp(zMin, (int)_numDepthMin.Minimum, (int)_numDepthMin.Maximum);
+                _numDepthMax.Value = Math.Clamp(zMax, (int)_numDepthMax.Minimum, (int)_numDepthMax.Maximum);
+                if (xMax > xMin)
+                {
+                    _numXMinRoi.Value = Math.Clamp((decimal)xMin, _numXMinRoi.Minimum, _numXMinRoi.Maximum);
+                    _numXMaxRoi.Value = Math.Clamp((decimal)xMax, _numXMaxRoi.Minimum, _numXMaxRoi.Maximum);
                 }
                 else { _numXMinRoi.Value = 0; _numXMaxRoi.Value = 0; }
-                if (camParam.YMax > camParam.YMin)
+                if (yMax > yMin)
                 {
-                    _numYMinRoi.Value = Math.Clamp((decimal)camParam.YMin, _numYMinRoi.Minimum, _numYMinRoi.Maximum);
-                    _numYMaxRoi.Value = Math.Clamp((decimal)camParam.YMax, _numYMaxRoi.Minimum, _numYMaxRoi.Maximum);
+                    _numYMinRoi.Value = Math.Clamp((decimal)yMin, _numYMinRoi.Minimum, _numYMinRoi.Maximum);
+                    _numYMaxRoi.Value = Math.Clamp((decimal)yMax, _numYMaxRoi.Minimum, _numYMaxRoi.Maximum);
                 }
                 else { _numYMinRoi.Value = -800; _numYMaxRoi.Value = 800; }
 
@@ -595,21 +631,45 @@ namespace pallet_storage_detection_system_Net_V2
             double yMinNum    = (double)_numYMinRoi.Value;
             double yMaxNum    = (double)_numYMaxRoi.Value;
 
-            double? sliderXMin = (Math.Abs(xMinNum) > 0.5 || Math.Abs(xMaxNum) > 0.5) ? xMinNum : (double?)null;
-            double? sliderXMax = (Math.Abs(xMinNum) > 0.5 || Math.Abs(xMaxNum) > 0.5) ? xMaxNum : (double?)null;
-            double  sliderYMin = (Math.Abs(yMinNum) > 0.5 || Math.Abs(yMaxNum) > 0.5) ? yMinNum : -800;
-            double  sliderYMax = (Math.Abs(yMinNum) > 0.5 || Math.Abs(yMaxNum) > 0.5) ? yMaxNum :  800;
-
             string tuneSn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             var cfg = ConfigManager.Instance?.Algorithms?.RackDeformation;
 
-            // 分相机独立分割：调参相机用滑块 ROI，另一台用其配置 ROI
-            _seg1 = SegmentFrameForTuner(_currentFrame1, tuneSn, sliderZMin, sliderZMax,
-                                          sliderYMin, sliderYMax, sliderXMin, sliderXMax, cfg);
-            _seg2 = SegmentFrameForTuner(_currentFrame2, tuneSn, sliderZMin, sliderZMax,
-                                          sliderYMin, sliderYMax, sliderXMin, sliderXMax, cfg);
+            bool isBeam = _cmbRoiTarget.SelectedIndex == 1;
 
-            // _currentSeg = 调参相机的分割结果（供剖面图显示）
+            // 1. 临时在内存中更新配置参数，供算法直接提取
+            var camParam = cfg?.FindCameraParam(tuneSn);
+            if (camParam == null && cfg != null && !string.IsNullOrEmpty(tuneSn))
+            {
+                camParam = new CameraRoiParam { CameraSn = tuneSn };
+                cfg.CameraRoiParams.Add(camParam);
+            }
+
+            if (camParam != null)
+            {
+                if (isBeam)
+                {
+                    camParam.BeamXMin = xMinNum;
+                    camParam.BeamXMax = xMaxNum;
+                    camParam.BeamYMin = yMinNum;
+                    camParam.BeamYMax = yMaxNum;
+                    camParam.BeamZMin = (int)sliderZMin;
+                    camParam.BeamZMax = (int)sliderZMax;
+                }
+                else
+                {
+                    camParam.ColXMin = xMinNum;
+                    camParam.ColXMax = xMaxNum;
+                    camParam.ColYMin = yMinNum;
+                    camParam.ColYMax = yMaxNum;
+                    camParam.ColZMin = (int)sliderZMin;
+                    camParam.ColZMax = (int)sliderZMax;
+                }
+            }
+
+            // 2. 调用算法层面的单相机分割，实现无缝的调参计算
+            _seg1 = RackDeformationAlgo.SegmentSingleCamera(_currentFrame1, cfg);
+            _seg2 = RackDeformationAlgo.SegmentSingleCamera(_currentFrame2, cfg);
+
             _currentSeg = (_currentFrame1?.CameraSn == tuneSn) ? _seg1 :
                           (_currentFrame2?.CameraSn == tuneSn) ? _seg2 :
                           (_seg1 ?? _seg2);
@@ -618,11 +678,35 @@ namespace pallet_storage_detection_system_Net_V2
             _lblDetectedXRange.Text = (activeSeg?.Success == true)
                 ? $"检测范围: X=[{activeSeg.XMin:F0}, {activeSeg.XMax:F0}] mm"
                 : "检测范围: --";
-            _lblDetectedYRange.Text = $"ROI Y=[{sliderYMin:F0}, {sliderYMax:F0}] mm";
+            _lblDetectedYRange.Text = $"ROI Y=[{yMinNum:F0}, {yMaxNum:F0}] mm";
 
-            double rdXMin = sliderXMin ?? (activeSeg?.Success == true ? activeSeg.XMin : -1000);
-            double rdXMax = sliderXMax ?? (activeSeg?.Success == true ? activeSeg.XMax : 1000);
-            _rackDeformationRoi = new Roi3D(rdXMin, rdXMax, sliderYMin, sliderYMax, sliderZMin, sliderZMax);
+            // 3. 计算 3D 视图中展示的立柱 ROI 和横梁 ROI 立方体
+            if (isBeam)
+            {
+                _beamRoi = new Roi3D(xMinNum, xMaxNum, yMinNum, yMaxNum, sliderZMin, sliderZMax);
+                
+                double cxMin = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColXMin : -200;
+                double cxMax = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColXMax : 200;
+                double cyMin = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColYMin : -800;
+                double cyMax = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColYMax : 800;
+                double czMin = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColZMin : 1000;
+                double czMax = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColZMax : 3000;
+                _colRoi = new Roi3D(cxMin, cxMax, cyMin, cyMax, czMin, czMax);
+            }
+            else
+            {
+                _colRoi = new Roi3D(xMinNum, xMaxNum, yMinNum, yMaxNum, sliderZMin, sliderZMax);
+
+                double bxMin = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamXMin : -1000;
+                double bxMax = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamXMax : 1000;
+                double byMin = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamYMin : -800;
+                double byMax = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamYMax : 800;
+                double bzMin = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamZMin : 1000;
+                double bzMax = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamZMax : 3000;
+                _beamRoi = new Roi3D(bxMin, bxMax, byMin, byMax, bzMin, bzMax);
+            }
+
+            _rackDeformationRoi = isBeam ? _beamRoi : _colRoi;
 
             UpdateResultLabel();
             RedrawCloud();
@@ -755,12 +839,23 @@ namespace pallet_storage_detection_system_Net_V2
                 double yaw   = (double)_numYaw.Value   * Math.PI / 180.0;
                 double pitch = (double)_numPitch.Value * Math.PI / 180.0;
 
-                // --- 绘制 RackDeformation 自身的 ROI 立方体（标定基准坐标系）---
-                using var rdRoiPen = new Pen(Color.OrangeRed, 1.5f) { DashStyle = DashStyle.Dash };
-                DrawRoiCube2D(g, rdRoiPen, _rackDeformationRoi, yaw, pitch, w, h);
+                bool isBeam = _cmbRoiTarget.SelectedIndex == 1;
+
+                if (isBeam)
+                {
+                    // --- 绘制横梁 ROI 立方体 (青色) ---
+                    using var beamPen = new Pen(Color.Cyan, 2.2f) { DashStyle = DashStyle.Solid };
+                    DrawRoiCube2D(g, beamPen, _beamRoi, yaw, pitch, w, h);
+                }
+                else
+                {
+                    // --- 绘制立柱 ROI 立方体 (橙红色) ---
+                    using var colPen = new Pen(Color.OrangeRed, 2.2f) { DashStyle = DashStyle.Solid };
+                    DrawRoiCube2D(g, colPen, _colRoi, yaw, pitch, w, h);
+                }
 
                 // --- 绘制坐标系指示 ---
-                DrawCoordinateAxes(g, _rackDeformationRoi, yaw, pitch, w, h);
+                DrawCoordinateAxes(g, isBeam ? _beamRoi : _colRoi, yaw, pitch, w, h);
 
                 using var infoFont = new Font("Consolas", 9F, FontStyle.Bold);
                 using var hintFont = new Font("Microsoft YaHei UI", 7F);
@@ -785,14 +880,7 @@ namespace pallet_storage_detection_system_Net_V2
 
             var drawList = new List<(int sx, int sy, byte r, byte g, byte b)>(totalCount / totalStep + 100);
 
-            // 分割结果 HashSet：seg1 取左立柱，seg2 取右立柱，两侧横梁均收录
-            var lcolSet   = _seg1?.LeftColumnPoints  != null ? new HashSet<System.Numerics.Vector3>(_seg1.LeftColumnPoints)  : null;
-            var rcolSet   = _seg2?.RightColumnPoints != null ? new HashSet<System.Numerics.Vector3>(_seg2.RightColumnPoints) : null;
-            var beamSet1  = _seg1?.BeamPoints != null ? new HashSet<System.Numerics.Vector3>(_seg1.BeamPoints) : null;
-            var beamSet2  = _seg2?.BeamPoints != null ? new HashSet<System.Numerics.Vector3>(_seg2.BeamPoints) : null;
-            var usedBeam  = _usedBeamPts.Count > 0   ? new HashSet<System.Numerics.Vector3>(_usedBeamPts)     : null;
-
-            // --- frame1 点云（蓝灰底色）---
+            // --- frame1 点云（根据是否在 ROI 内部进行双色高亮，其余点变灰）---
             if (pts1 != null)
             {
                 for (int i = 0; i < pts1.Count; i += totalStep)
@@ -800,15 +888,24 @@ namespace pallet_storage_detection_system_Net_V2
                     var pt = pts1[i];
                     if (!ProjectPt(pt.X, -pt.Y, pt.Z, yaw2, pitch2, w, h, out int sx, out int sy)) continue;
 
-                    byte r = 80, g = 105, b = 160;  // 蓝灰（Cam1 底色）
-                    if      (usedBeam != null && usedBeam.Contains(pt))  { r = 255; g =   0; b = 255; } // 品红
-                    else if (beamSet1 != null && beamSet1.Contains(pt))  { r =   0; g = 255; b = 255; } // 青
-                    else if (lcolSet  != null && lcolSet.Contains(pt))   { r = 255; g = 165; b =   0; } // 橙
+                    byte r = 70, g = 70, b = 75; // 默认暗灰色
+                    if (pt.X >= _colRoi.MinX && pt.X <= _colRoi.MaxX &&
+                        pt.Y >= _colRoi.MinY && pt.Y <= _colRoi.MaxY &&
+                        pt.Z >= _colRoi.MinZ && pt.Z <= _colRoi.MaxZ)
+                    {
+                        r = 255; g = 140; b = 0; // 亮橙色 (立柱)
+                    }
+                    else if (pt.X >= _beamRoi.MinX && pt.X <= _beamRoi.MaxX &&
+                             pt.Y >= _beamRoi.MinY && pt.Y <= _beamRoi.MaxY &&
+                             pt.Z >= _beamRoi.MinZ && pt.Z <= _beamRoi.MaxZ)
+                    {
+                        r = 0; g = 255; b = 255; // 亮青色 (横梁)
+                    }
                     drawList.Add((sx, sy, r, g, b));
                 }
             }
 
-            // --- frame2 点云（紫灰底色）---
+            // --- frame2 点云（根据是否在 ROI 内部进行双色高亮，其余点变灰）---
             if (pts2 != null)
             {
                 for (int i = 0; i < pts2.Count; i += totalStep)
@@ -816,10 +913,19 @@ namespace pallet_storage_detection_system_Net_V2
                     var pt = pts2[i];
                     if (!ProjectPt(pt.X, -pt.Y, pt.Z, yaw2, pitch2, w, h, out int sx, out int sy)) continue;
 
-                    byte r = 110, g = 80, b = 155;  // 紫灰（Cam2 底色）
-                    if      (usedBeam != null && usedBeam.Contains(pt))  { r = 255; g =   0; b = 255; } // 品红
-                    else if (beamSet2 != null && beamSet2.Contains(pt))  { r =   0; g = 255; b = 255; } // 青
-                    else if (rcolSet  != null && rcolSet.Contains(pt))   { r = 255; g = 255; b =   0; } // 黄
+                    byte r = 70, g = 70, b = 75; // 默认暗灰色
+                    if (pt.X >= _colRoi.MinX && pt.X <= _colRoi.MaxX &&
+                        pt.Y >= _colRoi.MinY && pt.Y <= _colRoi.MaxY &&
+                        pt.Z >= _colRoi.MinZ && pt.Z <= _colRoi.MaxZ)
+                    {
+                        r = 255; g = 140; b = 0; // 亮橙色 (立柱)
+                    }
+                    else if (pt.X >= _beamRoi.MinX && pt.X <= _beamRoi.MaxX &&
+                             pt.Y >= _beamRoi.MinY && pt.Y <= _beamRoi.MaxY &&
+                             pt.Z >= _beamRoi.MinZ && pt.Z <= _beamRoi.MaxZ)
+                    {
+                        r = 0; g = 255; b = 255; // 亮青色 (横梁)
+                    }
                     drawList.Add((sx, sy, r, g, b));
                 }
             }
@@ -1160,34 +1266,66 @@ namespace pallet_storage_detection_system_Net_V2
 
             int zMinVal = (int)_numDepthMin.Value;
             int zMaxVal = (int)_numDepthMax.Value;
+            double xMinVal = (double)_numXMinRoi.Value;
+            double xMaxVal = (double)_numXMaxRoi.Value;
+            double yMinVal = (double)_numYMinRoi.Value;
+            double yMaxVal = (double)_numYMaxRoi.Value;
 
             // 查找或创建该相机的 ROI 参数条目
             var camParam = cfg.FindCameraParam(sn);
             bool isNew = camParam == null;
             if (isNew) camParam = new CameraRoiParam { CameraSn = sn };
 
-            camParam.ZMin = zMinVal;
-            camParam.ZMax = zMaxVal;
+            bool isBeam = _cmbRoiTarget.SelectedIndex == 1;
+            if (isBeam)
+            {
+                camParam.BeamXMin = xMinVal;
+                camParam.BeamXMax = xMaxVal;
+                camParam.BeamYMin = yMinVal;
+                camParam.BeamYMax = yMaxVal;
+                camParam.BeamZMin = zMinVal;
+                camParam.BeamZMax = zMaxVal;
+            }
+            else
+            {
+                camParam.ColXMin = xMinVal;
+                camParam.ColXMax = xMaxVal;
+                camParam.ColYMin = yMinVal;
+                camParam.ColYMax = yMaxVal;
+                camParam.ColZMin = zMinVal;
+                camParam.ColZMax = zMaxVal;
+            }
 
-            // X 范围：优先使用手动设定的值，其次使用检测到的范围
-            if (Math.Abs((double)_numXMinRoi.Value) > 0.5 || Math.Abs((double)_numXMaxRoi.Value) > 0.5)
+            // 计算双 ROI 的包络作为 Legacy 字段写入，维持向后兼容性
+            double legacyXMin = camParam.ColXMax > camParam.ColXMin ? camParam.ColXMin : camParam.BeamXMin;
+            double legacyXMax = camParam.ColXMax > camParam.ColXMin ? camParam.ColXMax : camParam.BeamXMax;
+            if (camParam.BeamXMax > camParam.BeamXMin && camParam.ColXMax > camParam.ColXMin)
             {
-                camParam.XMin = (double)_numXMinRoi.Value;
-                camParam.XMax = (double)_numXMaxRoi.Value;
+                legacyXMin = Math.Min(camParam.ColXMin, camParam.BeamXMin);
+                legacyXMax = Math.Max(camParam.ColXMax, camParam.BeamXMax);
             }
-            else if (_currentSeg?.Success == true)
-            {
-                camParam.XMin = _currentSeg.XMin;
-                camParam.XMax = _currentSeg.XMax;
-                AppendLog($"X ROI 使用检测范围: [{camParam.XMin:F0}, {camParam.XMax:F0}]", false);
-            }
+            camParam.XMin = legacyXMin;
+            camParam.XMax = legacyXMax;
 
-            // Y 范围：优先使用手动设定的值
-            if (Math.Abs((double)_numYMinRoi.Value) > 0.5 || Math.Abs((double)_numYMaxRoi.Value) > 0.5)
+            double legacyYMin = camParam.ColYMax > camParam.ColYMin ? camParam.ColYMin : camParam.BeamYMin;
+            double legacyYMax = camParam.ColYMax > camParam.ColYMin ? camParam.ColYMax : camParam.BeamYMax;
+            if (camParam.BeamYMax > camParam.BeamYMin && camParam.ColYMax > camParam.ColYMin)
             {
-                camParam.YMin = (double)_numYMinRoi.Value;
-                camParam.YMax = (double)_numYMaxRoi.Value;
+                legacyYMin = Math.Min(camParam.ColYMin, camParam.BeamYMin);
+                legacyYMax = Math.Max(camParam.ColYMax, camParam.BeamYMax);
             }
+            camParam.YMin = legacyYMin;
+            camParam.YMax = legacyYMax;
+
+            int legacyZMin = camParam.ColZMax > camParam.ColZMin ? camParam.ColZMin : camParam.BeamZMin;
+            int legacyZMax = camParam.ColZMax > camParam.ColZMin ? camParam.ColZMax : camParam.BeamZMax;
+            if (camParam.BeamZMax > camParam.BeamZMin && camParam.ColZMax > camParam.ColZMin)
+            {
+                legacyZMin = Math.Min(camParam.ColZMin, camParam.BeamZMin);
+                legacyZMax = Math.Max(camParam.ColZMax, camParam.BeamZMax);
+            }
+            camParam.ZMin = legacyZMin;
+            camParam.ZMax = legacyZMax;
 
             // 保存标准基准值
             camParam.RefRackDefLeft  = _refRackDefLeft;
@@ -1198,7 +1336,8 @@ namespace pallet_storage_detection_system_Net_V2
             if (isNew) cfg.CameraRoiParams.Add(camParam);
 
             ConfigManager.SaveConfig();
-            AppendLog($"✅ 已保存相机 [{sn}] 的 ROI 参数: Z=[{zMinVal},{zMaxVal}], X=[{camParam.XMin:F0},{camParam.XMax:F0}], Y=[{camParam.YMin:F0},{camParam.YMax:F0}]", false);
+            string targetName = isBeam ? "横梁" : "立柱";
+            AppendLog($"✅ 已保存相机 [{sn}] 的 [{targetName} ROI] 及其向后兼容参数", false);
             AppendLog($"   标准基准: 立柱L={_refRackDefLeft:F2} R={_refRackDefRight:F2}, 横梁={_refBeamDef:F2}mm", false);
         }
     }

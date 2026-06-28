@@ -307,6 +307,22 @@ namespace pallet_storage_detection_system_Net_V2.Config
         ///   ""      = 空（默认），按 CameraMapping.LeftSideSns 列表顺序自动推断（[0]=left, [1]=right）。
         /// </summary>
         public string Role { get; set; } = "";
+
+        // ---- 变形检测专属：立柱 ROI (标定后基准坐标系) ----
+        public double ColXMin { get; set; }
+        public double ColXMax { get; set; }
+        public double ColYMin { get; set; }
+        public double ColYMax { get; set; }
+        public int ColZMin { get; set; }
+        public int ColZMax { get; set; }
+
+        // ---- 变形检测专属：横梁 ROI (标定后基准坐标系) ----
+        public double BeamXMin { get; set; }
+        public double BeamXMax { get; set; }
+        public double BeamYMin { get; set; }
+        public double BeamYMax { get; set; }
+        public int BeamZMin { get; set; }
+        public int BeamZMax { get; set; }
     }
 
     /// <summary>

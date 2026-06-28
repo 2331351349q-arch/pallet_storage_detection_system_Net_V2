@@ -85,6 +85,54 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             if (pts == null || pts.Count < 500) return null;
 
             var camParam = cfg?.FindCameraParam(frame.CameraSn);
+
+            // 如果配置了双 ROI (立柱或横梁 ROI)，直接按范围提取点云，无需做 X 轴深度剖面自适应分割
+            if (camParam != null && (camParam.ColXMax > camParam.ColXMin || camParam.BeamXMax > camParam.BeamXMin))
+            {
+                var colPts = new List<Vector3>();
+                var beamPts = new List<Vector3>();
+
+                // 立柱 ROI 提取范围及 Fallback
+                double cxMin = camParam.ColXMax > camParam.ColXMin ? camParam.ColXMin : (camParam.XMax > camParam.XMin ? camParam.XMin : -1000);
+                double cxMax = camParam.ColXMax > camParam.ColXMin ? camParam.ColXMax : (camParam.XMax > camParam.XMin ? camParam.XMax : 1000);
+                double cyMin = camParam.ColXMax > camParam.ColXMin ? camParam.ColYMin : (camParam.YMax > camParam.YMin ? camParam.YMin : -800);
+                double cyMax = camParam.ColXMax > camParam.ColXMin ? camParam.ColYMax : (camParam.YMax > camParam.YMin ? camParam.YMax : 800);
+                double czMin = camParam.ColXMax > camParam.ColXMin ? camParam.ColZMin : (camParam.ZMax > camParam.ZMin ? camParam.ZMin : 1000);
+                double czMax = camParam.ColXMax > camParam.ColXMin ? camParam.ColZMax : (camParam.ZMax > camParam.ZMin ? camParam.ZMax : 3000);
+
+                // 横梁 ROI 提取范围及 Fallback
+                double bxMin = camParam.BeamXMax > camParam.BeamXMin ? camParam.BeamXMin : (camParam.XMax > camParam.XMin ? camParam.XMin : -1000);
+                double bxMax = camParam.BeamXMax > camParam.BeamXMin ? camParam.BeamXMax : (camParam.XMax > camParam.XMin ? camParam.XMax : 1000);
+                double byMin = camParam.BeamXMax > camParam.BeamXMin ? camParam.BeamYMin : (camParam.YMax > camParam.YMin ? camParam.YMin : -800);
+                double byMax = camParam.BeamXMax > camParam.BeamXMin ? camParam.BeamYMax : (camParam.YMax > camParam.YMin ? camParam.YMax : 800);
+                double bzMin = camParam.BeamXMax > camParam.BeamXMin ? camParam.BeamZMin : (camParam.ZMax > camParam.ZMin ? camParam.ZMin : 1000);
+                double bzMax = camParam.BeamXMax > camParam.BeamXMin ? camParam.BeamZMax : (camParam.ZMax > camParam.ZMin ? camParam.ZMax : 3000);
+
+                foreach (var pt in pts)
+                {
+                    if (pt.X >= cxMin && pt.X <= cxMax && pt.Y >= cyMin && pt.Y <= cyMax && pt.Z >= czMin && pt.Z <= czMax)
+                    {
+                        colPts.Add(pt);
+                    }
+                    if (pt.X >= bxMin && pt.X <= bxMax && pt.Y >= byMin && pt.Y <= byMax && pt.Z >= bzMin && pt.Z <= bzMax)
+                    {
+                        beamPts.Add(pt);
+                    }
+                }
+
+                return new SegmentationResult
+                {
+                    Success = true,
+                    LeftColumnPoints = colPts,
+                    RightColumnPoints = colPts,
+                    BeamPoints = beamPts,
+                    RoiPoints = pts,
+                    XMin = Math.Min(cxMin, bxMin),
+                    XMax = Math.Max(cxMax, bxMax)
+                };
+            }
+
+            // Fallback：原单 ROI + 自适应边缘分割算法
             double zMin  = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
             double zMax  = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
             double? xMinRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : (double?)null;
