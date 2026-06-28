@@ -60,6 +60,9 @@ namespace pallet_storage_detection_system_Net_V2
         private double _panX, _panY;               // 3D 视图平移偏移 (pixels)
         private Label _lblCalibStatus = null!;      // 标定状态指示
 
+        /// <summary>3D ROI 立方体（坐标统一使用标定后的基准坐标系）</summary>
+        private readonly record struct Roi3D(double MinX, double MaxX, double MinY, double MaxY, double MinZ, double MaxZ);
+
         public StackerOffsetTunerForm()
         {
             InitializeUi();
@@ -834,9 +837,12 @@ namespace pallet_storage_detection_system_Net_V2
                 pts[i] = new PointF(sx, sy);
             }
 
-            using var pen = new Pen(Color.FromArgb(100, 200, 255, 100), 1.5f) { DashStyle = DashStyle.Dash };
+            using var pen = new Pen(Color.OrangeRed, 1.5f) { DashStyle = DashStyle.Dash };
             int[][] edges = { new[] { 0, 1 }, new[] { 1, 2 }, new[] { 2, 3 }, new[] { 3, 0 }, new[] { 4, 5 }, new[] { 5, 6 }, new[] { 6, 7 }, new[] { 7, 4 }, new[] { 0, 4 }, new[] { 1, 5 }, new[] { 2, 6 }, new[] { 3, 7 } };
             foreach (var e in edges) g.DrawLine(pen, pts[e[0]], pts[e[1]]);
+
+            // 绘制基准坐标轴
+            DrawCoordinateAxes(g, xLo, xHi, yMin, yMax, zMin, zMax, yaw, pitch, w, h);
 
             // Z 标签
             using var f = new Font("Consolas", 9F);
@@ -854,6 +860,33 @@ namespace pallet_storage_detection_system_Net_V2
             using var bx = new SolidBrush(Color.FromArgb(200, 200, 255));
             g.DrawString($"X={xMin:F0}", f, bx, xx1 - 20, ly + 16);
             g.DrawString($"X={xMax:F0}", f, bx, xx2 - 20, ly + 16);
+        }
+
+        /// <summary>
+        /// 绘制基准坐标轴 (X红, Y绿, Z蓝)，原点取 ROI 区域的一个角点附近。
+        /// </summary>
+        private void DrawCoordinateAxes(Graphics g, double minX, double maxX, double minY, double maxY, double minZ, double maxZ, double yaw, double pitch, int w, int h)
+        {
+            float ox = (float)minX, oy = (float)maxY, oz = (float)minZ;
+            ProjectPt(ox, -oy, oz, yaw, pitch, w, h, out int oxS, out int oyS);
+
+            // X 轴（红）
+            ProjectPt(ox + 300, -oy, oz, yaw, pitch, w, h, out int xS, out int xSy);
+            using (var pX = new Pen(Color.Red, 2f)) g.DrawLine(pX, oxS, oyS, xS, xSy);
+            using (var f = new Font("Consolas", 9F))
+                g.DrawString("X", f, Brushes.Red, xS, xSy);
+
+            // Y 轴（绿）
+            ProjectPt(ox, -(oy - 300), oz, yaw, pitch, w, h, out int yS, out int ySy);
+            using (var pY = new Pen(Color.Lime, 2f)) g.DrawLine(pY, oxS, oyS, yS, ySy);
+            using (var f = new Font("Consolas", 9F))
+                g.DrawString("Y", f, Brushes.Lime, yS, ySy);
+
+            // Z 轴（蓝）
+            ProjectPt(ox, -oy, oz + 500, yaw, pitch, w, h, out int zS, out int zSy);
+            using (var pZ = new Pen(Color.DodgerBlue, 2f)) g.DrawLine(pZ, oxS, oyS, zS, zSy);
+            using (var f = new Font("Consolas", 9F))
+                g.DrawString("Z(深度)", f, Brushes.DodgerBlue, zS, zSy);
         }
 
         private bool ProjectPt(double x, double y, double z, double yaw, double pitch, int w, int h, out int sx, out int sy)
