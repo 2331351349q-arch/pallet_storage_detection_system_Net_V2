@@ -11,23 +11,26 @@
     <NoWarn>MSB3277;CS8618;CS8600;CS8601;CS8602;CS8603;CS8604;CS8605;CS8622;CS8625</NoWarn>
     <!-- Exclude internal tools/example folders from compiling in main project -->
     <DefaultItemExcludes>$(DefaultItemExcludes);Tools\**;SDK\**;PercipioSdkExample\**</DefaultItemExcludes>
+    <!-- ClickOnce 发布支持 -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup><PropertyGroup><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup>
 
   <ItemGroup>
     <Folder Include="Config\" />
     <Folder Include="Algorithms\" />
-    <None Include="Config\config.json">
+    <Content Include="Config\config.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="libs\Percipio\Native\**\*">
+    <Content Include="libs\Percipio\Native\**\*">
        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="libs\Hikvision\Native\**\*">
+    </Content>
+    <Content Include="libs\Hik_ID\Native\**\*">
        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

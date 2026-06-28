@@ -17,6 +17,9 @@ namespace pallet_storage_detection_system_Net_V2
     /// </summary>
     public class RackDeformationTunerForm : Form
     {
+        /// <summary>3D ROI 立方体（坐标统一使用标定后的基准坐标系）</summary>
+        private readonly record struct Roi3D(double MinX, double MaxX, double MinY, double MaxY, double MinZ, double MaxZ);
+
         // ---- 控件 ----
         private ComboBox _cmbSide = null!;
         private ComboBox _cmbTuneCamera = null!;
@@ -52,7 +55,9 @@ namespace pallet_storage_detection_system_Net_V2
         private DepthFrameData? _currentFrame1;
         private DepthFrameData? _currentFrame2;
         private List<string> _currentSideSNs = new List<string>();
-        private SegmentationResult? _currentSeg;
+        private SegmentationResult? _currentSeg; // 当前调参相机的分割结果（供剖面图显示）
+        private SegmentationResult? _seg1;           // frame1(LeftSideSns[0]) 的分割结果
+        private SegmentationResult? _seg2;           // frame2(LeftSideSns[1]) 的分割结果
         private bool _isDragging;
         private Point _lastMouse;
         private double _zoomLevel = 1.0;
@@ -62,13 +67,15 @@ namespace pallet_storage_detection_system_Net_V2
         // ---- 标准基准值（从配置加载 / 由"设为标准值"按钮写入）----
         private double _refRackDefLeft;
         private double _refRackDefRight;
-        private double _refArmAngleLeft;
-        private double _refArmAngleRight;
-        private Label _lblRefStatus = null!;        // 标准值状态指示
+        private double _refBeamDef;
 
-        // ---- 托臂计算用点云（可视化标记用）----
+        private List<System.Numerics.Vector3> _usedBeamPts = new();
         private System.Collections.Generic.List<System.Numerics.Vector3> _usedArmPtsL = new();
         private System.Collections.Generic.List<System.Numerics.Vector3> _usedArmPtsR = new();
+        private Label _lblRefStatus = null!;        // 标准值状态指示
+
+        // ---- SlotOccupancy ROI（已转换到标定基准坐标系，供3D可视化）----
+        private Roi3D _slotOccupancyRoi;
 
         public RackDeformationTunerForm()
         {
@@ -184,11 +191,11 @@ namespace pallet_storage_detection_system_Net_V2
             flow.Controls.Add(SectionLabel("🔭 视角控制"));
             var viewRow = new FlowLayoutPanel { Width = FlowW, Height = 26 };
             viewRow.Controls.Add(new Label { Text = "Yaw:", Width = 36, Height = 22, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.LightGray, Font = new Font("Consolas", 8F) });
-            _numYaw = new NumericUpDown { Width = (FlowW - 90) / 2, Height = 22, Minimum = -180, Maximum = 180, Value = 20, BackColor = Color.FromArgb(40, 40, 50), ForeColor = Color.LightGray };
+            _numYaw = new NumericUpDown { Width = (FlowW - 90) / 2, Height = 22, Minimum = -180, Maximum = 180, Value = 0, BackColor = Color.FromArgb(40, 40, 50), ForeColor = Color.LightGray };
             _numYaw.ValueChanged += (_, __) => RedrawCloud();
             viewRow.Controls.Add(_numYaw);
             viewRow.Controls.Add(new Label { Text = "Pitch:", Width = 46, Height = 22, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.LightGray, Font = new Font("Consolas", 8F) });
-            _numPitch = new NumericUpDown { Width = (FlowW - 90) / 2, Height = 22, Minimum = -80, Maximum = 80, Value = -12, BackColor = Color.FromArgb(40, 40, 50), ForeColor = Color.LightGray };
+            _numPitch = new NumericUpDown { Width = (FlowW - 90) / 2, Height = 22, Minimum = -80, Maximum = 80, Value = 0, BackColor = Color.FromArgb(40, 40, 50), ForeColor = Color.LightGray };
             _numPitch.ValueChanged += (_, __) => RedrawCloud();
             viewRow.Controls.Add(_numPitch);
             flow.Controls.Add(viewRow);
@@ -414,6 +421,8 @@ namespace pallet_storage_detection_system_Net_V2
         private void LoadRoiForCurrentCamera()
         {
             string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
+
+            // --- 1. 加载 RackDeformation 滑块参数 ---
             var camParam = ConfigManager.Instance?.Algorithms?.RackDeformation?.FindCameraParam(sn);
             
             if (camParam != null)
@@ -435,14 +444,82 @@ namespace pallet_storage_detection_system_Net_V2
 
                 _refRackDefLeft  = camParam.RefRackDefLeft;
                 _refRackDefRight = camParam.RefRackDefRight;
-                _refArmAngleLeft = camParam.RefArmAngleLeft;
-                _refArmAngleRight = camParam.RefArmAngleRight;
+                _refBeamDef      = camParam.RefBeamDef;
                 UpdateRefStatusLabel();
 
                 AppendLog($"切换到相机 [{sn}]", false);
             }
+
+            // --- 2. 加载 SlotOccupancy ROI 并转换到标定基准坐标系 ---
+            _slotOccupancyRoi = LoadSlotOccupancyRoi(sn);
+
             UpdateCalibStatus();
         }
+
+        /// <summary>
+        /// 从 SlotOccupancy 配置加载当前相机的 ROI，并转换到标定基准坐标系。
+        /// 若无标定，ROI 保持原始相机坐标系下的值。
+        /// </summary>
+        private Roi3D LoadSlotOccupancyRoi(string sn)
+        {
+            var slotCfg = ConfigManager.Instance?.Algorithms?.SlotOccupancy;
+            string side = CurrentSide();
+
+            // 尝试获取该相机独立的 ROI
+            var camRoi = slotCfg?.FindCameraParam(sn);
+            double xMin, xMax, yMin, yMax, zMin, zMax;
+
+            if (camRoi != null)
+            {
+                xMin = camRoi.XMin; xMax = camRoi.XMax;
+                yMin = camRoi.YMin; yMax = camRoi.YMax;
+                zMin = camRoi.ZMin; zMax = camRoi.ZMax;
+            }
+            else
+            {
+                // 回退到 side 全局 ROI 或默认值
+                var roiList = side == "right" ? slotCfg?.Roi3dRight : slotCfg?.Roi3dLeft;
+                if (roiList != null && roiList.Count >= 6)
+                {
+                    xMin = roiList[0]; xMax = roiList[1];
+                    yMin = roiList[2]; yMax = roiList[3];
+                    zMin = roiList[4]; zMax = roiList[5];
+                }
+                else
+                {
+                    xMin = -500; xMax = 500; yMin = -500; yMax = 500; zMin = 1000; zMax = 3000;
+                }
+            }
+
+            // 若标定有效，将 ROI 的 8 个角点从相机坐标系转换到基准坐标系，再取 AABB
+            var calib = ConfigManager.GetCalibration(sn);
+            if (calib != null && calib.IsValid)
+            {
+                var corners = new[]
+                {
+                    new System.Numerics.Vector3((float)xMin, (float)yMin, (float)zMin),
+                    new System.Numerics.Vector3((float)xMax, (float)yMin, (float)zMin),
+                    new System.Numerics.Vector3((float)xMin, (float)yMax, (float)zMin),
+                    new System.Numerics.Vector3((float)xMax, (float)yMax, (float)zMin),
+                    new System.Numerics.Vector3((float)xMin, (float)yMin, (float)zMax),
+                    new System.Numerics.Vector3((float)xMax, (float)yMin, (float)zMax),
+                    new System.Numerics.Vector3((float)xMin, (float)yMax, (float)zMax),
+                    new System.Numerics.Vector3((float)xMax, (float)yMax, (float)zMax),
+                };
+
+                var transformed = corners.Select(c => CalibrationAlgo.TransformPoint(c, calib)).ToArray();
+                xMin = transformed.Min(p => (double)p.X);
+                xMax = transformed.Max(p => (double)p.X);
+                yMin = transformed.Min(p => (double)p.Y);
+                yMax = transformed.Max(p => (double)p.Y);
+                zMin = transformed.Min(p => (double)p.Z);
+                zMax = transformed.Max(p => (double)p.Z);
+            }
+
+            return new Roi3D(xMin, xMax, yMin, yMax, zMin, zMax);
+        }
+
+        private string CurrentSide() => _cmbSide.SelectedItem?.ToString() ?? "left";
 
         private void UpdateCalibStatus()
         {
@@ -508,78 +585,132 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void Recalculate()
         {
-            double zMin = (double)_numDepthMin.Value;
-            double zMax = (double)_numDepthMax.Value;
-            double xMinRoiNum = (double)_numXMinRoi.Value;
-            double xMaxRoiNum = (double)_numXMaxRoi.Value;
-            double yMinRoiNum = (double)_numYMinRoi.Value;
-            double yMaxRoiNum = (double)_numYMaxRoi.Value;
+            double sliderZMin = (double)_numDepthMin.Value;
+            double sliderZMax = (double)_numDepthMax.Value;
+            double xMinNum    = (double)_numXMinRoi.Value;
+            double xMaxNum    = (double)_numXMaxRoi.Value;
+            double yMinNum    = (double)_numYMinRoi.Value;
+            double yMaxNum    = (double)_numYMaxRoi.Value;
 
-            double? xMinRoI = (Math.Abs(xMinRoiNum) > 0.5 || Math.Abs(xMaxRoiNum) > 0.5) ? xMinRoiNum : null;
-            double? xMaxRoI = (Math.Abs(xMinRoiNum) > 0.5 || Math.Abs(xMaxRoiNum) > 0.5) ? xMaxRoiNum : null;
+            double? sliderXMin = (Math.Abs(xMinNum) > 0.5 || Math.Abs(xMaxNum) > 0.5) ? xMinNum : (double?)null;
+            double? sliderXMax = (Math.Abs(xMinNum) > 0.5 || Math.Abs(xMaxNum) > 0.5) ? xMaxNum : (double?)null;
+            double  sliderYMin = (Math.Abs(yMinNum) > 0.5 || Math.Abs(yMaxNum) > 0.5) ? yMinNum : -800;
+            double  sliderYMax = (Math.Abs(yMinNum) > 0.5 || Math.Abs(yMaxNum) > 0.5) ? yMaxNum :  800;
 
-            double yMinRoI = (Math.Abs(yMinRoiNum) > 0.5 || Math.Abs(yMaxRoiNum) > 0.5) ? yMinRoiNum : -800;
-            double yMaxRoI = (Math.Abs(yMinRoiNum) > 0.5 || Math.Abs(yMaxRoiNum) > 0.5) ? yMaxRoiNum : 800;
+            string tuneSn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
+            var cfg = ConfigManager.Instance?.Algorithms?.RackDeformation;
 
-            var basePts = new List<System.Numerics.Vector3>();
-            var pts1 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame1);
-            if (pts1 != null) basePts.AddRange(pts1);
-            var pts2 = StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame2);
-            if (pts2 != null) basePts.AddRange(pts2);
+            // 分相机独立分割：调参相机用滑块 ROI，另一台用其配置 ROI
+            _seg1 = SegmentFrameForTuner(_currentFrame1, tuneSn, sliderZMin, sliderZMax,
+                                          sliderYMin, sliderYMax, sliderXMin, sliderXMax, cfg);
+            _seg2 = SegmentFrameForTuner(_currentFrame2, tuneSn, sliderZMin, sliderZMax,
+                                          sliderYMin, sliderYMax, sliderXMin, sliderXMax, cfg);
 
-            if (basePts.Count == 0) return;
+            // _currentSeg = 调参相机的分割结果（供剖面图显示）
+            _currentSeg = (_currentFrame1?.CameraSn == tuneSn) ? _seg1 :
+                          (_currentFrame2?.CameraSn == tuneSn) ? _seg2 :
+                          (_seg1 ?? _seg2);
 
-            _currentSeg = CloudSegmentationHelper.Segment(
-                basePts, zMin, zMax, yMinRoI, yMaxRoI, xMinRoI, xMaxRoI,
-                5.0, 3, 500, extractComponentClouds: true);
-
-            if (_currentSeg != null && _currentSeg.Success)
-                _lblDetectedXRange.Text = $"检测范围: X=[{_currentSeg.XMin:F0}, {_currentSeg.XMax:F0}] mm";
-            else
-                _lblDetectedXRange.Text = "检测范围: --";
-
-            _lblDetectedYRange.Text = $"ROI Y=[{yMinRoI:F0}, {yMaxRoI:F0}] mm";
+            var activeSeg = _currentSeg ?? _seg1 ?? _seg2;
+            _lblDetectedXRange.Text = (activeSeg?.Success == true)
+                ? $"检测范围: X=[{activeSeg.XMin:F0}, {activeSeg.XMax:F0}] mm"
+                : "检测范围: --";
+            _lblDetectedYRange.Text = $"ROI Y=[{sliderYMin:F0}, {sliderYMax:F0}] mm";
 
             UpdateResultLabel();
             RedrawCloud();
             RedrawProfile();
         }
 
+        private SegmentationResult? SegmentFrameForTuner(
+            DepthFrameData? frame, string tuneSn,
+            double sliderZMin, double sliderZMax,
+            double sliderYMin, double sliderYMax,
+            double? sliderXMin, double? sliderXMax,
+            RackDeformationConfig? cfg)
+        {
+            if (frame == null) return null;
+
+            var pts = StackerOffsetAlgo.GetBasePointsFromFrame(frame);
+            if (pts == null || pts.Count == 0) return null;
+
+            double zMin, zMax, yLo, yHi;
+            double? xMinRoI, xMaxRoI;
+
+            if (string.Equals(frame.CameraSn, tuneSn, StringComparison.OrdinalIgnoreCase))
+            {
+                zMin = sliderZMin; zMax = sliderZMax;
+                yLo  = sliderYMin; yHi  = sliderYMax;
+                xMinRoI = sliderXMin; xMaxRoI = sliderXMax;
+            }
+            else
+            {
+                var camParam = cfg?.FindCameraParam(frame.CameraSn);
+                zMin = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
+                zMax = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
+                xMinRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : (double?)null;
+                xMaxRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMax : (double?)null;
+                yLo = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMin : -800.0;
+                yHi = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMax :  800.0;
+            }
+
+            var seg = CloudSegmentationHelper.Segment(
+                pts, zMin, zMax, yLo, yHi, xMinRoI, xMaxRoI,
+                5.0, 3, 500, extractComponentClouds: true);
+
+            return seg.Success ? seg : null;
+        }
+
         private void UpdateResultLabel()
         {
-            var d = _currentSeg;
-            if (d == null) { _lblResult.Text = "无数据"; return; }
+            bool seg1Ok = _seg1 != null;
+            bool seg2Ok = _seg2 != null;
 
-            if (!d.Success)
+            if (!seg1Ok && !seg2Ok)
             {
-                _lblResult.Text = $"❌ 检测失败\n{d.ErrorMessage}\n\nROI点数: {d.RoiPoints.Count}";
+                _lblResult.Text = "无数据";
                 _lblResult.ForeColor = Color.OrangeRed;
                 return;
             }
 
-            double rackL = RackDeformationAlgo.ComputeColumnDeformation(d.LeftColumnPoints);
-            double rackR = RackDeformationAlgo.ComputeColumnDeformation(d.RightColumnPoints);
-            double armL = RackDeformationAlgo.ComputeArmAngle(d.LeftArmPoints, _usedArmPtsL);
-            double armR = RackDeformationAlgo.ComputeArmAngle(d.RightArmPoints, _usedArmPtsR);
+            // 立柱：seg1(frame1/左侧相机)→左立柱，seg2(frame2/右侧相机)→右立柱
+            double rackL = RackDeformationAlgo.ComputeColumnDeformation(_seg1?.LeftColumnPoints);
+            double rackR = RackDeformationAlgo.ComputeColumnDeformation(_seg2?.RightColumnPoints);
+
+            // 横梁：合并两侧 BeamPoints
+            var beamPts = new List<System.Numerics.Vector3>();
+            if (_seg1?.BeamPoints != null) beamPts.AddRange(_seg1.BeamPoints);
+            if (_seg2?.BeamPoints != null) beamPts.AddRange(_seg2.BeamPoints);
+            double beam = RackDeformationAlgo.ComputeBeamDeformation(
+                beamPts.Count >= 50 ? beamPts : null, _usedBeamPts);
 
             double diffRackL = rackL - _refRackDefLeft;
             double diffRackR = rackR - _refRackDefRight;
-            double diffArmL  = armL  - _refArmAngleLeft;
-            double diffArmR  = armR  - _refArmAngleRight;
+            double diffBeam  = beam  - _refBeamDef;
 
-            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refArmAngleLeft != 0 || _refArmAngleRight != 0);
+            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refBeamDef != 0);
             string refTag = hasRef ? "" : " (无标准值)";
 
+            var activeSeg = _currentSeg ?? _seg1 ?? _seg2;
+            string yInfo = activeSeg != null && !double.IsNaN(activeSeg.YBeamCenterY)
+                ? $"\n│ 横梁Y中心:{activeSeg.YBeamCenterY,7:F1} mm  (±{activeSeg.YBeamHalfHeight:F0})"
+                : "";
+
+            int beamXSpan = beamPts.Count > 0
+                ? (int)(beamPts.Max(p => (double)p.X) - beamPts.Min(p => (double)p.X))
+                : 0;
+
             _lblResult.Text =
-                $"┌─ 变形检测结果{refTag} ──────────\n" +
+                $"┌─ 弯曲度检测结果{refTag} ──────────\n" +
+                $"│ 分割状态: Cam1:{(seg1Ok ? "✓" : "✗")}  Cam2:{(seg2Ok ? "✓" : "✗")}\n" +
                 $"│ 【左立柱】当前:{rackL,7:F2} mm  标准:{_refRackDefLeft,7:F2}  差值:{diffRackL,+7:F2}\n" +
                 $"│ 【右立柱】当前:{rackR,7:F2} mm  标准:{_refRackDefRight,7:F2}  差值:{diffRackR,+7:F2}\n" +
                 $"│\n" +
-                $"│ 【左托臂】当前:{armL,7:F2} °   标准:{_refArmAngleLeft,7:F2}  差值:{diffArmL,+7:F2}\n" +
-                $"│ 【右托臂】当前:{armR,7:F2} °   标准:{_refArmAngleRight,7:F2}  差值:{diffArmR,+7:F2}\n" +
+                $"│ 【横  梁】当前:{beam,7:F2} mm  标准:{_refBeamDef,7:F2}  差值:{diffBeam,+7:F2}{yInfo}\n" +
                 $"│\n" +
-                $"│ 立柱点云 (L/R): {d.LeftColumnPoints.Count} / {d.RightColumnPoints.Count}\n" +
-                $"│ 托臂点云 (L/R): {d.LeftArmPoints.Count} / {d.RightArmPoints.Count}\n" +
+                $"│ 立柱点云 (L/R): {_seg1?.LeftColumnPoints?.Count ?? 0} / {_seg2?.RightColumnPoints?.Count ?? 0}\n" +
+                $"│ 横梁点云: {beamPts.Count}  (Cam1:{_seg1?.BeamPoints?.Count ?? 0} + Cam2:{_seg2?.BeamPoints?.Count ?? 0})\n" +
+                $"│ 横梁 X 跨度: {beamXSpan} mm\n" +
                 $"└────────────────────────────";
             _lblResult.ForeColor = Color.White;
         }
@@ -596,8 +727,16 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void RedrawCloud()
         {
-            var selectedFrame = GetSelectedFrame();
-            if (selectedFrame == null) return;
+            string tuneSn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
+            bool showCam1 = string.IsNullOrEmpty(tuneSn) || (_currentFrame1?.CameraSn == tuneSn);
+            bool showCam2 = string.IsNullOrEmpty(tuneSn) || (_currentFrame2?.CameraSn == tuneSn);
+
+            // 分相机渲染：只展示当前调参相机的点云
+            var pts1 = showCam1 ? StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame1) : null;
+            var pts2 = showCam2 ? StackerOffsetAlgo.GetBasePointsFromFrame(_currentFrame2) : null;
+
+            int totalCount = (pts1?.Count ?? 0) + (pts2?.Count ?? 0);
+            if (totalCount == 0) return;
 
             int w = Math.Max(320, _pbCloud.ClientSize.Width);
             int h = Math.Max(240, _pbCloud.ClientSize.Height);
@@ -606,72 +745,76 @@ namespace pallet_storage_detection_system_Net_V2
             using (var g = Graphics.FromImage(bmp))
             {
                 g.Clear(Color.FromArgb(16, 16, 18));
-                double yaw = (double)_numYaw.Value * Math.PI / 180.0;
+                double yaw   = (double)_numYaw.Value   * Math.PI / 180.0;
                 double pitch = (double)_numPitch.Value * Math.PI / 180.0;
-                double zMin = (double)_numDepthMin.Value;
-                double zMax = (double)_numDepthMax.Value;
-                double yMinViz = (double)_numYMinRoi.Value;
-                double yMaxViz = (double)_numYMaxRoi.Value;
-                double xMinViz = (double)_numXMinRoi.Value;
-                double xMaxViz = (double)_numXMaxRoi.Value;
-                
-                DrawDepthRangeCuboid(g, zMin, zMax, xMinViz, xMaxViz, yMinViz, yMaxViz, yaw, pitch, w, h);
-                
+
+                // --- 绘制 SlotOccupancy ROI 立方体（标定基准坐标系）---
+                using var roiPen = new Pen(Color.OrangeRed, 1.5f) { DashStyle = DashStyle.Dash };
+                DrawRoiCube2D(g, roiPen, _slotOccupancyRoi, yaw, pitch, w, h);
+
+                // --- 绘制坐标系指示 ---
+                DrawCoordinateAxes(g, _slotOccupancyRoi, yaw, pitch, w, h);
+
                 using var infoFont = new Font("Consolas", 9F, FontStyle.Bold);
                 using var hintFont = new Font("Microsoft YaHei UI", 7F);
-                string? sn = _cmbTuneCamera.SelectedItem?.ToString();
-                var calib = string.IsNullOrWhiteSpace(sn) ? null : ConfigManager.GetCalibration(sn);
+
+                // 标定状态（与 RoiTunerForm 一致的风格）
+                string? tuneSn2 = _cmbTuneCamera.SelectedItem?.ToString();
+                var calib = string.IsNullOrWhiteSpace(tuneSn2) ? null : ConfigManager.GetCalibration(tuneSn2);
                 bool hasCalib = calib != null && calib.IsValid;
                 string calibText = hasCalib
-                    ? $"✓ 标定已应用 (R|T) | SN={sn}"
-                    : $"⚠ 无标定 — SN={sn ?? "?"} 显示相机原始坐标";
+                    ? $"✓ 标定已应用 (R|T) | SN={tuneSn2}  点云={totalCount}"
+                    : $"⚠ 无标定 — SN={tuneSn2 ?? "?"}  显示相机原始坐标  点云={totalCount}";
                 Color calibColor = hasCalib ? Color.Lime : Color.OrangeRed;
                 g.DrawString(calibText, infoFont, new SolidBrush(calibColor), 10, h - 52);
                 g.DrawString($"缩放 ×{_zoomLevel:F1}", infoFont, Brushes.Gray, 10, h - 34);
                 g.DrawString("左键旋转 | Shift+拖/中键平移 | 滚轮缩放 | 右键复位", hintFont, Brushes.DimGray, 10, h - 18);
             }
 
-            var basePts = new List<System.Numerics.Vector3>();
-            var pts1 = StackerOffsetAlgo.GetBasePointsFromFrame(selectedFrame);
-            if (pts1 != null) basePts.AddRange(pts1);
-
-            if (basePts.Count == 0)
-            {
-                _pbCloud.Image?.Dispose();
-                _pbCloud.Image = bmp;
-                return;
-            }
-
-            double yaw2 = (double)_numYaw.Value * Math.PI / 180.0;
+            double yaw2   = (double)_numYaw.Value   * Math.PI / 180.0;
             double pitch2 = (double)_numPitch.Value * Math.PI / 180.0;
-            int step = Math.Max(1, (int)Math.Sqrt(basePts.Count / 120000));
+            int step = Math.Max(1, (int)Math.Sqrt(totalCount / 120000));
             int totalStep = step * step;
 
-            var drawList = new List<(int sx, int sy, byte r, byte g, byte b)>(basePts.Count / totalStep + 100);
+            var drawList = new List<(int sx, int sy, byte r, byte g, byte b)>(totalCount / totalStep + 100);
 
-            HashSet<System.Numerics.Vector3>? lcol = _currentSeg?.LeftColumnPoints != null ? new HashSet<System.Numerics.Vector3>(_currentSeg.LeftColumnPoints) : null;
-            HashSet<System.Numerics.Vector3>? rcol = _currentSeg?.RightColumnPoints != null ? new HashSet<System.Numerics.Vector3>(_currentSeg.RightColumnPoints) : null;
-            HashSet<System.Numerics.Vector3>? larm = _currentSeg?.LeftArmPoints != null ? new HashSet<System.Numerics.Vector3>(_currentSeg.LeftArmPoints) : null;
-            HashSet<System.Numerics.Vector3>? rarm = _currentSeg?.RightArmPoints != null ? new HashSet<System.Numerics.Vector3>(_currentSeg.RightArmPoints) : null;
+            // 分割结果 HashSet：seg1 取左立柱，seg2 取右立柱，两侧横梁均收录
+            var lcolSet   = _seg1?.LeftColumnPoints  != null ? new HashSet<System.Numerics.Vector3>(_seg1.LeftColumnPoints)  : null;
+            var rcolSet   = _seg2?.RightColumnPoints != null ? new HashSet<System.Numerics.Vector3>(_seg2.RightColumnPoints) : null;
+            var beamSet1  = _seg1?.BeamPoints != null ? new HashSet<System.Numerics.Vector3>(_seg1.BeamPoints) : null;
+            var beamSet2  = _seg2?.BeamPoints != null ? new HashSet<System.Numerics.Vector3>(_seg2.BeamPoints) : null;
+            var usedBeam  = _usedBeamPts.Count > 0   ? new HashSet<System.Numerics.Vector3>(_usedBeamPts)     : null;
 
-            HashSet<System.Numerics.Vector3>? usedL = _usedArmPtsL.Count > 0 ? new HashSet<System.Numerics.Vector3>(_usedArmPtsL) : null;
-            HashSet<System.Numerics.Vector3>? usedR = _usedArmPtsR.Count > 0 ? new HashSet<System.Numerics.Vector3>(_usedArmPtsR) : null;
-
-            for (int i = 0; i < basePts.Count; i += totalStep)
+            // --- frame1 点云（蓝灰底色）---
+            if (pts1 != null)
             {
-                var pt = basePts[i];
-                if (!ProjectPt(pt.X, -pt.Y, pt.Z, yaw2, pitch2, w, h, out int sx, out int sy))
-                    continue;
+                for (int i = 0; i < pts1.Count; i += totalStep)
+                {
+                    var pt = pts1[i];
+                    if (!ProjectPt(pt.X, -pt.Y, pt.Z, yaw2, pitch2, w, h, out int sx, out int sy)) continue;
 
-                byte r = 105, g = 105, b = 105;
-                if (usedL != null && usedL.Contains(pt)) { r = 255; g = 0; b = 255; }
-                else if (usedR != null && usedR.Contains(pt)) { r = 255; g = 0; b = 255; }
-                else if (lcol != null && lcol.Contains(pt)) { r = 255; g = 165; b = 0; }
-                else if (rcol != null && rcol.Contains(pt)) { r = 255; g = 255; b = 0; }
-                else if (larm != null && larm.Contains(pt)) { r = 0; g = 255; b = 255; }
-                else if (rarm != null && rarm.Contains(pt)) { r = 50; g = 205; b = 50; }
+                    byte r = 80, g = 105, b = 160;  // 蓝灰（Cam1 底色）
+                    if      (usedBeam != null && usedBeam.Contains(pt))  { r = 255; g =   0; b = 255; } // 品红
+                    else if (beamSet1 != null && beamSet1.Contains(pt))  { r =   0; g = 255; b = 255; } // 青
+                    else if (lcolSet  != null && lcolSet.Contains(pt))   { r = 255; g = 165; b =   0; } // 橙
+                    drawList.Add((sx, sy, r, g, b));
+                }
+            }
 
-                drawList.Add((sx, sy, r, g, b));
+            // --- frame2 点云（紫灰底色）---
+            if (pts2 != null)
+            {
+                for (int i = 0; i < pts2.Count; i += totalStep)
+                {
+                    var pt = pts2[i];
+                    if (!ProjectPt(pt.X, -pt.Y, pt.Z, yaw2, pitch2, w, h, out int sx, out int sy)) continue;
+
+                    byte r = 110, g = 80, b = 155;  // 紫灰（Cam2 底色）
+                    if      (usedBeam != null && usedBeam.Contains(pt))  { r = 255; g =   0; b = 255; } // 品红
+                    else if (beamSet2 != null && beamSet2.Contains(pt))  { r =   0; g = 255; b = 255; } // 青
+                    else if (rcolSet  != null && rcolSet.Contains(pt))   { r = 255; g = 255; b =   0; } // 黄
+                    drawList.Add((sx, sy, r, g, b));
+                }
             }
 
             var rect = new Rectangle(0, 0, w, h);
@@ -708,59 +851,92 @@ namespace pallet_storage_detection_system_Net_V2
             _pbCloud.Image = bmp;
         }
 
-        private bool ProjectPt(double x, double y, double z, double yaw, double pitch, int w, int h, out int px, out int py)
+        /// <summary>
+        /// 3D 点投影到 2D 屏幕坐标（与 RoiTunerForm 一致）。
+        /// 旋转顺序：先绕 Y 轴(Yaw)再绕 X 轴(Pitch)，透视投影。
+        /// </summary>
+        private bool ProjectPt(double x, double y, double z, double yaw, double pitch, int w, int h, out int sx, out int sy)
         {
-            double cx = Math.Cos(yaw), sx = Math.Sin(yaw);
-            double cy = Math.Cos(pitch), sy = Math.Sin(pitch);
-            double rx = x * cx - z * sx;
-            double rz = x * sx + z * cx;
-            double ry = y * cy - rz * sy;
-            rz = y * sy + rz * cy;
-
-            double scale = 0.5 * _zoomLevel;
-            double f = 500;
-            double zOffset = 2000;
-            double zz = rz + zOffset;
-            if (zz < 10) { px = 0; py = 0; return false; }
-
-            px = (int)(w / 2.0 + (rx * f / zz) * scale + _panX);
-            py = (int)(h / 2.0 + (ry * f / zz) * scale + _panY);
-            return true;
+            double cosY = Math.Cos(yaw), sinY = Math.Sin(yaw);
+            double cosP = Math.Cos(pitch), sinP = Math.Sin(pitch);
+            double x1 = x * cosY + z * sinY;
+            double z1 = -x * sinY + z * cosY;
+            double y2 = y * cosP - z1 * sinP;
+            double z2 = y * sinP + z1 * cosP;
+            double dist = 4000.0;
+            double d = z2 + dist;
+            if (d <= 10) { sx = sy = 0; return false; }
+            double f = 900.0 * _zoomLevel;
+            sx = (int)(w * 0.5 + x1 * f / d + _panX);
+            sy = (int)(h * 0.5 - y2 * f / d + _panY);
+            return sx >= -10 && sx < w + 10 && sy >= -10 && sy < h + 10;
         }
 
-        private void DrawDepthRangeCuboid(Graphics g, double zMin, double zMax, double xMin, double xMax, double yMin, double yMax, double yaw, double pitch, int w, int h)
+        /// <summary>
+        /// 绘制 3D ROI 立方体框（与 RoiTunerForm 一致的风格），
+        /// 使用 SlotOccupancy 配置中的 ROI 参数（已转换到标定基准坐标系）。
+        /// </summary>
+        private void DrawRoiCube2D(Graphics g, Pen pen, Roi3D roi, double yaw, double pitch, int w, int h)
         {
-            double xLo, xHi;
-            bool xAuto = Math.Abs(xMin) < 0.5 && Math.Abs(xMax) < 0.5;
-            if (xAuto && _currentSeg != null && _currentSeg.XMax > _currentSeg.XMin)
+            var corners = new[]
             {
-                xLo = _currentSeg.XMin; xHi = _currentSeg.XMax;
-            }
-            else if (xAuto) { xLo = -600; xHi = 600; }
-            else { xLo = xMin; xHi = xMax; }
+                (roi.MinX, -roi.MinY, roi.MinZ),
+                (roi.MaxX, -roi.MinY, roi.MinZ),
+                (roi.MinX, -roi.MaxY, roi.MinZ),
+                (roi.MaxX, -roi.MaxY, roi.MinZ),
+                (roi.MinX, -roi.MinY, roi.MaxZ),
+                (roi.MaxX, -roi.MinY, roi.MaxZ),
+                (roi.MinX, -roi.MaxY, roi.MaxZ),
+                (roi.MaxX, -roi.MaxY, roi.MaxZ),
+            };
 
-            float[] xs = { (float)xLo, (float)xHi, (float)xHi, (float)xLo, (float)xLo, (float)xHi, (float)xHi, (float)xLo };
-            float[] ys = { (float)yMin, (float)yMin, (float)yMax, (float)yMax, (float)yMin, (float)yMin, (float)yMax, (float)yMax };
-            float[] zs = { (float)zMin, (float)zMin, (float)zMin, (float)zMin, (float)zMax, (float)zMax, (float)zMax, (float)zMax };
-
-            var pts = new PointF[8];
-            for (int i = 0; i < 8; i++)
+            var pts = corners.Select(c =>
             {
-                ProjectPt(xs[i], -ys[i], zs[i], yaw, pitch, w, h, out int sx, out int sy);
-                pts[i] = new PointF(sx, sy);
+                bool ok = ProjectPt(c.Item1, c.Item2, c.Item3, yaw, pitch, w, h, out var sx, out var sy);
+                return (ok, p: new PointF(sx, sy));
+            }).ToArray();
+
+            var edges = new (int, int)[]
+            {
+                (0,1),(1,3),(3,2),(2,0),
+                (4,5),(5,7),(7,6),(6,4),
+                (0,4),(1,5),(2,6),(3,7)
+            };
+
+            foreach (var (a, b) in edges)
+            {
+                if (pts[a].ok && pts[b].ok)
+                {
+                    g.DrawLine(pen, pts[a].p, pts[b].p);
+                }
             }
+        }
 
-            using var pen = new Pen(Color.FromArgb(100, 200, 255, 100), 1.5f) { DashStyle = DashStyle.Dash };
-            int[][] edges = { new[] { 0, 1 }, new[] { 1, 2 }, new[] { 2, 3 }, new[] { 3, 0 }, new[] { 4, 5 }, new[] { 5, 6 }, new[] { 6, 7 }, new[] { 7, 4 }, new[] { 0, 4 }, new[] { 1, 5 }, new[] { 2, 6 }, new[] { 3, 7 } };
-            foreach (var e in edges) g.DrawLine(pen, pts[e[0]], pts[e[1]]);
+        /// <summary>
+        /// 绘制基准坐标轴 (X红, Y绿, Z蓝)，原点取 ROI 区域的一个角点附近。
+        /// </summary>
+        private void DrawCoordinateAxes(Graphics g, Roi3D roi, double yaw, double pitch, int w, int h)
+        {
+            float ox = (float)roi.MinX, oy = (float)roi.MaxY, oz = (float)roi.MinZ;
+            ProjectPt(ox, -oy, oz, yaw, pitch, w, h, out int oxS, out int oyS);
 
-            using var f = new Font("Consolas", 9F);
-            float yLabel = (float)yMin - 50;
-            ProjectPt(0, (float)-yLabel, (float)zMin, yaw, pitch, w, h, out int lx, out int ly);
-            using var bLo = new SolidBrush(Color.FromArgb(200, 255, 100));
-            g.DrawString($"Z≈{zMin:F0}", f, bLo, lx, ly);
-            ProjectPt(0, (float)-yLabel, (float)zMax, yaw, pitch, w, h, out lx, out ly);
-            g.DrawString($"Z≈{zMax:F0}", f, Brushes.LightGreen, lx, ly);
+            // X 轴（红）
+            ProjectPt(ox + 300, -oy, oz, yaw, pitch, w, h, out int xS, out int xSy);
+            using (var pX = new Pen(Color.Red, 2f)) g.DrawLine(pX, oxS, oyS, xS, xSy);
+            using (var f = new Font("Consolas", 9F))
+                g.DrawString("X", f, Brushes.Red, xS, xSy);
+
+            // Y 轴（绿）
+            ProjectPt(ox, -(oy - 300), oz, yaw, pitch, w, h, out int yS, out int ySy);
+            using (var pY = new Pen(Color.Lime, 2f)) g.DrawLine(pY, oxS, oyS, yS, ySy);
+            using (var f = new Font("Consolas", 9F))
+                g.DrawString("Y", f, Brushes.Lime, yS, ySy);
+
+            // Z 轴（蓝）
+            ProjectPt(ox, -oy, oz + 500, yaw, pitch, w, h, out int zS, out int zSy);
+            using (var pZ = new Pen(Color.DodgerBlue, 2f)) g.DrawLine(pZ, oxS, oyS, zS, zSy);
+            using (var f = new Font("Consolas", 9F))
+                g.DrawString("Z(深度)", f, Brushes.DodgerBlue, zS, zSy);
         }
 
         // ============ 2D 剖面绘制 ============
@@ -930,34 +1106,40 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void BtnCaptureRef_Click(object? sender, EventArgs e)
         {
-            if (_currentSeg == null || !_currentSeg.Success)
+            if (_seg1 == null && _seg2 == null)
             {
-                AppendLog("请先抓取一帧并确保检测成功", true);
+                AppendLog("请先抓取一帧并确保至少一台相机分割成功", true);
                 return;
             }
 
-            _refRackDefLeft  = RackDeformationAlgo.ComputeColumnDeformation(_currentSeg.LeftColumnPoints);
-            _refRackDefRight = RackDeformationAlgo.ComputeColumnDeformation(_currentSeg.RightColumnPoints);
-            _refArmAngleLeft = RackDeformationAlgo.ComputeArmAngle(_currentSeg.LeftArmPoints, _usedArmPtsL);
-            _refArmAngleRight = RackDeformationAlgo.ComputeArmAngle(_currentSeg.RightArmPoints, _usedArmPtsR);
+            // 立柱：seg1→左，seg2→右
+            _refRackDefLeft  = RackDeformationAlgo.ComputeColumnDeformation(_seg1?.LeftColumnPoints);
+            _refRackDefRight = RackDeformationAlgo.ComputeColumnDeformation(_seg2?.RightColumnPoints);
+
+            // 横梁：合并两侧 BeamPoints
+            var beamPts = new List<System.Numerics.Vector3>();
+            if (_seg1?.BeamPoints != null) beamPts.AddRange(_seg1.BeamPoints);
+            if (_seg2?.BeamPoints != null) beamPts.AddRange(_seg2.BeamPoints);
+            _refBeamDef = RackDeformationAlgo.ComputeBeamDeformation(
+                beamPts.Count >= 50 ? beamPts : null, _usedBeamPts);
 
             UpdateRefStatusLabel();
-            AppendLog($"✅ 已设为标准值: 立柱L={_refRackDefLeft:F2} R={_refRackDefRight:F2}, 托臂L={_refArmAngleLeft:F2}° R={_refArmAngleRight:F2}°", false);
+            AppendLog($"✅ 已设为标准值: 立柱L={_refRackDefLeft:F2}mm R={_refRackDefRight:F2}mm, 横梁={_refBeamDef:F2}mm", false);
         }
 
         private void UpdateRefStatusLabel()
         {
-            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refArmAngleLeft != 0 || _refArmAngleRight != 0);
+            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refBeamDef != 0);
             if (hasRef)
             {
                 _lblRefStatus.Text = $"标准基准: 立柱 L={_refRackDefLeft:F2} R={_refRackDefRight:F2}\n" +
-                                     $"         托臂 L={_refArmAngleLeft:F2}° R={_refArmAngleRight:F2}°";
+                                     $"         横梁={_refBeamDef:F2} mm";
                 _lblRefStatus.ForeColor = Color.FromArgb(100, 255, 100);
             }
             else
             {
                 _lblRefStatus.Text = "标准基准: 未设置 (点击上方按钮采集标准值)";
-                _lblRefStatus.ForeColor = Color.FromArgb(200, 200, 100);
+                _lblRefStatus.ForeColor = Color.Gray;
             }
         }
 
@@ -1003,15 +1185,14 @@ namespace pallet_storage_detection_system_Net_V2
             // 保存标准基准值
             camParam.RefRackDefLeft  = _refRackDefLeft;
             camParam.RefRackDefRight = _refRackDefRight;
-            camParam.RefArmAngleLeft = _refArmAngleLeft;
-            camParam.RefArmAngleRight = _refArmAngleRight;
+            camParam.RefBeamDef      = _refBeamDef;
 
             // 加入列表（新条目）/ 列表中原位置不变
             if (isNew) cfg.CameraRoiParams.Add(camParam);
 
             ConfigManager.SaveConfig();
             AppendLog($"✅ 已保存相机 [{sn}] 的 ROI 参数: Z=[{zMinVal},{zMaxVal}], X=[{camParam.XMin:F0},{camParam.XMax:F0}], Y=[{camParam.YMin:F0},{camParam.YMax:F0}]", false);
-            AppendLog($"   标准基准: 立柱L={_refRackDefLeft:F2} R={_refRackDefRight:F2}, 托臂L={_refArmAngleLeft:F2}° R={_refArmAngleRight:F2}°", false);
+            AppendLog($"   标准基准: 立柱L={_refRackDefLeft:F2} R={_refRackDefRight:F2}, 横梁={_refBeamDef:F2}mm", false);
         }
     }
 }

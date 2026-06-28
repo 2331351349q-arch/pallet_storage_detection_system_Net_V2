@@ -1,20 +1,27 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
 
 namespace pallet_storage_detection_system_Net_V2.Algorithms
 {
     /// <summary>
-    /// 横梁与立柱变形检测算法类 (Flag 3)。
+    /// 横梁与立柱弯曲度检测算法类 (Flag 3)。
+    /// 分相机独立分割策略：
+    ///   frame1(LeftSideSns[0]) → 左立柱点云 + 左半横梁点云
+    ///   frame2(LeftSideSns[1]) → 右立柱点云 + 右半横梁点云
+    /// 横梁下挠在合并两侧 BeamPoints 后统一计算，从根本上消除两台相机
+    /// 外参标定对齐误差对分割结果的影响。
+    /// 立柱弯曲 = X-Y投影直线拟合的最大X偏差(mm)；横梁弯曲 = X-Y投影直线拟合的最大Y挠度(mm)。
     /// </summary>
     public static class RackDeformationAlgo
     {
         /// <summary>
-        /// 执行货架本体安全性评价 (立柱变形量、托臂下垂角度)。
-        /// 单相机视角，提取左右立柱及托臂点云进行拟合计算。
+        /// 执行货架本体安全性评价 (立柱弯曲量、横梁下挠量)。
+        /// 采用分相机独立分割策略：各相机各自完成 ROI 过滤 + 场景分割，
+        /// 再按角色汇总（frame1→左立柱，frame2→右立柱，两侧 BeamPoints 合并→横梁）。
+        /// 任一相机分割失败时对应结果置 0 并降级处理，不阻断整体检测。
         /// </summary>
-        /// <param name="img1">深度帧数据 1。</param>
-        /// <param name="img2">深度帧数据 2（可能为 null）。</param>
-        /// <param name="res">结果载体。</param>
-        /// <returns>算法是否执行成功。</returns>
         public static bool Run(object img1, object img2, Models.DetectionResult res)
         {
             try
@@ -23,71 +30,76 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 var frame1 = img1 as Devices.DepthFrameData;
                 var frame2 = img2 as Devices.DepthFrameData;
 
-                var basePoints = new System.Collections.Generic.List<System.Numerics.Vector3>();
+                // 分相机独立分割，互不干扰
+                var seg1 = SegmentSingleCamera(frame1, cfg);
+                var seg2 = SegmentSingleCamera(frame2, cfg);
 
-                // 为 RackDeformation 伪造一个 StackerOffsetConfig 用于复用 GetFilteredPoints
-                // （因为需要读取各自相机的 ZMin, ZMax, XMin 等）
-                // 更优雅的做法是将 ROI 提取抽离到公共类，这里暂用简单映射
-                if (frame1 != null)
-                {
-                    var pts1 = GetFilteredPoints(frame1, cfg);
-                    if (pts1 != null) basePoints.AddRange(pts1);
-                }
-
-                if (frame2 != null)
-                {
-                    var pts2 = GetFilteredPoints(frame2, cfg);
-                    if (pts2 != null) basePoints.AddRange(pts2);
-                }
-
-                if (basePoints.Count < 500)
+                if (seg1 == null && seg2 == null)
                 {
                     res.RackDefMmLeftValue = 0; res.RackDefMmRightValue = 0;
-                    res.ArmDefAngleLeftValue = 0; res.ArmDefAngleRightValue = 0;
+                    res.BeamDefMmValue = 0;
                     return false;
                 }
 
-                // 合并后，直接全范围交给 Segment（因为已经在 GetFilteredPoints 里裁剪过了）
-                var segRes = CloudSegmentationHelper.Segment(
-                    basePoints, -10000, 10000, -10000, 10000, null, null,
-                    5.0, 3, 500, extractComponentClouds: true);
+                // 立柱弯曲：frame1(LeftSideSns[0])→左立柱，frame2(LeftSideSns[1])→右立柱
+                double rawRackL = ComputeColumnDeformation(seg1?.LeftColumnPoints);
+                double rawRackR = ComputeColumnDeformation(seg2?.RightColumnPoints);
 
-                if (!segRes.Success)
-                {
-                    res.RackDefMmLeftValue = 0; res.RackDefMmRightValue = 0;
-                    res.ArmDefAngleLeftValue = 0; res.ArmDefAngleRightValue = 0;
-                    return false;
-                }
+                // 横梁：合并两侧 BeamPoints 后统一计算下挠量
+                var beamPts = new List<Vector3>();
+                if (seg1?.BeamPoints != null) beamPts.AddRange(seg1.BeamPoints);
+                if (seg2?.BeamPoints != null) beamPts.AddRange(seg2.BeamPoints);
+                double rawBeam = ComputeBeamDeformation(beamPts.Count >= 50 ? beamPts : null);
 
-                double rawRackL = ComputeColumnDeformation(segRes.LeftColumnPoints);
-                double rawRackR = ComputeColumnDeformation(segRes.RightColumnPoints);
-                double rawArmL  = ComputeArmAngle(segRes.LeftArmPoints);
-                double rawArmR  = ComputeArmAngle(segRes.RightArmPoints);
-
-                // 减去标准基准值（合并两相机时，暂且取第一个相机的基准，或配置中的默认）
+                // 减去标准基准值（按 frame1 SN 查配置，兼容原有存储方式）
                 var camParam = cfg?.FindCameraParam(frame1?.CameraSn ?? frame2?.CameraSn);
-                
-                double refRackL = camParam?.RefRackDefLeft  ?? 0.0;
+                double refRackL = camParam?.RefRackDefLeft ?? 0.0;
                 double refRackR = camParam?.RefRackDefRight ?? 0.0;
-                double refArmL  = camParam?.RefArmAngleLeft ?? 0.0;
-                double refArmR  = camParam?.RefArmAngleRight ?? 0.0;
+                double refBeam  = camParam?.RefBeamDef ?? 0.0;
 
-                res.RackDefMmLeftValue    = Math.Round(rawRackL - refRackL, 2);
-                res.RackDefMmRightValue   = Math.Round(rawRackR - refRackR, 2);
-                res.ArmDefAngleLeftValue  = Math.Round(rawArmL  - refArmL, 2);
-                res.ArmDefAngleRightValue = Math.Round(rawArmR  - refArmR, 2);
+                res.RackDefMmLeftValue  = Math.Round(rawRackL - refRackL, 2);
+                res.RackDefMmRightValue = Math.Round(rawRackR - refRackR, 2);
+                res.BeamDefMmValue      = Math.Round(rawBeam  - refBeam,  2);
 
                 return true;
             }
             catch (Exception)
             {
                 res.RackDefMmLeftValue = 0; res.RackDefMmRightValue = 0;
-                res.ArmDefAngleLeftValue = 0; res.ArmDefAngleRightValue = 0;
+                res.BeamDefMmValue = 0;
                 return false;
             }
         }
 
-        public static System.Collections.Generic.List<System.Numerics.Vector3>? GetFilteredPoints(Devices.DepthFrameData frame, Config.RackDeformationConfig? cfg)
+        /// <summary>
+        /// 对单台相机点云执行完整的 ROI 过滤 + 场景分割，返回分割结果（含立柱/横梁点云）。
+        /// ROI 参数从该相机的独立配置 (<see cref="Config.CameraRoiParam"/>) 读取，
+        /// 与另一台相机完全解耦，互不影响。失败或点云不足时返回 null。
+        /// </summary>
+        public static SegmentationResult? SegmentSingleCamera(
+            Devices.DepthFrameData? frame, Config.RackDeformationConfig? cfg)
+        {
+            if (frame == null) return null;
+
+            var pts = StackerOffsetAlgo.GetBasePointsFromFrame(frame);
+            if (pts == null || pts.Count < 500) return null;
+
+            var camParam = cfg?.FindCameraParam(frame.CameraSn);
+            double zMin  = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
+            double zMax  = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
+            double? xMinRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : (double?)null;
+            double? xMaxRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMax : (double?)null;
+            double yLo = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMin : -800.0;
+            double yHi = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMax :  800.0;
+
+            var seg = CloudSegmentationHelper.Segment(
+                pts, zMin, zMax, yLo, yHi, xMinRoI, xMaxRoI,
+                5.0, 3, 500, extractComponentClouds: true);
+
+            return seg.Success ? seg : null;
+        }
+
+        public static List<Vector3>? GetFilteredPoints(Devices.DepthFrameData frame, Config.RackDeformationConfig? cfg)
         {
             var pts = StackerOffsetAlgo.GetBasePointsFromFrame(frame);
             if (pts == null) return null;
@@ -103,7 +115,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             double yLo = yMinRoI ?? -800;
             double yHi = yMaxRoI ?? 800;
 
-            var filtered = new System.Collections.Generic.List<System.Numerics.Vector3>(pts.Count);
+            var filtered = new List<Vector3>(pts.Count);
             foreach (var p in pts)
             {
                 if (p.Z >= zMin && p.Z <= zMax && p.Y >= yLo && p.Y <= yHi &&
@@ -116,9 +128,9 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         }
 
         /// <summary>
-        /// 计算立柱变形量：投影到 X-Y 平面，直线拟合后找最大 X 偏差。
+        /// 计算立柱弯曲量：投影到 X-Y 平面，直线拟合后找最大 X 偏差 (mm)。
         /// </summary>
-        public static double ComputeColumnDeformation(System.Collections.Generic.List<System.Numerics.Vector3> pts)
+        public static double ComputeColumnDeformation(List<Vector3>? pts)
         {
             if (pts == null || pts.Count < 50) return 0.0;
 
@@ -151,164 +163,102 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         }
 
         /// <summary>
-        /// 计算托臂下垂角度：提取下表面（更平滑），Y-X 平面拟合。
+        /// 计算横梁下挠量：对横梁点云沿X轴分bin，取每bin的Y下表面（10th百分位），
+        /// 鲁棒拟合直线 Y=kX+b，返回各采样点与拟合直线的最大 Y 偏差 (mm)。
         /// </summary>
-        /// <param name="pts">托臂点云。</param>
-        /// <param name="usedPoints">可选：输出实际用于计算的过滤后点云，供可视化。</param>
-        public static double ComputeArmAngle(System.Collections.Generic.List<System.Numerics.Vector3> pts,
-            System.Collections.Generic.List<System.Numerics.Vector3>? usedPoints = null)
+        /// <param name="pts">横梁点云（两立柱内侧边缘之间、特定Y高度的前景点）。</param>
+        /// <param name="usedPoints">可选：输出实际用于计算的过滤后的剖面采样点，供可视化。</param>
+        public static double ComputeBeamDeformation(List<Vector3>? pts,
+            List<Vector3>? usedPoints = null)
         {
             if (pts == null || pts.Count < 50) return 0.0;
 
-            // ---- 第一步：过滤螺栓（按 X 方向连续性）----
-            // 托臂沿 X 轴延伸，长度远大于螺栓。
-            // 按 X 分 bin，找到点密度最高的连续区段作为托臂主体。
+            // ---- 第一步：沿 X 轴分 bin，每 bin 取 Y 下表面（10th 百分位，更稳定）----
             double xMin = double.MaxValue, xMax = double.MinValue;
+            foreach (var p in pts) { if (p.X < xMin) xMin = p.X; if (p.X > xMax) xMax = p.X; }
+            double xSpan = xMax - xMin;
+            if (xSpan < 30.0) return 0.0;
+
+            double xStep = 10.0;
+            int bins = (int)Math.Ceiling(xSpan / xStep) + 1;
+            var binYVals = new List<double>[bins];
+            for (int i = 0; i < bins; i++) binYVals[i] = new List<double>();
+
             foreach (var p in pts)
             {
-                if (p.X < xMin) xMin = p.X;
-                if (p.X > xMax) xMax = p.X;
-            }
-            double xRange = xMax - xMin;
-            if (xRange < 20) return 0.0; // X 跨度不足
-
-            double xBinSize = 5.0;
-            int xBinCount = (int)Math.Ceiling(xRange / xBinSize) + 1;
-            var xBinPop = new int[xBinCount];
-            foreach (var p in pts)
-            {
-                int b = (int)((p.X - xMin) / xBinSize);
-                if (b >= 0 && b < xBinCount) xBinPop[b]++;
-            }
-
-            // 找最长的连续密集 X 区间（点数 > 中位数 * 0.3 的连续 bin 段）
-            int medianPop = xBinPop.Where(c => c > 0).OrderBy(c => c).ElementAtOrDefault(xBinPop.Count(c => c > 0) / 2);
-            int densityThresh = Math.Max(2, (int)(medianPop * 0.3));
-
-            int bestStart = 0, bestLen = 0, curStart = 0, curLen = 0;
-            for (int i = 0; i < xBinCount; i++)
-            {
-                if (xBinPop[i] >= densityThresh)
-                {
-                    if (curLen == 0) curStart = i;
-                    curLen++;
-                    if (curLen > bestLen) { bestStart = curStart; bestLen = curLen; }
-                }
-                else { curLen = 0; }
-            }
-
-            if (bestLen < 3) return 0.0; // 没有足够的连续段
-
-            // 只保留主体区间内的点
-            double armXMin = xMin + bestStart * xBinSize;
-            double armXMax = xMin + (bestStart + bestLen) * xBinSize;
-            var filtered = new System.Collections.Generic.List<System.Numerics.Vector3>();
-            foreach (var p in pts)
-            {
-                if (p.X >= armXMin && p.X <= armXMax) filtered.Add(p);
-            }
-            if (filtered.Count < 30) return 0.0;
-
-            // ---- 第二步：Y 方向 IQR 过滤（去除上下方螺栓残留）----
-            var yValues = new double[filtered.Count];
-            for (int i = 0; i < filtered.Count; i++) yValues[i] = filtered[i].Y;
-            Array.Sort(yValues);
-            double yMedian = yValues[yValues.Length / 2];
-            double yQ1 = yValues[yValues.Length / 4];
-            double yQ3 = yValues[yValues.Length * 3 / 4];
-            double yIqr = yQ3 - yQ1;
-            double boltMargin = Math.Max(yIqr * 2.5, 15.0);
-
-            var clean = new System.Collections.Generic.List<System.Numerics.Vector3>();
-            foreach (var p in filtered)
-            {
-                if (p.Y >= yMedian - boltMargin && p.Y <= yMedian + boltMargin) clean.Add(p);
-            }
-            if (clean.Count < 30) clean = filtered;
-
-            // 输出用于计算的过滤后点云（供可视化标记）
-            if (usedPoints != null)
-            {
-                usedPoints.Clear();
-                usedPoints.AddRange(clean);
-            }
-
-            // ---- 第三步：沿 X 轴切片提取下表面（每个 X 区间的 10th 百分位 Y）----
-            // 下表面比上表面平滑得多，噪声和螺栓影响小
-            double cXMin = double.MaxValue, cXMax = double.MinValue;
-            foreach (var p in clean)
-            {
-                if (p.X < cXMin) cXMin = p.X;
-                if (p.X > cXMax) cXMax = p.X;
-            }
-
-            // 最小 X 跨度检查：跨度太小无法可靠拟合
-            if (cXMax - cXMin < 30.0) return 0.0;
-
-            double xStep = 10.0;  // 较大的 bin 减少噪声
-            int bins = (int)Math.Ceiling((cXMax - cXMin) / xStep) + 1;
-            var binYValues = new System.Collections.Generic.List<double>[bins];
-            for (int i = 0; i < bins; i++) binYValues[i] = new System.Collections.Generic.List<double>();
-
-            foreach (var p in clean)
-            {
-                int bin = (int)((p.X - cXMin) / xStep);
+                int bin = (int)((p.X - xMin) / xStep);
                 if (bin >= 0 && bin < bins)
-                    binYValues[bin].Add(p.Y);
+                    binYVals[bin].Add(p.Y);
             }
 
-            // 对每个 bin 取 10th 百分位 Y（下表面，比上表面稳定得多）
-            int minBinPts = Math.Max(3, clean.Count / (bins * 2));
-            var rawSurface = new System.Collections.Generic.List<(double x, double y)>();
+            // 每 bin 取 10th 百分位 Y（横梁下表面）
+            int minBinPts = Math.Max(3, pts.Count / (bins * 2));
+            var rawProfile = new List<(double x, double y)>();
             for (int i = 0; i < bins; i++)
             {
-                if (binYValues[i].Count >= minBinPts)
+                if (binYVals[i].Count >= minBinPts)
                 {
-                    binYValues[i].Sort();
-                    int p10Idx = (int)(binYValues[i].Count * 0.10);
-                    p10Idx = Math.Clamp(p10Idx, 0, binYValues[i].Count - 1);
-                    rawSurface.Add((cXMin + i * xStep + xStep / 2, binYValues[i][p10Idx]));
+                    binYVals[i].Sort();
+                    int p10Idx = (int)(binYVals[i].Count * 0.10);
+                    p10Idx = Math.Clamp(p10Idx, 0, binYVals[i].Count - 1);
+                    rawProfile.Add((xMin + i * xStep + xStep / 2, binYVals[i][p10Idx]));
                 }
             }
-            if (rawSurface.Count < 3) return 0.0;
+            if (rawProfile.Count < 5) return 0.0;
 
-            // 3 点滑动平均平滑（消除逐 bin 噪声）
-            var surfacePts = new System.Collections.Generic.List<(double x, double y)>();
-            for (int i = 0; i < rawSurface.Count; i++)
+            // 3点滑动平均平滑
+            var profile = new List<(double x, double y)>();
+            for (int i = 0; i < rawProfile.Count; i++)
             {
-                int lo = Math.Max(0, i - 1), hi = Math.Min(rawSurface.Count - 1, i + 1);
+                int lo = Math.Max(0, i - 1), hi = Math.Min(rawProfile.Count - 1, i + 1);
                 double avgY = 0; int cnt = 0;
-                for (int j = lo; j <= hi; j++) { avgY += rawSurface[j].y; cnt++; }
-                surfacePts.Add((rawSurface[i].x, avgY / cnt));
+                for (int j = lo; j <= hi; j++) { avgY += rawProfile[j].y; cnt++; }
+                profile.Add((rawProfile[i].x, avgY / cnt));
             }
-            if (surfacePts.Count < 3) return 0.0;
+            if (profile.Count < 5) return 0.0;
 
-            // ---- 第四步：鲁棒拟合 Y = k * X + b ----
-            double k0 = FitSlopeYX(surfacePts);
-            double b0 = surfacePts.Average(p => p.y) - k0 * surfacePts.Average(p => p.x);
-            var residuals = surfacePts.Select(p => Math.Abs(p.y - (k0 * p.x + b0))).ToList();
+            // ---- 第二步：鲁棒拟合 Y = k * X + b ----
+            double k0 = FitSlope(profile);
+            double b0 = profile.Average(p => p.y) - k0 * profile.Average(p => p.x);
+            var residuals = profile.Select(p => Math.Abs(p.y - (k0 * p.x + b0))).ToList();
             double meanRes = residuals.Average();
             double stdRes = Math.Sqrt(residuals.Average(r => (r - meanRes) * (r - meanRes)));
             double resThresh = Math.Max(meanRes + 2.0 * stdRes, 3.0);
 
-            var inliers = new System.Collections.Generic.List<(double x, double y)>();
-            for (int i = 0; i < surfacePts.Count; i++)
+            var inliers = new List<(double x, double y)>();
+            for (int i = 0; i < profile.Count; i++)
             {
-                if (residuals[i] <= resThresh) inliers.Add(surfacePts[i]);
+                if (residuals[i] <= resThresh) inliers.Add(profile[i]);
             }
-            if (inliers.Count < 5) inliers = surfacePts;
+            if (inliers.Count < 5) inliers = profile;
 
-            double kFinal = FitSlopeYX(inliers);
+            double kFinal = FitSlope(inliers);
+            double bFinal = inliers.Average(p => p.y) - kFinal * inliers.Average(p => p.x);
 
-            // angle in degrees
-            double angle = Math.Atan(kFinal) * 180.0 / Math.PI;
-            return Math.Round(Math.Abs(angle), 2);
+            // 输出用于计算的剖面点（供可视化）
+            if (usedPoints != null)
+            {
+                usedPoints.Clear();
+                foreach (var (x, y) in inliers)
+                    usedPoints.Add(new Vector3((float)x, (float)y, 0));
+            }
+
+            // ---- 第三步：计算最大 Y 偏差（挠度 mm）----
+            double maxDev = 0;
+            foreach (var (x, y) in inliers)
+            {
+                double idealY = kFinal * x + bFinal;
+                double dev = Math.Abs(y - idealY);
+                if (dev > maxDev) maxDev = dev;
+            }
+
+            return Math.Round(maxDev, 2);
         }
 
         /// <summary>
         /// 最小二乘法拟合 Y = k * X + b 并返回斜率 k。
         /// </summary>
-        private static double FitSlopeYX(System.Collections.Generic.List<(double x, double y)> pts)
+        private static double FitSlope(List<(double x, double y)> pts)
         {
             double sumX = 0, sumX2 = 0, sumY = 0, sumXY = 0;
             foreach (var p in pts)
@@ -327,4 +277,3 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         }
     }
 }
-

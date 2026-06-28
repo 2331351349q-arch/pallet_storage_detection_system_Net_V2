@@ -291,17 +291,22 @@ namespace pallet_storage_detection_system_Net_V2.Config
         /// <summary>标准位置参考值 (mm)，当前开口中心 X 与参考值的差 = 偏移量</summary>
         public double ReferenceX { get; set; }
 
-        /// <summary>标准位置左立柱变形量 (mm)，用于变形检测差值计算</summary>
+        /// <summary>标准位置左立柱弯曲量 (mm)，用于变形检测差值计算</summary>
         public double RefRackDefLeft { get; set; }
 
-        /// <summary>标准位置右立柱变形量 (mm)，用于变形检测差值计算</summary>
+        /// <summary>标准位置右立柱弯曲量 (mm)，用于变形检测差值计算</summary>
         public double RefRackDefRight { get; set; }
 
-        /// <summary>标准位置左托臂下垂角度 (°)，用于变形检测差值计算</summary>
-        public double RefArmAngleLeft { get; set; }
+        /// <summary>标准位置横梁下挠量 (mm)，用于变形检测差值计算</summary>
+        public double RefBeamDef { get; set; }
 
-        /// <summary>标准位置右托臂下垂角度 (°)，用于变形检测差值计算</summary>
-        public double RefArmAngleRight { get; set; }
+        /// <summary>
+        /// 相机在变形检测中的角色：
+        ///   "left"  = 负责左立柱 + 左半横梁；
+        ///   "right" = 负责右立柱 + 右半横梁；
+        ///   ""      = 空（默认），按 CameraMapping.LeftSideSns 列表顺序自动推断（[0]=left, [1]=right）。
+        /// </summary>
+        public string Role { get; set; } = "";
     }
 
     /// <summary>

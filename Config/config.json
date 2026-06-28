@@ -73,31 +73,29 @@
       "CameraRoiParams": [
         {
           "CameraSn": "207000168918",
-          "XMin": -500,
-          "XMax": 500,
-          "YMin": -500,
-          "YMax": 500,
+          "XMin": -200,
+          "XMax": 1500,
+          "YMin": 1500,
+          "YMax": 2200,
           "ZMin": 1000,
-          "ZMax": 3000,
+          "ZMax": 1800,
           "ReferenceX": 0,
           "RefRackDefLeft": 0,
           "RefRackDefRight": 0,
-          "RefArmAngleLeft": 0,
-          "RefArmAngleRight": 0
+          "RefBeamDef": 0
         },
         {
           "CameraSn": "207000169627",
-          "XMin": -500,
+          "XMin": -1500,
           "XMax": 500,
-          "YMin": -500,
-          "YMax": 500,
+          "YMin": 1300,
+          "YMax": 2200,
           "ZMin": 1000,
-          "ZMax": 3000,
+          "ZMax": 1800,
           "ReferenceX": 0,
           "RefRackDefLeft": 0,
           "RefRackDefRight": 0,
-          "RefArmAngleLeft": 0,
-          "RefArmAngleRight": 0
+          "RefBeamDef": 0
         },
         {
           "CameraSn": "207000168577",
@@ -110,8 +108,7 @@
           "ReferenceX": 0,
           "RefRackDefLeft": 0,
           "RefRackDefRight": 0,
-          "RefArmAngleLeft": 0,
-          "RefArmAngleRight": 0
+          "RefBeamDef": 0
         },
         {
           "CameraSn": "207000168598",
@@ -124,8 +121,7 @@
           "ReferenceX": 0,
           "RefRackDefLeft": 0,
           "RefRackDefRight": 0,
-          "RefArmAngleLeft": 0,
-          "RefArmAngleRight": 0
+          "RefBeamDef": 0
         }
       ],
       "CameraMapping": {
@@ -408,14 +404,14 @@
       "RoiLeft": [],
       "RoiRight": [],
       "RoiInventory": [
-        2878,
-        2085,
-        3573,
-        2085,
-        3528,
-        2473,
-        2864,
-        2427
+        620,
+        1541,
+        5126,
+        1517,
+        5193,
+        3182,
+        846,
+        3189
       ]
     },
     {
@@ -463,7 +459,16 @@
       ],
       "RoiLeft": [],
       "RoiRight": [],
-      "RoiInventory": []
+      "RoiInventory": [
+        441,
+        892,
+        5327,
+        885,
+        5256,
+        2459,
+        1033,
+        2402
+      ]
     }
   ]
 }

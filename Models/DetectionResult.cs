@@ -47,42 +47,33 @@ namespace pallet_storage_detection_system_Net_V2.Models
         /// </summary>
         public string OffsetLatMmWarningAlarm { get; set; } = "{\"warning\": false, \"alarm\": false}";
 
-        // Flag 3: 托臂与立柱变形字段
+        // Flag 3: 立柱与横梁变形字段
         /// <summary>
-        /// 左侧托臂下挠角度值 (deg)。
-        /// </summary>
-        public double ArmDefAngleLeftValue { get; set; } = 1.5;
-        /// <summary>
-        /// 左侧托臂下挠角度报警状态 JSON 字符串。
-        /// </summary>
-        public string ArmDefAngleLeftWarningAlarm { get; set; } = "{\"warning\": false, \"alarm\": false}";
-
-        /// <summary>
-        /// 右侧托臂下挠角度值 (deg)。
-        /// </summary>
-        public double ArmDefAngleRightValue { get; set; } = 0.5;
-        /// <summary>
-        /// 右侧托臂下挠角度报警状态 JSON 字符串。
-        /// </summary>
-        public string ArmDefAngleRightWarningAlarm { get; set; } = "{\"warning\": false, \"alarm\": false}";
-
-        /// <summary>
-        /// 左侧立柱倾斜值 (mm)。
+        /// 左侧立柱弯曲值 (mm) — X-Y投影直线拟合的最大X偏差。
         /// </summary>
         public double RackDefMmLeftValue { get; set; } = 4.0;
         /// <summary>
-        /// 左侧立柱倾斜的报警状态 JSON 字符串。
+        /// 左侧立柱弯曲的报警状态 JSON 字符串。
         /// </summary>
         public string RackDefMmLeftWarningAlarm { get; set; } = "{\"warning\": false, \"alarm\": false}";
 
         /// <summary>
-        /// 右侧立柱倾斜值 (mm)。
+        /// 右侧立柱弯曲值 (mm) — X-Y投影直线拟合的最大X偏差。
         /// </summary>
         public double RackDefMmRightValue { get; set; } = 9.2;
         /// <summary>
-        /// 右侧立柱倾斜的报警状态 JSON 字符串。
+        /// 右侧立柱弯曲的报警状态 JSON 字符串。
         /// </summary>
         public string RackDefMmRightWarningAlarm { get; set; } = "{\"warning\": false, \"alarm\": false}";
+
+        /// <summary>
+        /// 横梁下挠量 (mm) — 合并后的完整横梁点云在X-Y投影的最大Y偏差。
+        /// </summary>
+        public double BeamDefMmValue { get; set; } = 2.0;
+        /// <summary>
+        /// 横梁下挠的报警状态 JSON 字符串。
+        /// </summary>
+        public string BeamDefMmWarningAlarm { get; set; } = "{\"warning\": false, \"alarm\": false}";
 
         // Flag 4/5: 视觉盘库字段
         /// <summary>
@@ -109,10 +100,9 @@ namespace pallet_storage_detection_system_Net_V2.Models
                     break;
                 case 3:
                     var bCfg = config.Algorithms.RackDeformation;
-                    ArmDefAngleLeftWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(ArmDefAngleLeftValue, bCfg.BeamThreshold));
-                    ArmDefAngleRightWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(ArmDefAngleRightValue, bCfg.BeamThreshold));
                     RackDefMmLeftWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(RackDefMmLeftValue, bCfg.RackThreshold));
                     RackDefMmRightWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(RackDefMmRightValue, bCfg.RackThreshold));
+                    BeamDefMmWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(BeamDefMmValue, bCfg.BeamThreshold));
                     break;
             }
         }
@@ -174,10 +164,8 @@ namespace pallet_storage_detection_system_Net_V2.Models
                     entries.Add(new HashEntry("rack_def_mm_left_warning_alarm", RackDefMmLeftWarningAlarm));
                     entries.Add(new HashEntry("rack_def_mm_right_value", RackDefMmRightValue.ToString("F1")));
                     entries.Add(new HashEntry("rack_def_mm_right_warning_alarm", RackDefMmRightWarningAlarm));
-                    entries.Add(new HashEntry("arm_def_angle_left_value", ArmDefAngleLeftValue.ToString("F1")));
-                    entries.Add(new HashEntry("arm_def_angle_left_warning_alarm", ArmDefAngleLeftWarningAlarm));
-                    entries.Add(new HashEntry("arm_def_angle_right_value", ArmDefAngleRightValue.ToString("F1")));
-                    entries.Add(new HashEntry("arm_def_angle_right_warning_alarm", ArmDefAngleRightWarningAlarm));
+                    entries.Add(new HashEntry("beam_def_mm_value", BeamDefMmValue.ToString("F1")));
+                    entries.Add(new HashEntry("beam_def_mm_warning_alarm", BeamDefMmWarningAlarm));
                     break;
                 case 4:
                 case 5:

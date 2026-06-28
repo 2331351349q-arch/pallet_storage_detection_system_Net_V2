@@ -42,8 +42,15 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         // 变形检测专属点云（仅在 extractComponentClouds = true 时填充）
         public List<Vector3> LeftColumnPoints { get; set; } = new();
         public List<Vector3> RightColumnPoints { get; set; } = new();
-        public List<Vector3> LeftArmPoints { get; set; } = new();
-        public List<Vector3> RightArmPoints { get; set; } = new();
+        /// <summary>横梁点云（两立柱内侧边缘之间、特定Y高度区间内的前景点）</summary>
+        public List<Vector3> BeamPoints { get; set; } = new();
+
+        // ---- Y轴横梁剖面数据（供可视化调试） ----
+        public double[] YProfileYCenters { get; set; } = Array.Empty<double>();
+        public double[] YProfileZMin { get; set; } = Array.Empty<double>();
+        public int[] YProfilePopulation { get; set; } = Array.Empty<int>();
+        public double YBeamCenterY { get; set; } = double.NaN;
+        public double YBeamHalfHeight { get; set; } = 20.0;
     }
 
     /// <summary>
@@ -59,7 +66,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             double binSizeMm = 5.0,
             int minBeamBinWidth = 3,
             int minPointCount = 500,
-            bool extractComponentClouds = false)
+            bool extractComponentClouds = false,
+            double? beamYMin = null, double? beamYMax = null)
         {
             var res = new SegmentationResult();
 
@@ -166,24 +174,30 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     double lRawLeft = br[bestLeftBeamIdx].l;
                     double rRawRight = br[bestRightBeamIdx].r;
 
+                    // 横梁 Y 范围：优先使用传入参数，否则用 ROI 中间 30% 作为默认
+                    double beamYLo = beamYMin ?? (yMinRoI + (yMaxRoI - yMinRoI) * 0.35);
+                    double beamYHi = beamYMax ?? (yMinRoI + (yMaxRoI - yMinRoI) * 0.65);
+
+                    // Y轴深度剖面：在两立柱间隙区做Y-binning，辅助识别横梁高度位置
+                    ComputeYProfile(roi, refinedLX, refinedRX, bThresh, yMinRoI, yMaxRoI, res);
+
                     foreach (var pt in roi)
                     {
-                        if (pt.Z >= bThresh) continue; // 仅处理前景(梁)部分
+                        if (pt.Z >= bThresh) continue; // 仅处理前景(梁/柱)部分
 
-                        // 属于左梁区域
-                        if (pt.X >= lRawLeft && pt.X <= lRawRight)
+                        // 左立柱：在左梁检测区域内，且X不超过精化内侧边缘
+                        if (pt.X >= lRawLeft && pt.X <= refinedLX)
+                            res.LeftColumnPoints.Add(pt);
+
+                        // 右立柱：在右梁检测区域内，且X不小于精化内侧边缘
+                        if (pt.X >= refinedRX && pt.X <= rRawRight)
+                            res.RightColumnPoints.Add(pt);
+
+                        // 横梁：两立柱内侧边缘之间、特定Y高度区间内的前景点
+                        if (pt.X >= refinedLX && pt.X <= refinedRX &&
+                            pt.Y >= beamYLo && pt.Y <= beamYHi)
                         {
-                            // 判断是否超出纯立柱的内侧边缘 (即属于托臂突出部分)
-                            // 注意左侧立柱内侧边缘在右边，所以 pt.X > refinedLX 即为突出部分
-                            if (pt.X > refinedLX) res.LeftArmPoints.Add(pt);
-                            else res.LeftColumnPoints.Add(pt);
-                        }
-                        // 属于右梁区域
-                        else if (pt.X >= rRawLeft && pt.X <= rRawRight)
-                        {
-                            // 右侧立柱内侧边缘在左边，所以 pt.X < refinedRX 即为突出部分
-                            if (pt.X < refinedRX) res.RightArmPoints.Add(pt);
-                            else res.RightColumnPoints.Add(pt);
+                            res.BeamPoints.Add(pt);
                         }
                     }
                 }
@@ -250,6 +264,93 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             }
 
             return (leftX, rightX);
+        }
+
+        /// <summary>
+        /// 计算立柱间隙区域的 Y 轴深度剖面，用于辅助识别横梁的 Y 高度位置。
+        /// 横梁在前景中表现为 Z 值突降的 Y 区间。
+        /// </summary>
+        private static void ComputeYProfile(
+            List<Vector3> roi, double beamLeftX, double beamRightX, double beamZThreshold,
+            double yMinRoI, double yMaxRoI, SegmentationResult res)
+        {
+            const double yBinSizeMm = 15.0;
+            double yRange = yMaxRoI - yMinRoI;
+            if (yRange < 30) return;
+
+            int yBinCount = (int)Math.Ceiling(yRange / yBinSizeMm) + 1;
+            var yZMin = new double[yBinCount];
+            var yPop = new int[yBinCount];
+            var yCenters = new double[yBinCount];
+            for (int i = 0; i < yBinCount; i++)
+            {
+                yZMin[i] = double.MaxValue;
+                yCenters[i] = yMinRoI + i * yBinSizeMm + yBinSizeMm / 2.0;
+            }
+
+            foreach (var pt in roi)
+            {
+                // 仅统计立柱间隙内的点
+                if (pt.X < beamLeftX || pt.X > beamRightX) continue;
+                int bin = (int)((pt.Y - yMinRoI) / yBinSizeMm);
+                if (bin < 0 || bin >= yBinCount) continue;
+                if (pt.Z < yZMin[bin]) yZMin[bin] = pt.Z;
+                yPop[bin]++;
+            }
+
+            res.YProfileYCenters = yCenters;
+            res.YProfileZMin = yZMin;
+            res.YProfilePopulation = yPop;
+
+            // 自动检测横梁的 Y 中心：在前景 bin（Z < 背景）中找点数最多的连续段
+            var validBins = new List<(int bin, int pop)>();
+            for (int i = 0; i < yBinCount; i++)
+            {
+                if (yZMin[i] < beamZThreshold && yPop[i] > 0)
+                    validBins.Add((i, yPop[i]));
+            }
+
+            if (validBins.Count >= 2)
+            {
+                // 找最大连续段
+                int bestStart = validBins[0].bin;
+                int bestEnd = validBins[0].bin;
+                int bestWeight = validBins[0].pop;
+                int curStart = validBins[0].bin;
+                int curWeight = validBins[0].pop;
+
+                for (int i = 1; i < validBins.Count; i++)
+                {
+                    if (validBins[i].bin == validBins[i - 1].bin + 1)
+                    {
+                        curWeight += validBins[i].pop;
+                    }
+                    else
+                    {
+                        if (curWeight > bestWeight)
+                        {
+                            bestWeight = curWeight;
+                            bestStart = curStart;
+                            bestEnd = validBins[i - 1].bin;
+                        }
+                        curStart = validBins[i].bin;
+                        curWeight = validBins[i].pop;
+                    }
+                }
+                if (curWeight > bestWeight)
+                {
+                    bestStart = curStart;
+                    bestEnd = validBins[validBins.Count - 1].bin;
+                }
+
+                if (bestEnd >= bestStart)
+                {
+                    double yMid = (yCenters[bestStart] + yCenters[bestEnd]) / 2.0;
+                    double yHalfH = (yCenters[bestEnd] - yCenters[bestStart]) / 2.0 + yBinSizeMm;
+                    res.YBeamCenterY = yMid;
+                    res.YBeamHalfHeight = Math.Max(yHalfH, 20.0);
+                }
+            }
         }
     }
 }

@@ -1,0 +1,27 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+d:\project\pallet_storage_detection_system_Net_V2\Algorithms\SlotOccupancyAlgo.cs(101,62): warning CS0618: “SlotOccupancyConfig.Roi3dRight”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\Algorithms\SlotOccupancyAlgo.cs(101,80): warning CS0618: “SlotOccupancyConfig.Roi3dLeft”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RoiTunerForm.cs(298,62): warning CS0618: “SlotOccupancyConfig.Roi3dRight”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RoiTunerForm.cs(298,80): warning CS0618: “SlotOccupancyConfig.Roi3dLeft”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RackDeformationTunerForm.cs(481,57): warning CS0618: “SlotOccupancyConfig.Roi3dRight”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RackDeformationTunerForm.cs(481,79): warning CS0618: “SlotOccupancyConfig.Roi3dLeft”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RackDeformationTunerForm.cs(925,82): error CS0103: 当前上下文中不存在名称“_” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RackDeformationTunerForm.cs(927,55): error CS0103: 当前上下文中不存在名称“_” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+CSC : warning WFAC010: 从 d:\project\pallet_storage_detection_system_Net_V2\app.manifest 中删除高 DPI 设置，并通过 Application.SetHighDpiMode API 或“ApplicationHighDpiMode”项目属性进行配置 [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+
+生成失败。
+
+d:\project\pallet_storage_detection_system_Net_V2\Algorithms\SlotOccupancyAlgo.cs(101,62): warning CS0618: “SlotOccupancyConfig.Roi3dRight”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\Algorithms\SlotOccupancyAlgo.cs(101,80): warning CS0618: “SlotOccupancyConfig.Roi3dLeft”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RoiTunerForm.cs(298,62): warning CS0618: “SlotOccupancyConfig.Roi3dRight”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RoiTunerForm.cs(298,80): warning CS0618: “SlotOccupancyConfig.Roi3dLeft”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RackDeformationTunerForm.cs(481,57): warning CS0618: “SlotOccupancyConfig.Roi3dRight”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RackDeformationTunerForm.cs(481,79): warning CS0618: “SlotOccupancyConfig.Roi3dLeft”已过时:“请使用 CameraRoiParams 代替全局设定” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+CSC : warning WFAC010: 从 d:\project\pallet_storage_detection_system_Net_V2\app.manifest 中删除高 DPI 设置，并通过 Application.SetHighDpiMode API 或“ApplicationHighDpiMode”项目属性进行配置 [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RackDeformationTunerForm.cs(925,82): error CS0103: 当前上下文中不存在名称“_” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+d:\project\pallet_storage_detection_system_Net_V2\RackDeformationTunerForm.cs(927,55): error CS0103: 当前上下文中不存在名称“_” [d:\project\pallet_storage_detection_system_Net_V2\pallet_storage_detection_system_Net_V2.csproj]
+    7 个警告
+    2 个错误
+
+已用时间 00:00:00.78
