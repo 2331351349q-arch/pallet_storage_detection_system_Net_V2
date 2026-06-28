@@ -335,27 +335,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             if (frame == null)
                 return null;
 
-            // 获取相机坐标系点云（优先 SDK 原生点云，回退手动公式）
-            var camPoints = frame.GetPointCloud();
-            if (camPoints == null || camPoints.Count < MinPointCount)
-                return null;
-
-            // 查找该相机的标定参数
-            var calib = ConfigManager.GetCalibration(frame.CameraSn);
-            if (calib == null || !calib.IsValid)
-            {
-                // 无有效标定时直接返回原始点云（相机坐标系即基准，深度=Z 天然满足）
-                return camPoints;
-            }
-
-            // 变换：P_base = R * P_cam + T
-            var basePoints = new List<Vector3>(camPoints.Count);
-            foreach (var pt in camPoints)
-            {
-                basePoints.Add(CalibrationAlgo.TransformPoint(pt, calib));
-            }
-
-            return basePoints;
+            return frame.GetPointCloud();
         }
 
         /// <summary>获取相机深度方向在基准坐标系中的映射描述，用于 UI 显示。</summary>

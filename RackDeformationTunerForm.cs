@@ -77,6 +77,9 @@ namespace pallet_storage_detection_system_Net_V2
         // ---- SlotOccupancy ROI（已转换到标定基准坐标系，供3D可视化）----
         private Roi3D _slotOccupancyRoi;
 
+        // ---- RackDeformation ROI（标定基准坐标系，当前调节值）----
+        private Roi3D _rackDeformationRoi;
+
         public RackDeformationTunerForm()
         {
             InitializeUi();
@@ -191,11 +194,11 @@ namespace pallet_storage_detection_system_Net_V2
             flow.Controls.Add(SectionLabel("🔭 视角控制"));
             var viewRow = new FlowLayoutPanel { Width = FlowW, Height = 26 };
             viewRow.Controls.Add(new Label { Text = "Yaw:", Width = 36, Height = 22, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.LightGray, Font = new Font("Consolas", 8F) });
-            _numYaw = new NumericUpDown { Width = (FlowW - 90) / 2, Height = 22, Minimum = -180, Maximum = 180, Value = 0, BackColor = Color.FromArgb(40, 40, 50), ForeColor = Color.LightGray };
+            _numYaw = new NumericUpDown { Width = (FlowW - 90) / 2, Height = 22, Minimum = -180, Maximum = 180, Value = 20, BackColor = Color.FromArgb(40, 40, 50), ForeColor = Color.LightGray };
             _numYaw.ValueChanged += (_, __) => RedrawCloud();
             viewRow.Controls.Add(_numYaw);
             viewRow.Controls.Add(new Label { Text = "Pitch:", Width = 46, Height = 22, TextAlign = ContentAlignment.MiddleRight, ForeColor = Color.LightGray, Font = new Font("Consolas", 8F) });
-            _numPitch = new NumericUpDown { Width = (FlowW - 90) / 2, Height = 22, Minimum = -80, Maximum = 80, Value = 0, BackColor = Color.FromArgb(40, 40, 50), ForeColor = Color.LightGray };
+            _numPitch = new NumericUpDown { Width = (FlowW - 90) / 2, Height = 22, Minimum = -80, Maximum = 80, Value = -12, BackColor = Color.FromArgb(40, 40, 50), ForeColor = Color.LightGray };
             _numPitch.ValueChanged += (_, __) => RedrawCloud();
             viewRow.Controls.Add(_numPitch);
             flow.Controls.Add(viewRow);
@@ -617,6 +620,10 @@ namespace pallet_storage_detection_system_Net_V2
                 : "检测范围: --";
             _lblDetectedYRange.Text = $"ROI Y=[{sliderYMin:F0}, {sliderYMax:F0}] mm";
 
+            double rdXMin = sliderXMin ?? (activeSeg?.Success == true ? activeSeg.XMin : -1000);
+            double rdXMax = sliderXMax ?? (activeSeg?.Success == true ? activeSeg.XMax : 1000);
+            _rackDeformationRoi = new Roi3D(rdXMin, rdXMax, sliderYMin, sliderYMax, sliderZMin, sliderZMax);
+
             UpdateResultLabel();
             RedrawCloud();
             RedrawProfile();
@@ -748,12 +755,12 @@ namespace pallet_storage_detection_system_Net_V2
                 double yaw   = (double)_numYaw.Value   * Math.PI / 180.0;
                 double pitch = (double)_numPitch.Value * Math.PI / 180.0;
 
-                // --- 绘制 SlotOccupancy ROI 立方体（标定基准坐标系）---
-                using var roiPen = new Pen(Color.OrangeRed, 1.5f) { DashStyle = DashStyle.Dash };
-                DrawRoiCube2D(g, roiPen, _slotOccupancyRoi, yaw, pitch, w, h);
+                // --- 绘制 RackDeformation 自身的 ROI 立方体（标定基准坐标系）---
+                using var rdRoiPen = new Pen(Color.OrangeRed, 1.5f) { DashStyle = DashStyle.Dash };
+                DrawRoiCube2D(g, rdRoiPen, _rackDeformationRoi, yaw, pitch, w, h);
 
                 // --- 绘制坐标系指示 ---
-                DrawCoordinateAxes(g, _slotOccupancyRoi, yaw, pitch, w, h);
+                DrawCoordinateAxes(g, _rackDeformationRoi, yaw, pitch, w, h);
 
                 using var infoFont = new Font("Consolas", 9F, FontStyle.Bold);
                 using var hintFont = new Font("Microsoft YaHei UI", 7F);
