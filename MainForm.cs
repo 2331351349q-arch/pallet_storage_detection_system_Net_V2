@@ -34,6 +34,7 @@ namespace pallet_storage_detection_system_Net_V2
             listBox_Log.BackColor = System.Drawing.Color.White;
             listBox_Log.ForeColor = System.Drawing.Color.FromArgb(30, 30, 35);
             listBox_Log.Font = new System.Drawing.Font("Microsoft YaHei UI", 10.5F, System.Drawing.FontStyle.Regular);
+            listBox_Log.HorizontalScrollbar = true;
             listBox_Log.KeyDown += ListBox_Log_KeyDown;
 
             var contextMenu = new System.Windows.Forms.ContextMenuStrip();
@@ -371,7 +372,7 @@ namespace pallet_storage_detection_system_Net_V2
                         var cam = DeviceManager.GetCamera(sns[i]);
                         if (cam != null && cam.IsConnected)
                         {
-                            int index = (side == "left") ? (i + 3) : (i + 1); // PictureBox index 1-4
+                            int index = i + 1; // PictureBox index 1-4 (不管左侧还是右侧，都在 UI 的 4 个画面中显示)
                             tasks.Add(cam.GrabFrameAsync().ContinueWith(t => 
                             {
                                 if (t.Result != null && !token.IsCancellationRequested)

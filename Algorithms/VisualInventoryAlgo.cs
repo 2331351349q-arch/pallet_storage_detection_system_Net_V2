@@ -147,7 +147,11 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 {
                     var strings = hv_DecodedDataStrings_ECC200.SArr;
                     foreach (var s in strings)
-                        if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
+                    {
+                        var t = s?.Trim() ?? "";
+                        if (!string.IsNullOrWhiteSpace(t) && t.Length > 4) 
+                            results.Add(t);
+                    }
                 }
 
                 // 4. 寻找 QR Code
@@ -159,7 +163,11 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 {
                     var strings = hv_DecodedDataStrings_QR.SArr;
                     foreach (var s in strings)
-                        if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
+                    {
+                        var t = s?.Trim() ?? "";
+                        if (!string.IsNullOrWhiteSpace(t) && t.Length > 4) 
+                            results.Add(t);
+                    }
                 }
 
                 // 5. 寻找 1D 条形码 ("auto" 支持识别大多数常见条码如 Code 128, Code 39, EAN 等)
@@ -171,7 +179,12 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 {
                     var strings = hv_DecodedDataStrings_BarCode.SArr;
                     foreach (var s in strings)
-                        if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
+                    {
+                        var t = s?.Trim() ?? "";
+                        // 过滤掉长度小于等于4的短字符串，以防 Halcon 将背景噪声误识别为无效短码（例如 3798, 3538）
+                        if (!string.IsNullOrWhiteSpace(t) && t.Length > 4) 
+                            results.Add(t);
+                    }
                 }
 
 
