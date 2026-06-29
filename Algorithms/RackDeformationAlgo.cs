@@ -45,21 +45,34 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 double rawRackL = ComputeColumnDeformation(seg1?.LeftColumnPoints);
                 double rawRackR = ComputeColumnDeformation(seg2?.RightColumnPoints);
 
-                // 横梁：合并两侧 BeamPoints 后统一计算下挠量
-                var beamPts = new List<Vector3>();
-                if (seg1?.BeamPoints != null) beamPts.AddRange(seg1.BeamPoints);
-                if (seg2?.BeamPoints != null) beamPts.AddRange(seg2.BeamPoints);
-                double rawBeam = ComputeBeamDeformation(beamPts.Count >= 50 ? beamPts : null);
+                // 横梁：各自相机计算自己半边的挠度
+                double rawBeamL = ComputeBeamDeformation(seg1?.BeamPoints);
+                double rawBeamR = ComputeBeamDeformation(seg2?.BeamPoints);
 
-                // 减去标准基准值（按 frame1 SN 查配置，兼容原有存储方式）
-                var camParam = cfg?.FindCameraParam(frame1?.CameraSn ?? frame2?.CameraSn);
-                double refRackL = camParam?.RefRackDefLeft ?? 0.0;
-                double refRackR = camParam?.RefRackDefRight ?? 0.0;
-                double refBeam  = camParam?.RefBeamDef ?? 0.0;
+                // 减去各自的标准基准值
+                var camParamL = cfg?.FindCameraParam(frame1?.CameraSn);
+                var camParamR = cfg?.FindCameraParam(frame2?.CameraSn);
 
-                res.RackDefMmLeftValue  = Math.Round(rawRackL - refRackL, 2);
-                res.RackDefMmRightValue = Math.Round(rawRackR - refRackR, 2);
-                res.BeamDefMmValue      = Math.Round(rawBeam  - refBeam,  2);
+                double refRackL = camParamL?.RefRackDefLeft ?? 0.0;
+                double refRackR = camParamR?.RefRackDefRight ?? 0.0;
+                double refBeamL = camParamL?.RefBeamDef ?? 0.0;
+                double refBeamR = camParamR?.RefBeamDef ?? 0.0;
+
+                double diffRackL = rawRackL - refRackL;
+                double diffRackR = rawRackR - refRackR;
+
+                // 各自的差值计算
+                double diffBeamL = seg1 != null ? (rawBeamL - refBeamL) : 0.0;
+                double diffBeamR = seg2 != null ? (rawBeamR - refBeamR) : 0.0;
+
+                // 整合逻辑：当两侧相机都成功分割时，取差值（挠度）最大者作为整条横梁的挠度结果；若单侧成功则取单侧。
+                double diffBeam = (seg1 != null && seg2 != null) ? Math.Max(diffBeamL, diffBeamR) :
+                                  (seg1 != null) ? diffBeamL :
+                                  (seg2 != null) ? diffBeamR : 0.0;
+
+                res.RackDefMmLeftValue  = Math.Round(diffRackL, 2);
+                res.RackDefMmRightValue = Math.Round(diffRackR, 2);
+                res.BeamDefMmValue      = Math.Round(diffBeam,  2);
 
                 return true;
             }

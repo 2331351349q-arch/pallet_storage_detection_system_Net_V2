@@ -72,7 +72,8 @@ namespace pallet_storage_detection_system_Net_V2
         // ---- 标准基准值（从配置加载 / 由"设为标准值"按钮写入）----
         private double _refRackDefLeft;
         private double _refRackDefRight;
-        private double _refBeamDef;
+        private double _refBeamDefLeft;
+        private double _refBeamDefRight;
 
         private List<System.Numerics.Vector3> _usedBeamPts = new();
         private System.Collections.Generic.List<System.Numerics.Vector3> _usedArmPtsL = new();
@@ -441,9 +442,10 @@ namespace pallet_storage_detection_system_Net_V2
         private void LoadRoiForCurrentCamera()
         {
             string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
+            var cfg = ConfigManager.Instance?.Algorithms?.RackDeformation;
 
             // --- 1. 加载 RackDeformation 滑块参数 ---
-            var camParam = ConfigManager.Instance?.Algorithms?.RackDeformation?.FindCameraParam(sn);
+            var camParam = cfg?.FindCameraParam(sn);
             
             if (camParam != null)
             {
@@ -481,9 +483,17 @@ namespace pallet_storage_detection_system_Net_V2
                 }
                 else { _numYMinRoi.Value = -800; _numYMaxRoi.Value = 800; }
 
-                _refRackDefLeft  = camParam.RefRackDefLeft;
-                _refRackDefRight = camParam.RefRackDefRight;
-                _refBeamDef      = camParam.RefBeamDef;
+                // 加载当前侧的立柱与横梁标准值：左相机对应左立柱，右相机对应右立柱
+                var leftCamSn = _currentSideSNs.Count > 0 ? _currentSideSNs[0] : null;
+                var rightCamSn = _currentSideSNs.Count > 1 ? _currentSideSNs[1] : null;
+                var leftParam = cfg?.FindCameraParam(leftCamSn);
+                var rightParam = cfg?.FindCameraParam(rightCamSn);
+
+                _refRackDefLeft  = leftParam?.RefRackDefLeft ?? 0.0;
+                _refRackDefRight = rightParam?.RefRackDefRight ?? 0.0;
+                _refBeamDefLeft  = leftParam?.RefBeamDef ?? 0.0;
+                _refBeamDefRight = rightParam?.RefBeamDef ?? 0.0;
+
                 UpdateRefStatusLabel();
 
                 AppendLog($"切换到相机 [{sn}]", false);
@@ -768,18 +778,28 @@ namespace pallet_storage_detection_system_Net_V2
             double rackL = RackDeformationAlgo.ComputeColumnDeformation(_seg1?.LeftColumnPoints);
             double rackR = RackDeformationAlgo.ComputeColumnDeformation(_seg2?.RightColumnPoints);
 
-            // 横梁：合并两侧 BeamPoints
-            var beamPts = new List<System.Numerics.Vector3>();
-            if (_seg1?.BeamPoints != null) beamPts.AddRange(_seg1.BeamPoints);
-            if (_seg2?.BeamPoints != null) beamPts.AddRange(_seg2.BeamPoints);
-            double beam = RackDeformationAlgo.ComputeBeamDeformation(
-                beamPts.Count >= 50 ? beamPts : null, _usedBeamPts);
+            // 横梁：左相机计算左半，右相机计算右半，再进行整合
+            double beamL = RackDeformationAlgo.ComputeBeamDeformation(_seg1?.BeamPoints);
+            double beamR = RackDeformationAlgo.ComputeBeamDeformation(_seg2?.BeamPoints);
 
             double diffRackL = rackL - _refRackDefLeft;
             double diffRackR = rackR - _refRackDefRight;
-            double diffBeam  = beam  - _refBeamDef;
 
-            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refBeamDef != 0);
+            double diffBeamL = _seg1 != null ? (beamL - _refBeamDefLeft) : 0.0;
+            double diffBeamR = _seg2 != null ? (beamR - _refBeamDefRight) : 0.0;
+            double diffBeam = (seg1Ok && seg2Ok) ? Math.Max(diffBeamL, diffBeamR) :
+                              (seg1Ok) ? diffBeamL :
+                              (seg2Ok) ? diffBeamR : 0.0;
+
+            double beam = (seg1Ok && seg2Ok) ? (diffBeam == diffBeamL ? beamL : beamR) :
+                          (seg1Ok) ? beamL :
+                          (seg2Ok) ? beamR : 0.0;
+
+            double refBeam = (seg1Ok && seg2Ok) ? (diffBeam == diffBeamL ? _refBeamDefLeft : _refBeamDefRight) :
+                             (seg1Ok) ? _refBeamDefLeft :
+                             (seg2Ok) ? _refBeamDefRight : 0.0;
+
+            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refBeamDefLeft != 0 || _refBeamDefRight != 0);
             string refTag = hasRef ? "" : " (无标准值)";
 
             var activeSeg = _currentSeg ?? _seg1 ?? _seg2;
@@ -787,8 +807,11 @@ namespace pallet_storage_detection_system_Net_V2
                 ? $"\n│ 横梁Y中心:{activeSeg.YBeamCenterY,7:F1} mm  (±{activeSeg.YBeamHalfHeight:F0})"
                 : "";
 
-            int beamXSpan = beamPts.Count > 0
-                ? (int)(beamPts.Max(p => (double)p.X) - beamPts.Min(p => (double)p.X))
+            int beamXSpan1 = _seg1?.BeamPoints?.Count > 0
+                ? (int)(_seg1.BeamPoints.Max(p => (double)p.X) - _seg1.BeamPoints.Min(p => (double)p.X))
+                : 0;
+            int beamXSpan2 = _seg2?.BeamPoints?.Count > 0
+                ? (int)(_seg2.BeamPoints.Max(p => (double)p.X) - _seg2.BeamPoints.Min(p => (double)p.X))
                 : 0;
 
             _lblResult.Text =
@@ -797,11 +820,11 @@ namespace pallet_storage_detection_system_Net_V2
                 $"│ 【左立柱】当前:{rackL,7:F2} mm  标准:{_refRackDefLeft,7:F2}  差值:{diffRackL,+7:F2}\n" +
                 $"│ 【右立柱】当前:{rackR,7:F2} mm  标准:{_refRackDefRight,7:F2}  差值:{diffRackR,+7:F2}\n" +
                 $"│\n" +
-                $"│ 【横  梁】当前:{beam,7:F2} mm  标准:{_refBeamDef,7:F2}  差值:{diffBeam,+7:F2}{yInfo}\n" +
+                $"│ 【横  梁】当前:{beam,7:F2} mm  标准:{refBeam,7:F2}  差值:{diffBeam,+7:F2}{yInfo}\n" +
                 $"│\n" +
                 $"│ 立柱点云 (L/R): {_seg1?.LeftColumnPoints?.Count ?? 0} / {_seg2?.RightColumnPoints?.Count ?? 0}\n" +
-                $"│ 横梁点云: {beamPts.Count}  (Cam1:{_seg1?.BeamPoints?.Count ?? 0} + Cam2:{_seg2?.BeamPoints?.Count ?? 0})\n" +
-                $"│ 横梁 X 跨度: {beamXSpan} mm\n" +
+                $"│ 横梁点云 (L/R): {(_seg1?.BeamPoints?.Count ?? 0)} / {(_seg2?.BeamPoints?.Count ?? 0)}\n" +
+                $"│ 横梁 X 跨度(L/R): {beamXSpan1} / {beamXSpan2} mm\n" +
                 $"└────────────────────────────";
             _lblResult.ForeColor = Color.White;
         }
@@ -1229,24 +1252,21 @@ namespace pallet_storage_detection_system_Net_V2
             _refRackDefLeft  = RackDeformationAlgo.ComputeColumnDeformation(_seg1?.LeftColumnPoints);
             _refRackDefRight = RackDeformationAlgo.ComputeColumnDeformation(_seg2?.RightColumnPoints);
 
-            // 横梁：合并两侧 BeamPoints
-            var beamPts = new List<System.Numerics.Vector3>();
-            if (_seg1?.BeamPoints != null) beamPts.AddRange(_seg1.BeamPoints);
-            if (_seg2?.BeamPoints != null) beamPts.AddRange(_seg2.BeamPoints);
-            _refBeamDef = RackDeformationAlgo.ComputeBeamDeformation(
-                beamPts.Count >= 50 ? beamPts : null, _usedBeamPts);
+            // 横梁：左相机计算左半，右相机计算右半
+            _refBeamDefLeft  = RackDeformationAlgo.ComputeBeamDeformation(_seg1?.BeamPoints);
+            _refBeamDefRight = RackDeformationAlgo.ComputeBeamDeformation(_seg2?.BeamPoints);
 
             UpdateRefStatusLabel();
-            AppendLog($"✅ 已设为标准值: 立柱L={_refRackDefLeft:F2}mm R={_refRackDefRight:F2}mm, 横梁={_refBeamDef:F2}mm", false);
+            AppendLog($"✅ 已设为标准值: 立柱L={_refRackDefLeft:F2}mm R={_refRackDefRight:F2}mm, 横梁L={_refBeamDefLeft:F2}mm R={_refBeamDefRight:F2}mm", false);
         }
 
         private void UpdateRefStatusLabel()
         {
-            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refBeamDef != 0);
+            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refBeamDefLeft != 0 || _refBeamDefRight != 0);
             if (hasRef)
             {
                 _lblRefStatus.Text = $"标准基准: 立柱 L={_refRackDefLeft:F2} R={_refRackDefRight:F2}\n" +
-                                     $"         横梁={_refBeamDef:F2} mm";
+                                     $"         横梁 L={_refBeamDefLeft:F2} R={_refBeamDefRight:F2} mm";
                 _lblRefStatus.ForeColor = Color.FromArgb(100, 255, 100);
             }
             else
@@ -1327,18 +1347,41 @@ namespace pallet_storage_detection_system_Net_V2
             camParam.ZMin = legacyZMin;
             camParam.ZMax = legacyZMax;
 
-            // 保存标准基准值
-            camParam.RefRackDefLeft  = _refRackDefLeft;
-            camParam.RefRackDefRight = _refRackDefRight;
-            camParam.RefBeamDef      = _refBeamDef;
+            // 保存各自的标准值：左相机保存左立柱与左半横梁标准值，右相机保存右立柱与右半横梁标准值
+            var leftCamSn = _currentSideSNs.Count > 0 ? _currentSideSNs[0] : null;
+            var rightCamSn = _currentSideSNs.Count > 1 ? _currentSideSNs[1] : null;
+
+            if (!string.IsNullOrEmpty(leftCamSn))
+            {
+                var leftParam = (leftCamSn == sn) ? camParam : cfg.FindCameraParam(leftCamSn);
+                if (leftParam == null)
+                {
+                    leftParam = new CameraRoiParam { CameraSn = leftCamSn };
+                    cfg.CameraRoiParams.Add(leftParam);
+                }
+                leftParam.RefRackDefLeft = _refRackDefLeft;
+                leftParam.RefBeamDef = _refBeamDefLeft;
+            }
+
+            if (!string.IsNullOrEmpty(rightCamSn))
+            {
+                var rightParam = (rightCamSn == sn) ? camParam : cfg.FindCameraParam(rightCamSn);
+                if (rightParam == null)
+                {
+                    rightParam = new CameraRoiParam { CameraSn = rightCamSn };
+                    cfg.CameraRoiParams.Add(rightParam);
+                }
+                rightParam.RefRackDefRight = _refRackDefRight;
+                rightParam.RefBeamDef = _refBeamDefRight;
+            }
 
             // 加入列表（新条目）/ 列表中原位置不变
-            if (isNew) cfg.CameraRoiParams.Add(camParam);
+            if (isNew && sn != leftCamSn && sn != rightCamSn) cfg.CameraRoiParams.Add(camParam);
 
             ConfigManager.SaveConfig();
             string targetName = isBeam ? "横梁" : "立柱";
             AppendLog($"✅ 已保存相机 [{sn}] 的 [{targetName} ROI] 及其向后兼容参数", false);
-            AppendLog($"   标准基准: 立柱L={_refRackDefLeft:F2} R={_refRackDefRight:F2}, 横梁={_refBeamDef:F2}mm", false);
+            AppendLog($"   标准基准: 立柱L={_refRackDefLeft:F2} R={_refRackDefRight:F2}, 横梁L={_refBeamDefLeft:F2} R={_refBeamDefRight:F2}mm", false);
         }
     }
 }
