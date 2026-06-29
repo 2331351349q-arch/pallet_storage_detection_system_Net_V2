@@ -86,6 +86,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             HObject ho_Image = null;
             HTuple hv_DataCodeHandle_ECC200 = null;
             HTuple hv_DataCodeHandle_QR = null;
+            HTuple hv_BarCodeHandle = null;
 
             try
             {
@@ -125,9 +126,10 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     }
                 }
 
-                // 3. 创建 DataCode 句柄 (现场只有二维码)
+                // 3. 创建 DataCode/BarCode 句柄
                 HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "maximum_recognition", out hv_DataCodeHandle_ECC200);
                 HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "maximum_recognition", out hv_DataCodeHandle_QR);
+                HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
 
                 // 强制要求适应任何极性（黑底白码、白底黑码）、镜像反转等极端情况
                 HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_ECC200, "polarity", "any");
@@ -160,6 +162,18 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                         if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
                 }
 
+                // 5. 寻找 1D 条形码 ("auto" 支持识别大多数常见条码如 Code 128, Code 39, EAN 等)
+                HObject ho_SymbolRegions_BarCode = null;
+                HTuple hv_DecodedDataStrings_BarCode;
+                HOperatorSet.FindBarCode(ho_Image, out ho_SymbolRegions_BarCode, hv_BarCodeHandle, "auto", out hv_DecodedDataStrings_BarCode);
+                if (ho_SymbolRegions_BarCode != null) ho_SymbolRegions_BarCode.Dispose();
+                if (hv_DecodedDataStrings_BarCode != null && hv_DecodedDataStrings_BarCode.Length > 0)
+                {
+                    var strings = hv_DecodedDataStrings_BarCode.SArr;
+                    foreach (var s in strings)
+                        if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
+                }
+
 
             }
             catch (HalconException hex)
@@ -176,6 +190,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 if (ho_Image != null) ho_Image.Dispose();
                 if (hv_DataCodeHandle_ECC200 != null) HOperatorSet.ClearDataCode2dModel(hv_DataCodeHandle_ECC200);
                 if (hv_DataCodeHandle_QR != null) HOperatorSet.ClearDataCode2dModel(hv_DataCodeHandle_QR);
+                if (hv_BarCodeHandle != null) HOperatorSet.ClearBarCodeModel(hv_BarCodeHandle);
             }
 
             return results.ToList();

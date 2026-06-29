@@ -214,15 +214,15 @@
       "DepthMax": 3000,
       "ReferenceZ": 2000,
       "BeamThreshold": {
-        "A": -10,
-        "B": -7,
-        "C": 7,
-        "D": 10
+        "A": -40,
+        "B": -30,
+        "C": 30,
+        "D": 40
       },
       "RackThreshold": {
         "A": -40,
-        "B": -25,
-        "C": 25,
+        "B": -30,
+        "C": 30,
         "D": 40
       },
       "CameraMapping": {
