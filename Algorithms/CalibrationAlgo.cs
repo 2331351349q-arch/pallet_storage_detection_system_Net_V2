@@ -310,8 +310,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             double[] targetNormalBase,
             double measuredDistanceMm)
         {
-            // 直接从 DepthFrameData 获取点云（内部已处理内参）
-            var points = depthFrame.GetPointCloud(roi);
+            // 直接从 DepthFrameData 获取原始点云（不应用现有的外参标定）
+            var points = depthFrame.GetPointCloud(roi, applyExtrinsic: false);
 
             // 使用获取到的内参（或默认值）记录到标定结果中
             double fx, fy, cx, cy;

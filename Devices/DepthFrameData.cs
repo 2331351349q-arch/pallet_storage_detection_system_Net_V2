@@ -63,23 +63,23 @@ namespace pallet_storage_detection_system_Net_V2.Devices
         /// 优先级：SDK 原生点云 > 提取的内参 > 默认值。
         /// </summary>
         /// <param name="roi">可选像素 ROI [x0, y0, x1, y1]，null 为全图。</param>
-        public List<Vector3> GetPointCloud(int[]? roi = null)
+        public List<Vector3> GetPointCloud(int[]? roi = null, bool applyExtrinsic = true)
         {
-            if (_pointCloud != null && roi == null && !HasSdkPointCloud)
+            if (_pointCloud != null && roi == null && !HasSdkPointCloud && applyExtrinsic)
                 return _pointCloud;
 
             // ★ 优先使用 SDK 原生点云
             if (HasSdkPointCloud)
-                return GetPointCloudFromSdk(roi);
+                return GetPointCloudFromSdk(roi, applyExtrinsic);
 
             // ★ 回退：使用内参手动转换
-            return GetPointCloudManual(roi);
+            return GetPointCloudManual(roi, applyExtrinsic);
         }
 
         /// <summary>
         /// 从 SDK 原生点云数据中提取指定 ROI 的点。
         /// </summary>
-        private List<Vector3> GetPointCloudFromSdk(int[]? roi)
+        private List<Vector3> GetPointCloudFromSdk(int[]? roi, bool applyExtrinsic)
         {
             int x0 = 0, y0 = 0, x1 = Width, y1 = Height;
             if (roi != null && roi.Length >= 4)
@@ -94,13 +94,13 @@ namespace pallet_storage_detection_system_Net_V2.Devices
             var data = _sdkPackedXyz!;
             
             var calib = ConfigManager.GetCalibration(CameraSn);
-            bool applyExtrinsic = calib != null && calib.IsValid;
+            bool shouldApplyExtrinsic = applyExtrinsic && calib != null && calib.IsValid;
             float r00 = 1, r01 = 0, r02 = 0;
             float r10 = 0, r11 = 1, r12 = 0;
             float r20 = 0, r21 = 0, r22 = 1;
             float tx = 0, ty = 0, tz = 0;
             
-            if (applyExtrinsic)
+            if (shouldApplyExtrinsic)
             {
                 var r = calib!.GetRotationMatrix();
                 var t = calib.GetTranslationVector();
@@ -120,7 +120,7 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                     float z = data[idx + 2];
                     if (z > 0 && z <= 10000)
                     {
-                        if (applyExtrinsic)
+                        if (shouldApplyExtrinsic)
                         {
                             float wx = r00 * x + r01 * y + r02 * z + tx;
                             float wy = r10 * x + r11 * y + r12 * z + ty;
@@ -136,7 +136,7 @@ namespace pallet_storage_detection_system_Net_V2.Devices
             }
 
             // 全图请求时缓存
-            if (roi == null)
+            if (roi == null && applyExtrinsic)
                 _pointCloud = points;
 
             return points;
@@ -145,7 +145,7 @@ namespace pallet_storage_detection_system_Net_V2.Devices
         /// <summary>
         /// 手动公式转换（回退方案）：X=(u-cx)*Z/fx, Y=(v-cy)*Z/fy。
         /// </summary>
-        private List<Vector3> GetPointCloudManual(int[]? roi)
+        private List<Vector3> GetPointCloudManual(int[]? roi, bool applyExtrinsic)
         {
             double fx, fy, cx, cy;
             if (Intrinsics.HasValue)
@@ -173,13 +173,13 @@ namespace pallet_storage_detection_system_Net_V2.Devices
             var points = new List<Vector3>();
             
             var calib = ConfigManager.GetCalibration(CameraSn);
-            bool applyExtrinsic = calib != null && calib.IsValid;
+            bool shouldApplyExtrinsic = applyExtrinsic && calib != null && calib.IsValid;
             float r00 = 1, r01 = 0, r02 = 0;
             float r10 = 0, r11 = 1, r12 = 0;
             float r20 = 0, r21 = 0, r22 = 1;
             float tx = 0, ty = 0, tz = 0;
             
-            if (applyExtrinsic)
+            if (shouldApplyExtrinsic)
             {
                 var r = calib!.GetRotationMatrix();
                 var t = calib.GetTranslationVector();
@@ -204,7 +204,7 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                     float y = (float)yMm;
                     float zz = (float)zMm;
                     
-                    if (applyExtrinsic)
+                    if (shouldApplyExtrinsic)
                     {
                         float wx = r00 * x + r01 * y + r02 * zz + tx;
                         float wy = r10 * x + r11 * y + r12 * zz + ty;
@@ -218,7 +218,7 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                 }
             }
 
-            if (roi == null)
+            if (roi == null && applyExtrinsic)
                 _pointCloud = points;
 
             return points;
