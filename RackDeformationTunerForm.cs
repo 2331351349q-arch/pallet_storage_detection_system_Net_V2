@@ -68,12 +68,15 @@ namespace pallet_storage_detection_system_Net_V2
         private ComboBox _cmbRoiTarget = null!;
         private Roi3D _colRoi;
         private Roi3D _beamRoi;
+        private Roi3D _palletHoleRoi;
 
         // ---- 标准基准值（从配置加载 / 由"设为标准值"按钮写入）----
         private double _refRackDefLeft;
         private double _refRackDefRight;
         private double _refBeamDefLeft;
         private double _refBeamDefRight;
+        private double _refPalletHoleDefLeft;
+        private double _refPalletHoleDefRight;
 
         private List<System.Numerics.Vector3> _usedBeamPts = new();
         private System.Collections.Generic.List<System.Numerics.Vector3> _usedArmPtsL = new();
@@ -168,7 +171,7 @@ namespace pallet_storage_detection_system_Net_V2
             // 调节目标选择
             flow.Controls.Add(BoldLabel("当前调节 ROI"));
             _cmbRoiTarget = new ComboBox { Width = FlowW, DropDownStyle = ComboBoxStyle.DropDownList };
-            _cmbRoiTarget.Items.AddRange(new object[] { "立柱 ROI (Column)", "横梁 ROI (Beam)" });
+            _cmbRoiTarget.Items.AddRange(new object[] { "立柱 ROI (Column)", "横梁 ROI (Beam)", "托盘插孔 ROI (Pallet Hole)" });
             _cmbRoiTarget.SelectedIndex = 0;
             _cmbRoiTarget.SelectedIndexChanged += (_, __) =>
             {
@@ -178,12 +181,12 @@ namespace pallet_storage_detection_system_Net_V2
             flow.Controls.Add(_cmbRoiTarget);
 
             // 按鈕行
-            var btnLine = new FlowLayoutPanel { Width = FlowW, Height = 44, WrapContents = false };
-            var btnInit = new Button { Text = "🔌 初始化", Width = 120, Height = 40, Margin = new Padding(3, 2, 3, 2), BackColor = Color.FromArgb(80, 80, 80), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            var btnLine = new FlowLayoutPanel { Width = FlowW, Height = 50, WrapContents = false };
+            var btnInit = new Button { Text = "🔌 初始化", Width = 132, Height = 44, Margin = new Padding(3, 2, 3, 2), BackColor = Color.FromArgb(80, 80, 80), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnInit.Click += BtnInit_Click;
-            var btnGrab = new Button { Text = "📸 采集", Width = 120, Height = 40, Margin = new Padding(3, 2, 3, 2), BackColor = Color.FromArgb(40, 140, 90), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            var btnGrab = new Button { Text = "📸 采集", Width = 132, Height = 44, Margin = new Padding(3, 2, 3, 2), BackColor = Color.FromArgb(40, 140, 90), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnGrab.Click += BtnGrab_Click;
-            var btnSave = new Button { Text = "💾 保存", Width = 120, Height = 40, Margin = new Padding(3, 2, 3, 2), BackColor = Color.FromArgb(60, 80, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+            var btnSave = new Button { Text = "💾 保存", Width = 132, Height = 44, Margin = new Padding(3, 2, 3, 2), BackColor = Color.FromArgb(60, 80, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnSave.Click += BtnSave_Click;
             btnLine.Controls.Add(btnInit);
             btnLine.Controls.Add(btnGrab);
@@ -195,12 +198,12 @@ namespace pallet_storage_detection_system_Net_V2
             flow.Controls.Add(_lblCalibStatus);
 
             // 自动适配ROI按鈕
-            var btnAutoFitRoi = new Button { Text = "🎯 自动适配 ROI", Width = FlowW, Height = 30, BackColor = Color.FromArgb(40, 160, 120), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            var btnAutoFitRoi = new Button { Text = "🎯 自动适配 ROI", Width = FlowW, Height = 36, BackColor = Color.FromArgb(40, 160, 120), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnAutoFitRoi.Click += BtnAutoFitRoi_Click;
             flow.Controls.Add(btnAutoFitRoi);
 
             // 设为标准值按钮
-            var btnSetRef = new Button { Text = "📐 设为标准值", Width = FlowW, Height = 30, BackColor = Color.FromArgb(180, 120, 30), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold) };
+            var btnSetRef = new Button { Text = "📐 设为标准值", Width = FlowW, Height = 40, BackColor = Color.FromArgb(180, 120, 30), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold) };
             btnSetRef.Click += BtnCaptureRef_Click;
             flow.Controls.Add(btnSetRef);
 
@@ -299,8 +302,10 @@ namespace pallet_storage_detection_system_Net_V2
 
             // 结果信息
             flow.Controls.Add(SectionLabel("✨ 实时变形检测结果"));
-            _lblResult = new Label { Width = FlowW, Height = 300, AutoSize = false, Font = new Font("Consolas", 11F, FontStyle.Bold), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(20, 28, 20), ForeColor = Color.Lime };
-            flow.Controls.Add(_lblResult);
+            var resultPnl = new Panel { Width = FlowW, Height = 350, AutoScroll = true, BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(20, 28, 20) };
+            _lblResult = new Label { AutoSize = true, Padding = new Padding(12), Font = new Font("Consolas", 11F, FontStyle.Bold), BackColor = Color.Transparent, ForeColor = Color.Lime };
+            resultPnl.Controls.Add(_lblResult);
+            flow.Controls.Add(resultPnl);
 
             // 日志
             flow.Controls.Add(SectionLabel("🗋 日志"));
@@ -450,12 +455,14 @@ namespace pallet_storage_detection_system_Net_V2
             if (camParam != null)
             {
                 bool isBeam = _cmbRoiTarget.SelectedIndex == 1;
-                double xMin = isBeam ? camParam.BeamXMin : camParam.ColXMin;
-                double xMax = isBeam ? camParam.BeamXMax : camParam.ColXMax;
-                double yMin = isBeam ? camParam.BeamYMin : camParam.ColYMin;
-                double yMax = isBeam ? camParam.BeamYMax : camParam.ColYMax;
-                int zMin = isBeam ? camParam.BeamZMin : camParam.ColZMin;
-                int zMax = isBeam ? camParam.BeamZMax : camParam.ColZMax;
+                bool isPalletHole = _cmbRoiTarget.SelectedIndex == 2;
+                
+                double xMin = isPalletHole ? camParam.PalletHoleXMin : (isBeam ? camParam.BeamXMin : camParam.ColXMin);
+                double xMax = isPalletHole ? camParam.PalletHoleXMax : (isBeam ? camParam.BeamXMax : camParam.ColXMax);
+                double yMin = isPalletHole ? camParam.PalletHoleYMin : (isBeam ? camParam.BeamYMin : camParam.ColYMin);
+                double yMax = isPalletHole ? camParam.PalletHoleYMax : (isBeam ? camParam.BeamYMax : camParam.ColYMax);
+                int zMin = isPalletHole ? camParam.PalletHoleZMin : (isBeam ? camParam.BeamZMin : camParam.ColZMin);
+                int zMax = isPalletHole ? camParam.PalletHoleZMax : (isBeam ? camParam.BeamZMax : camParam.ColZMax);
 
                 // 若未配置过对应的双 ROI 范围，Fallback 回退到原单 ROI 配置值
                 if (xMax <= xMin)
@@ -493,6 +500,8 @@ namespace pallet_storage_detection_system_Net_V2
                 _refRackDefRight = rightParam?.RefRackDefRight ?? 0.0;
                 _refBeamDefLeft  = leftParam?.RefBeamDef ?? 0.0;
                 _refBeamDefRight = rightParam?.RefBeamDef ?? 0.0;
+                _refPalletHoleDefLeft  = leftParam?.RefPalletHoleDef ?? 0.0;
+                _refPalletHoleDefRight = rightParam?.RefPalletHoleDef ?? 0.0;
 
                 UpdateRefStatusLabel();
 
@@ -645,6 +654,7 @@ namespace pallet_storage_detection_system_Net_V2
             var cfg = ConfigManager.Instance?.Algorithms?.RackDeformation;
 
             bool isBeam = _cmbRoiTarget.SelectedIndex == 1;
+            bool isPalletHole = _cmbRoiTarget.SelectedIndex == 2;
 
             // 1. 临时在内存中更新配置参数，供算法直接提取
             var camParam = cfg?.FindCameraParam(tuneSn);
@@ -656,7 +666,16 @@ namespace pallet_storage_detection_system_Net_V2
 
             if (camParam != null)
             {
-                if (isBeam)
+                if (isPalletHole)
+                {
+                    camParam.PalletHoleXMin = xMinNum;
+                    camParam.PalletHoleXMax = xMaxNum;
+                    camParam.PalletHoleYMin = yMinNum;
+                    camParam.PalletHoleYMax = yMaxNum;
+                    camParam.PalletHoleZMin = (int)sliderZMin;
+                    camParam.PalletHoleZMax = (int)sliderZMax;
+                }
+                else if (isBeam)
                 {
                     camParam.BeamXMin = xMinNum;
                     camParam.BeamXMax = xMaxNum;
@@ -691,32 +710,48 @@ namespace pallet_storage_detection_system_Net_V2
             _lblDetectedYRange.Text = $"ROI Y=[{yMinNum:F0}, {yMaxNum:F0}] mm";
 
             // 3. 计算 3D 视图中展示的立柱 ROI 和横梁 ROI 立方体
-            if (isBeam)
+            double cxMin = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColXMin : -200;
+            double cxMax = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColXMax : 200;
+            double cyMin = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColYMin : -800;
+            double cyMax = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColYMax : 800;
+            double czMin = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColZMin : 1000;
+            double czMax = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColZMax : 3000;
+
+            double bxMin = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamXMin : -1000;
+            double bxMax = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamXMax : 1000;
+            double byMin = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamYMin : -800;
+            double byMax = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamYMax : 800;
+            double bzMin = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamZMin : 1000;
+            double bzMax = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamZMax : 3000;
+
+            double pxMin = (camParam != null && camParam.PalletHoleXMax > camParam.PalletHoleXMin) ? camParam.PalletHoleXMin : -1000;
+            double pxMax = (camParam != null && camParam.PalletHoleXMax > camParam.PalletHoleXMin) ? camParam.PalletHoleXMax : 1000;
+            double pyMin = (camParam != null && camParam.PalletHoleXMax > camParam.PalletHoleXMin) ? camParam.PalletHoleYMin : -800;
+            double pyMax = (camParam != null && camParam.PalletHoleXMax > camParam.PalletHoleXMin) ? camParam.PalletHoleYMax : 800;
+            double pzMin = (camParam != null && camParam.PalletHoleXMax > camParam.PalletHoleXMin) ? camParam.PalletHoleZMin : 1000;
+            double pzMax = (camParam != null && camParam.PalletHoleXMax > camParam.PalletHoleXMin) ? camParam.PalletHoleZMax : 3000;
+
+            if (isPalletHole)
             {
-                _beamRoi = new Roi3D(xMinNum, xMaxNum, yMinNum, yMaxNum, sliderZMin, sliderZMax);
-                
-                double cxMin = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColXMin : -200;
-                double cxMax = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColXMax : 200;
-                double cyMin = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColYMin : -800;
-                double cyMax = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColYMax : 800;
-                double czMin = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColZMin : 1000;
-                double czMax = (camParam != null && camParam.ColXMax > camParam.ColXMin) ? camParam.ColZMax : 3000;
+                _palletHoleRoi = new Roi3D(xMinNum, xMaxNum, yMinNum, yMaxNum, sliderZMin, sliderZMax);
+                _beamRoi = new Roi3D(bxMin, bxMax, byMin, byMax, bzMin, bzMax);
                 _colRoi = new Roi3D(cxMin, cxMax, cyMin, cyMax, czMin, czMax);
+                _rackDeformationRoi = _palletHoleRoi;
+            }
+            else if (isBeam)
+            {
+                _palletHoleRoi = new Roi3D(pxMin, pxMax, pyMin, pyMax, pzMin, pzMax);
+                _beamRoi = new Roi3D(xMinNum, xMaxNum, yMinNum, yMaxNum, sliderZMin, sliderZMax);
+                _colRoi = new Roi3D(cxMin, cxMax, cyMin, cyMax, czMin, czMax);
+                _rackDeformationRoi = _beamRoi;
             }
             else
             {
-                _colRoi = new Roi3D(xMinNum, xMaxNum, yMinNum, yMaxNum, sliderZMin, sliderZMax);
-
-                double bxMin = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamXMin : -1000;
-                double bxMax = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamXMax : 1000;
-                double byMin = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamYMin : -800;
-                double byMax = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamYMax : 800;
-                double bzMin = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamZMin : 1000;
-                double bzMax = (camParam != null && camParam.BeamXMax > camParam.BeamXMin) ? camParam.BeamZMax : 3000;
+                _palletHoleRoi = new Roi3D(pxMin, pxMax, pyMin, pyMax, pzMin, pzMax);
                 _beamRoi = new Roi3D(bxMin, bxMax, byMin, byMax, bzMin, bzMax);
+                _colRoi = new Roi3D(xMinNum, xMaxNum, yMinNum, yMaxNum, sliderZMin, sliderZMax);
+                _rackDeformationRoi = _colRoi;
             }
-
-            _rackDeformationRoi = isBeam ? _beamRoi : _colRoi;
 
             UpdateResultLabel();
             RedrawCloud();
@@ -798,8 +833,14 @@ namespace pallet_storage_detection_system_Net_V2
             double refBeam = (seg1Ok && seg2Ok) ? (diffBeam == diffBeamL ? _refBeamDefLeft : _refBeamDefRight) :
                              (seg1Ok) ? _refBeamDefLeft :
                              (seg2Ok) ? _refBeamDefRight : 0.0;
+                             
+            // 托盘插孔：
+            double palletHoleL = RackDeformationAlgo.ComputeBeamDeformation(_seg1?.PalletHolePoints);
+            double palletHoleR = RackDeformationAlgo.ComputeBeamDeformation(_seg2?.PalletHolePoints);
+            double diffPalletHoleL = _seg1 != null ? (palletHoleL - _refPalletHoleDefLeft) : 0.0;
+            double diffPalletHoleR = _seg2 != null ? (palletHoleR - _refPalletHoleDefRight) : 0.0;
 
-            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refBeamDefLeft != 0 || _refBeamDefRight != 0);
+            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refBeamDefLeft != 0 || _refBeamDefRight != 0 || _refPalletHoleDefLeft != 0 || _refPalletHoleDefRight != 0);
             string refTag = hasRef ? "" : " (无标准值)";
 
             var activeSeg = _currentSeg ?? _seg1 ?? _seg2;
@@ -822,8 +863,12 @@ namespace pallet_storage_detection_system_Net_V2
                 $"│\n" +
                 $"│ 【横  梁】当前:{beam,7:F2} mm  标准:{refBeam,7:F2}  差值:{diffBeam,+7:F2}{yInfo}\n" +
                 $"│\n" +
+                $"│ 【左插孔】当前:{palletHoleL,7:F2} mm  标准:{_refPalletHoleDefLeft,7:F2}  差值:{diffPalletHoleL,+7:F2}\n" +
+                $"│ 【右插孔】当前:{palletHoleR,7:F2} mm  标准:{_refPalletHoleDefRight,7:F2}  差值:{diffPalletHoleR,+7:F2}\n" +
+                $"│\n" +
                 $"│ 立柱点云 (L/R): {_seg1?.LeftColumnPoints?.Count ?? 0} / {_seg2?.RightColumnPoints?.Count ?? 0}\n" +
                 $"│ 横梁点云 (L/R): {(_seg1?.BeamPoints?.Count ?? 0)} / {(_seg2?.BeamPoints?.Count ?? 0)}\n" +
+                $"│ 插孔点云 (L/R): {(_seg1?.PalletHolePoints?.Count ?? 0)} / {(_seg2?.PalletHolePoints?.Count ?? 0)}\n" +
                 $"│ 横梁 X 跨度(L/R): {beamXSpan1} / {beamXSpan2} mm\n" +
                 $"└────────────────────────────";
             _lblResult.ForeColor = Color.White;
@@ -863,8 +908,14 @@ namespace pallet_storage_detection_system_Net_V2
                 double pitch = (double)_numPitch.Value * Math.PI / 180.0;
 
                 bool isBeam = _cmbRoiTarget.SelectedIndex == 1;
+                bool isPalletHole = _cmbRoiTarget.SelectedIndex == 2;
 
-                if (isBeam)
+                if (isPalletHole)
+                {
+                    using var holePen = new Pen(Color.YellowGreen, 2.2f) { DashStyle = DashStyle.Solid };
+                    DrawRoiCube2D(g, holePen, _palletHoleRoi, yaw, pitch, w, h);
+                }
+                else if (isBeam)
                 {
                     // --- 绘制横梁 ROI 立方体 (青色) ---
                     using var beamPen = new Pen(Color.Cyan, 2.2f) { DashStyle = DashStyle.Solid };
@@ -878,7 +929,7 @@ namespace pallet_storage_detection_system_Net_V2
                 }
 
                 // --- 绘制坐标系指示 ---
-                DrawCoordinateAxes(g, isBeam ? _beamRoi : _colRoi, yaw, pitch, w, h);
+                DrawCoordinateAxes(g, isPalletHole ? _palletHoleRoi : (isBeam ? _beamRoi : _colRoi), yaw, pitch, w, h);
 
                 using var infoFont = new Font("Consolas", 9F, FontStyle.Bold);
                 using var hintFont = new Font("Microsoft YaHei UI", 7F);
@@ -924,6 +975,12 @@ namespace pallet_storage_detection_system_Net_V2
                     {
                         r = 0; g = 255; b = 255; // 亮青色 (横梁)
                     }
+                    else if (pt.X >= _palletHoleRoi.MinX && pt.X <= _palletHoleRoi.MaxX &&
+                             pt.Y >= _palletHoleRoi.MinY && pt.Y <= _palletHoleRoi.MaxY &&
+                             pt.Z >= _palletHoleRoi.MinZ && pt.Z <= _palletHoleRoi.MaxZ)
+                    {
+                        r = 154; g = 205; b = 50; // YellowGreen (托盘插孔)
+                    }
                     drawList.Add((sx, sy, r, g, b));
                 }
             }
@@ -948,6 +1005,12 @@ namespace pallet_storage_detection_system_Net_V2
                              pt.Z >= _beamRoi.MinZ && pt.Z <= _beamRoi.MaxZ)
                     {
                         r = 0; g = 255; b = 255; // 亮青色 (横梁)
+                    }
+                    else if (pt.X >= _palletHoleRoi.MinX && pt.X <= _palletHoleRoi.MaxX &&
+                             pt.Y >= _palletHoleRoi.MinY && pt.Y <= _palletHoleRoi.MaxY &&
+                             pt.Z >= _palletHoleRoi.MinZ && pt.Z <= _palletHoleRoi.MaxZ)
+                    {
+                        r = 154; g = 205; b = 50; // YellowGreen (托盘插孔)
                     }
                     drawList.Add((sx, sy, r, g, b));
                 }
@@ -1256,17 +1319,22 @@ namespace pallet_storage_detection_system_Net_V2
             _refBeamDefLeft  = RackDeformationAlgo.ComputeBeamDeformation(_seg1?.BeamPoints);
             _refBeamDefRight = RackDeformationAlgo.ComputeBeamDeformation(_seg2?.BeamPoints);
 
+            // 托盘插孔：左相机计算左半，右相机计算右半
+            _refPalletHoleDefLeft  = RackDeformationAlgo.ComputeBeamDeformation(_seg1?.PalletHolePoints);
+            _refPalletHoleDefRight = RackDeformationAlgo.ComputeBeamDeformation(_seg2?.PalletHolePoints);
+
             UpdateRefStatusLabel();
-            AppendLog($"✅ 已设为标准值: 立柱L={_refRackDefLeft:F2}mm R={_refRackDefRight:F2}mm, 横梁L={_refBeamDefLeft:F2}mm R={_refBeamDefRight:F2}mm", false);
+            AppendLog($"✅ 已设为标准值: 立柱L={_refRackDefLeft:F2}mm R={_refRackDefRight:F2}mm, 横梁L={_refBeamDefLeft:F2}mm R={_refBeamDefRight:F2}mm, 插孔L={_refPalletHoleDefLeft:F2}mm R={_refPalletHoleDefRight:F2}mm", false);
         }
 
         private void UpdateRefStatusLabel()
         {
-            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refBeamDefLeft != 0 || _refBeamDefRight != 0);
+            bool hasRef = (_refRackDefLeft != 0 || _refRackDefRight != 0 || _refBeamDefLeft != 0 || _refBeamDefRight != 0 || _refPalletHoleDefLeft != 0 || _refPalletHoleDefRight != 0);
             if (hasRef)
             {
                 _lblRefStatus.Text = $"标准基准: 立柱 L={_refRackDefLeft:F2} R={_refRackDefRight:F2}\n" +
-                                     $"         横梁 L={_refBeamDefLeft:F2} R={_refBeamDefRight:F2} mm";
+                                     $"         横梁 L={_refBeamDefLeft:F2} R={_refBeamDefRight:F2} mm\n" +
+                                     $"         插孔 L={_refPalletHoleDefLeft:F2} R={_refPalletHoleDefRight:F2} mm";
                 _lblRefStatus.ForeColor = Color.FromArgb(100, 255, 100);
             }
             else
@@ -1297,7 +1365,17 @@ namespace pallet_storage_detection_system_Net_V2
             if (isNew) camParam = new CameraRoiParam { CameraSn = sn };
 
             bool isBeam = _cmbRoiTarget.SelectedIndex == 1;
-            if (isBeam)
+            bool isPalletHole = _cmbRoiTarget.SelectedIndex == 2;
+            if (isPalletHole)
+            {
+                camParam.PalletHoleXMin = xMinVal;
+                camParam.PalletHoleXMax = xMaxVal;
+                camParam.PalletHoleYMin = yMinVal;
+                camParam.PalletHoleYMax = yMaxVal;
+                camParam.PalletHoleZMin = zMinVal;
+                camParam.PalletHoleZMax = zMaxVal;
+            }
+            else if (isBeam)
             {
                 camParam.BeamXMin = xMinVal;
                 camParam.BeamXMax = xMaxVal;
@@ -1361,6 +1439,7 @@ namespace pallet_storage_detection_system_Net_V2
                 }
                 leftParam.RefRackDefLeft = _refRackDefLeft;
                 leftParam.RefBeamDef = _refBeamDefLeft;
+                leftParam.RefPalletHoleDef = _refPalletHoleDefLeft;
             }
 
             if (!string.IsNullOrEmpty(rightCamSn))
@@ -1373,15 +1452,16 @@ namespace pallet_storage_detection_system_Net_V2
                 }
                 rightParam.RefRackDefRight = _refRackDefRight;
                 rightParam.RefBeamDef = _refBeamDefRight;
+                rightParam.RefPalletHoleDef = _refPalletHoleDefRight;
             }
 
             // 加入列表（新条目）/ 列表中原位置不变
             if (isNew && sn != leftCamSn && sn != rightCamSn) cfg.CameraRoiParams.Add(camParam);
 
             ConfigManager.SaveConfig();
-            string targetName = isBeam ? "横梁" : "立柱";
+            string targetName = isPalletHole ? "托盘插孔" : (isBeam ? "横梁" : "立柱");
             AppendLog($"✅ 已保存相机 [{sn}] 的 [{targetName} ROI] 及其向后兼容参数", false);
-            AppendLog($"   标准基准: 立柱L={_refRackDefLeft:F2} R={_refRackDefRight:F2}, 横梁L={_refBeamDefLeft:F2} R={_refBeamDefRight:F2}mm", false);
+            AppendLog($"   标准基准: 立柱L={_refRackDefLeft:F2} R={_refRackDefRight:F2}, 横梁L={_refBeamDefLeft:F2} R={_refBeamDefRight:F2}mm, 插孔L={_refPalletHoleDefLeft:F2} R={_refPalletHoleDefRight:F2}mm", false);
         }
     }
 }

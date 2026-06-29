@@ -300,6 +300,9 @@ namespace pallet_storage_detection_system_Net_V2.Config
         /// <summary>标准位置横梁下挠量 (mm)，用于变形检测差值计算</summary>
         public double RefBeamDef { get; set; }
 
+        /// <summary>标准位置托盘插孔变形量 (mm)，用于变形检测差值计算</summary>
+        public double RefPalletHoleDef { get; set; }
+
         /// <summary>
         /// 相机在变形检测中的角色：
         ///   "left"  = 负责左立柱 + 左半横梁；
@@ -323,6 +326,14 @@ namespace pallet_storage_detection_system_Net_V2.Config
         public double BeamYMax { get; set; }
         public int BeamZMin { get; set; }
         public int BeamZMax { get; set; }
+
+        // ---- 变形检测专属：托盘插孔 ROI (标定后基准坐标系) ----
+        public double PalletHoleXMin { get; set; }
+        public double PalletHoleXMax { get; set; }
+        public double PalletHoleYMin { get; set; }
+        public double PalletHoleYMax { get; set; }
+        public int PalletHoleZMin { get; set; }
+        public int PalletHoleZMax { get; set; }
     }
 
     /// <summary>
@@ -361,6 +372,12 @@ namespace pallet_storage_detection_system_Net_V2.Config
         /// </summary>
         [Category("2. 判定门限"), DisplayName("钢架/立柱偏移门限")]
         public ThresholdSet RackThreshold { get; set; } = new ThresholdSet();
+
+        /// <summary>
+        /// 托盘插孔变形量报警阈值。
+        /// </summary>
+        [Category("2. 判定门限"), DisplayName("托盘插孔变形门限")]
+        public ThresholdSet PalletHoleThreshold { get; set; } = new ThresholdSet();
 
         /// <summary>
         /// 该算法对应的相机 SN 映射关系。

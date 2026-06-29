@@ -38,6 +38,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 {
                     res.RackDefMmLeftValue = 0; res.RackDefMmRightValue = 0;
                     res.BeamDefMmValue = 0;
+                    res.PalletHoleDefMmLeftValue = 0; res.PalletHoleDefMmRightValue = 0;
                     return false;
                 }
 
@@ -49,6 +50,10 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 double rawBeamL = ComputeBeamDeformation(seg1?.BeamPoints);
                 double rawBeamR = ComputeBeamDeformation(seg2?.BeamPoints);
 
+                // 托盘插孔：各自相机计算自己半边的挠度
+                double rawPalletHoleL = ComputeBeamDeformation(seg1?.PalletHolePoints);
+                double rawPalletHoleR = ComputeBeamDeformation(seg2?.PalletHolePoints);
+
                 // 减去各自的标准基准值
                 var camParamL = cfg?.FindCameraParam(frame1?.CameraSn);
                 var camParamR = cfg?.FindCameraParam(frame2?.CameraSn);
@@ -57,6 +62,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 double refRackR = camParamR?.RefRackDefRight ?? 0.0;
                 double refBeamL = camParamL?.RefBeamDef ?? 0.0;
                 double refBeamR = camParamR?.RefBeamDef ?? 0.0;
+                double refPalletHoleL = camParamL?.RefPalletHoleDef ?? 0.0;
+                double refPalletHoleR = camParamR?.RefPalletHoleDef ?? 0.0;
 
                 double diffRackL = rawRackL - refRackL;
                 double diffRackR = rawRackR - refRackR;
@@ -64,6 +71,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 // 各自的差值计算
                 double diffBeamL = seg1 != null ? (rawBeamL - refBeamL) : 0.0;
                 double diffBeamR = seg2 != null ? (rawBeamR - refBeamR) : 0.0;
+                double diffPalletHoleL = seg1 != null ? (rawPalletHoleL - refPalletHoleL) : 0.0;
+                double diffPalletHoleR = seg2 != null ? (rawPalletHoleR - refPalletHoleR) : 0.0;
 
                 // 整合逻辑：当两侧相机都成功分割时，取差值（挠度）最大者作为整条横梁的挠度结果；若单侧成功则取单侧。
                 double diffBeam = (seg1 != null && seg2 != null) ? Math.Max(diffBeamL, diffBeamR) :
@@ -73,6 +82,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 res.RackDefMmLeftValue  = Math.Round(diffRackL, 2);
                 res.RackDefMmRightValue = Math.Round(diffRackR, 2);
                 res.BeamDefMmValue      = Math.Round(diffBeam,  2);
+                res.PalletHoleDefMmLeftValue  = Math.Round(diffPalletHoleL, 2);
+                res.PalletHoleDefMmRightValue = Math.Round(diffPalletHoleR, 2);
 
                 return true;
             }
@@ -80,6 +91,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             {
                 res.RackDefMmLeftValue = 0; res.RackDefMmRightValue = 0;
                 res.BeamDefMmValue = 0;
+                res.PalletHoleDefMmLeftValue = 0; res.PalletHoleDefMmRightValue = 0;
                 return false;
             }
         }
@@ -100,10 +112,11 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             var camParam = cfg?.FindCameraParam(frame.CameraSn);
 
             // 如果配置了双 ROI (立柱或横梁 ROI)，直接按范围提取点云，无需做 X 轴深度剖面自适应分割
-            if (camParam != null && (camParam.ColXMax > camParam.ColXMin || camParam.BeamXMax > camParam.BeamXMin))
+            if (camParam != null && (camParam.ColXMax > camParam.ColXMin || camParam.BeamXMax > camParam.BeamXMin || camParam.PalletHoleXMax > camParam.PalletHoleXMin))
             {
                 var colPts = new List<Vector3>();
                 var beamPts = new List<Vector3>();
+                var palletHolePts = new List<Vector3>();
 
                 // 立柱 ROI 提取范围及 Fallback
                 double cxMin = camParam.ColXMax > camParam.ColXMin ? camParam.ColXMin : (camParam.XMax > camParam.XMin ? camParam.XMin : -1000);
@@ -121,6 +134,14 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 double bzMin = camParam.BeamXMax > camParam.BeamXMin ? camParam.BeamZMin : (camParam.ZMax > camParam.ZMin ? camParam.ZMin : 1000);
                 double bzMax = camParam.BeamXMax > camParam.BeamXMin ? camParam.BeamZMax : (camParam.ZMax > camParam.ZMin ? camParam.ZMax : 3000);
 
+                // 托盘插孔 ROI 提取范围及 Fallback
+                double pxMin = camParam.PalletHoleXMax > camParam.PalletHoleXMin ? camParam.PalletHoleXMin : (camParam.XMax > camParam.XMin ? camParam.XMin : -1000);
+                double pxMax = camParam.PalletHoleXMax > camParam.PalletHoleXMin ? camParam.PalletHoleXMax : (camParam.XMax > camParam.XMin ? camParam.XMax : 1000);
+                double pyMin = camParam.PalletHoleXMax > camParam.PalletHoleXMin ? camParam.PalletHoleYMin : (camParam.YMax > camParam.YMin ? camParam.YMin : -800);
+                double pyMax = camParam.PalletHoleXMax > camParam.PalletHoleXMin ? camParam.PalletHoleYMax : (camParam.YMax > camParam.YMin ? camParam.YMax : 800);
+                double pzMin = camParam.PalletHoleXMax > camParam.PalletHoleXMin ? camParam.PalletHoleZMin : (camParam.ZMax > camParam.ZMin ? camParam.ZMin : 1000);
+                double pzMax = camParam.PalletHoleXMax > camParam.PalletHoleXMin ? camParam.PalletHoleZMax : (camParam.ZMax > camParam.ZMin ? camParam.ZMax : 3000);
+
                 foreach (var pt in pts)
                 {
                     if (pt.X >= cxMin && pt.X <= cxMax && pt.Y >= cyMin && pt.Y <= cyMax && pt.Z >= czMin && pt.Z <= czMax)
@@ -131,6 +152,10 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     {
                         beamPts.Add(pt);
                     }
+                    if (pt.X >= pxMin && pt.X <= pxMax && pt.Y >= pyMin && pt.Y <= pyMax && pt.Z >= pzMin && pt.Z <= pzMax)
+                    {
+                        palletHolePts.Add(pt);
+                    }
                 }
 
                 return new SegmentationResult
@@ -139,9 +164,10 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     LeftColumnPoints = colPts,
                     RightColumnPoints = colPts,
                     BeamPoints = beamPts,
+                    PalletHolePoints = palletHolePts,
                     RoiPoints = pts,
-                    XMin = Math.Min(cxMin, bxMin),
-                    XMax = Math.Max(cxMax, bxMax)
+                    XMin = Math.Min(Math.Min(cxMin, bxMin), pxMin),
+                    XMax = Math.Max(Math.Max(cxMax, bxMax), pxMax)
                 };
             }
 

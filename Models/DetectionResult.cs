@@ -75,6 +75,24 @@ namespace pallet_storage_detection_system_Net_V2.Models
         /// </summary>
         public string BeamDefMmWarningAlarm { get; set; } = "{\"warning\": false, \"alarm\": false}";
 
+        /// <summary>
+        /// 托盘左插孔变形值 (mm)。
+        /// </summary>
+        public double PalletHoleDefMmLeftValue { get; set; } = 0.0;
+        /// <summary>
+        /// 托盘左插孔变形的报警状态 JSON 字符串。
+        /// </summary>
+        public string PalletHoleDefMmLeftWarningAlarm { get; set; } = "{\"warning\": false, \"alarm\": false}";
+
+        /// <summary>
+        /// 托盘右插孔变形值 (mm)。
+        /// </summary>
+        public double PalletHoleDefMmRightValue { get; set; } = 0.0;
+        /// <summary>
+        /// 托盘右插孔变形的报警状态 JSON 字符串。
+        /// </summary>
+        public string PalletHoleDefMmRightWarningAlarm { get; set; } = "{\"warning\": false, \"alarm\": false}";
+
         // Flag 4/5: 视觉盘库字段
         /// <summary>
         /// 条码或者库位汇总信息的 JSON 字符串。
@@ -103,6 +121,8 @@ namespace pallet_storage_detection_system_Net_V2.Models
                     RackDefMmLeftWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(RackDefMmLeftValue, bCfg.RackThreshold));
                     RackDefMmRightWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(RackDefMmRightValue, bCfg.RackThreshold));
                     BeamDefMmWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(BeamDefMmValue, bCfg.BeamThreshold));
+                    PalletHoleDefMmLeftWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(PalletHoleDefMmLeftValue, bCfg.PalletHoleThreshold));
+                    PalletHoleDefMmRightWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(PalletHoleDefMmRightValue, bCfg.PalletHoleThreshold));
                     break;
             }
         }
@@ -166,6 +186,10 @@ namespace pallet_storage_detection_system_Net_V2.Models
                     entries.Add(new HashEntry("rack_def_mm_right_warning_alarm", RackDefMmRightWarningAlarm));
                     entries.Add(new HashEntry("beam_def_mm_value", BeamDefMmValue.ToString("F1")));
                     entries.Add(new HashEntry("beam_def_mm_warning_alarm", BeamDefMmWarningAlarm));
+                    entries.Add(new HashEntry("pallet_hole_def_mm_left_value", PalletHoleDefMmLeftValue.ToString("F1")));
+                    entries.Add(new HashEntry("pallet_hole_def_mm_left_warning_alarm", PalletHoleDefMmLeftWarningAlarm));
+                    entries.Add(new HashEntry("pallet_hole_def_mm_right_value", PalletHoleDefMmRightValue.ToString("F1")));
+                    entries.Add(new HashEntry("pallet_hole_def_mm_right_warning_alarm", PalletHoleDefMmRightWarningAlarm));
                     break;
                 case 4:
                 case 5:
@@ -179,6 +203,7 @@ namespace pallet_storage_detection_system_Net_V2.Models
                 entries.Add(new HashEntry("pallet_offset_lat_threshold", FormatThreshold(cfg.Algorithms.StackerOffset?.LateralThreshold)));
                 entries.Add(new HashEntry("beam_deflection_beam_threshold", FormatThreshold(cfg.Algorithms.RackDeformation?.BeamThreshold)));
                 entries.Add(new HashEntry("beam_deflection_rack_threshold", FormatThreshold(cfg.Algorithms.RackDeformation?.RackThreshold)));
+                entries.Add(new HashEntry("pallet_hole_deflection_threshold", FormatThreshold(cfg.Algorithms.RackDeformation?.PalletHoleThreshold)));
             }
 
             return entries.ToArray();

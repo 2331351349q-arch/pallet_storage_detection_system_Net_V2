@@ -44,6 +44,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         public List<Vector3> RightColumnPoints { get; set; } = new();
         /// <summary>横梁点云（两立柱内侧边缘之间、特定Y高度区间内的前景点）</summary>
         public List<Vector3> BeamPoints { get; set; } = new();
+        /// <summary>托盘插孔点云</summary>
+        public List<Vector3> PalletHolePoints { get; set; } = new();
 
         // ---- Y轴横梁剖面数据（供可视化调试） ----
         public double[] YProfileYCenters { get; set; } = Array.Empty<double>();
