@@ -345,36 +345,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                             }
                         }
 
-                        // 4. 保存图像 (如果任务有要求且图像存在)
-                        if (imagesToSave.Count > 0)
-                        {
-                            try
-                            {
-                                string rootDir = @"E:\Images";
-                                string dateStr = DateTime.Now.ToString("yyyy_MM_dd");
-                                string timeStr = DateTime.Now.ToString("HH_mm_ss_fff");
-                                string dirPath = Path.Combine(rootDir, $"flag{task.Flag}", dateStr, timeStr);
-
-                                if (!Directory.Exists(dirPath))
-                                {
-                                    Directory.CreateDirectory(dirPath);
-                                }
-
-                                foreach (var item in imagesToSave)
-                                {
-                                    string fileName = $"{item.Name}.png";
-                                    string fullPath = Path.Combine(dirPath, fileName);
-                                    item.Img.Save(fullPath, ImageFormat.Png);
-                                    item.Img.Dispose(); 
-                                }
-
-                                Log($"💾 图像已保存: {dirPath} ({imagesToSave.Count} 张)");
-                            }
-                            catch (Exception ex)
-                            {
-                                Log($"保存图像失败: {ex.Message}");
-                            }
-                        }
+                        // 4. (图片保存已移至全流程最后一步异步执行，保障算法与 Redis 极速响应)
 
                         var algoStartTime = DateTime.Now;
                         algoSuccess = await ExecuteAlgorithmAsync(task.Flag, task.Side, image1, image2, targetSNs, result);
@@ -414,7 +385,8 @@ namespace pallet_storage_detection_system_Net_V2.Control
                     // 记录总耗时
                     LogPhaseTime($"总耗时(Redis检测→写入完成)", _redisComm.TaskDetectedTime);
 
-                    _ = Task.Run(() => SaveTaskImages(task, imagesToSave));
+                    // 7. 最后一步：触发异步存图任务，不阻塞当前主队列
+                    _ = Task.Run(() => SaveTaskImagesAsync(task.Flag, imagesToSave));
                 }
                 catch (OperationCanceledException)
                 {
@@ -521,47 +493,6 @@ namespace pallet_storage_detection_system_Net_V2.Control
             }
         }
 
-        private void SaveTaskImages(TaskData task, List<(string Name, Image Img)> images)
-        {
-            if (images == null || images.Count == 0)
-            {
-                if (task != null && task.Flag != 4 && task.Flag != 5)
-                {
-                    Log($"⚠️ 图像保存跳过: imagesToSave 为空 (Flag={task?.Flag})");
-                }
-                return;
-            }
-
-            try
-            {
-                var triggerTime = ParseTaskTime(task?.TaskTime);
-                string flagDir = Path.Combine(ImageRootPath, $"flag{task.Flag}");
-                string dateDir = Path.Combine(flagDir, triggerTime.ToString("yyyy_MM_dd"));
-                string triggerDir = Path.Combine(dateDir, triggerTime.ToString("HH_mm_ss_fff"));
-
-                Directory.CreateDirectory(triggerDir);
-
-                for (int i = 0; i < images.Count; i++)
-                {
-                    var (name, img) = images[i];
-                    string filePath = Path.Combine(triggerDir, $"{name}_{i + 1:D2}.png");
-                    img.Save(filePath, ImageFormat.Png);
-                }
-
-                Log($"💾 图像已保存: {triggerDir} ({images.Count} 张)");
-            }
-            catch (Exception ex)
-            {
-                Log($"❌ 图像存储失败(Flag={task?.Flag}): {ex.Message}");
-            }
-            finally
-            {
-                foreach (var item in images)
-                {
-                    item.Img.Dispose();
-                }
-            }
-        }
 
         private DateTime ParseTaskTime(string? taskTime)
         {
@@ -602,6 +533,48 @@ namespace pallet_storage_detection_system_Net_V2.Control
             {
                 Log($"⚠️ [Flag{flag}] 第 {captureIndex} 帧采集图像失败: {ex.Message}");
                 return null;
+            }
+        }
+
+        private void SaveTaskImagesAsync(int flag, List<(string Name, Image Img)> images)
+        {
+            if (images == null || images.Count == 0) return;
+
+            try
+            {
+                string rootDir = @"E:\Images";
+                string dateStr = DateTime.Now.ToString("yyyy_MM_dd");
+                string timeStr = DateTime.Now.ToString("HH_mm_ss_fff");
+                string dirPath = Path.Combine(rootDir, $"flag{flag}", dateStr, timeStr);
+
+                if (!Directory.Exists(dirPath))
+                {
+                    Directory.CreateDirectory(dirPath);
+                }
+
+                foreach (var item in images)
+                {
+                    string fileName = $"{item.Name}.png";
+                    string fullPath = Path.Combine(dirPath, fileName);
+                    item.Img.Save(fullPath, ImageFormat.Png);
+                }
+
+                Log($"💾 图像已异步保存: {dirPath} ({images.Count} 张)");
+            }
+            catch (Exception ex)
+            {
+                Log($"❌ 后台异步保存图像失败: {ex.Message}");
+            }
+            finally
+            {
+                // 确保异步任务无论成功失败都会释放克隆出的内存对象
+                foreach (var item in images)
+                {
+                    if (item.Img != null)
+                    {
+                        item.Img.Dispose();
+                    }
+                }
             }
         }
     }
