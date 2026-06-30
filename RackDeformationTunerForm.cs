@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -493,18 +493,10 @@ namespace pallet_storage_detection_system_Net_V2
 
                 _numDepthMin.Value = Math.Clamp(zMin, (int)_numDepthMin.Minimum, (int)_numDepthMin.Maximum);
                 _numDepthMax.Value = Math.Clamp(zMax, (int)_numDepthMax.Minimum, (int)_numDepthMax.Maximum);
-                if (xMax > xMin)
-                {
-                    _numXMinRoi.Value = Math.Clamp((decimal)xMin, _numXMinRoi.Minimum, _numXMinRoi.Maximum);
-                    _numXMaxRoi.Value = Math.Clamp((decimal)xMax, _numXMaxRoi.Minimum, _numXMaxRoi.Maximum);
-                }
-                else { _numXMinRoi.Value = 0; _numXMaxRoi.Value = 0; }
-                if (yMax > yMin)
-                {
-                    _numYMinRoi.Value = Math.Clamp((decimal)yMin, _numYMinRoi.Minimum, _numYMinRoi.Maximum);
-                    _numYMaxRoi.Value = Math.Clamp((decimal)yMax, _numYMaxRoi.Minimum, _numYMaxRoi.Maximum);
-                }
-                else { _numYMinRoi.Value = -800; _numYMaxRoi.Value = 800; }
+                _numXMinRoi.Value = Math.Clamp((decimal)xMin, _numXMinRoi.Minimum, _numXMinRoi.Maximum);
+                _numXMaxRoi.Value = Math.Clamp((decimal)xMax, _numXMaxRoi.Minimum, _numXMaxRoi.Maximum);
+                _numYMinRoi.Value = Math.Clamp((decimal)yMin, _numYMinRoi.Minimum, _numYMinRoi.Maximum);
+                _numYMaxRoi.Value = Math.Clamp((decimal)yMax, _numYMaxRoi.Minimum, _numYMaxRoi.Maximum);
 
                 // 加载当前侧的立柱与横梁标准值：左相机对应左立柱，右相机对应右立柱
                 var leftCamSn = _currentSideSNs.Count > 0 ? _currentSideSNs[0] : null;
