@@ -234,6 +234,24 @@ namespace pallet_storage_detection_system_Net_V2.Config
         public ThresholdSet LateralThreshold { get; set; } = new ThresholdSet();
 
         /// <summary>
+        /// 是否启用 RANSAC 3D 平面拟合算法直接提取立柱前表面中心线（不分背景，更鲁棒）
+        /// </summary>
+        [Category("4. RANSAC 算法参数"), DisplayName("启用 RANSAC 算法")]
+        public bool UseRansac { get; set; } = false;
+
+        /// <summary>
+        /// RANSAC 拟合的最大迭代次数
+        /// </summary>
+        [Category("4. RANSAC 算法参数"), DisplayName("RANSAC 迭代次数")]
+        public int RansacMaxIterations { get; set; } = 300;
+
+        /// <summary>
+        /// RANSAC 拟合平面与点的最大距离偏差阈值 (mm)
+        /// </summary>
+        [Category("4. RANSAC 算法参数"), DisplayName("RANSAC 距离阈值 (mm)")]
+        public double RansacDistanceThreshold { get; set; } = 10.0;
+
+        /// <summary>
         /// 每台相机的独立 ROI 参数。按相机 SN 匹配，优先级高于全局默认值。
         /// 通过调参工具针对每台相机单独标定后保存。
         /// </summary>

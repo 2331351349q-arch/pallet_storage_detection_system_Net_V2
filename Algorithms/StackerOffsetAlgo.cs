@@ -153,7 +153,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     var pts1 = GetFilteredPoints(frame1, cfg, out double ref1);
                     if (pts1 != null && pts1.Count >= MinPointCount)
                     {
-                        double center1 = ComputeLateralOffset(pts1, 0, -10000, 10000, null, null, null, null);
+                        double center1 = ComputeLateralOffset(pts1, 0, -10000, 10000, null, null, null, null, cfg);
                         if (!double.IsNaN(center1))
                         {
                             double offset1 = center1 - ref1;
@@ -168,7 +168,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     var pts2 = GetFilteredPoints(frame2, cfg, out double ref2);
                     if (pts2 != null && pts2.Count >= MinPointCount)
                     {
-                        double center2 = ComputeLateralOffset(pts2, 0, -10000, 10000, null, null, null, null);
+                        double center2 = ComputeLateralOffset(pts2, 0, -10000, 10000, null, null, null, null, cfg);
                         if (!double.IsNaN(center2))
                         {
                             double offset2 = center2 - ref2;
@@ -241,7 +241,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     return debug;
                 }
 
-                debug = ComputeLateralOffsetDebug(basePoints, 0, -10000, 10000, null, null, null, null);
+                debug = ComputeLateralOffsetDebug(basePoints, 0, -10000, 10000, null, null, null, null, cfg);
                 debug.ReferenceGapCenterX = referenceGapCenterX;
 
                 // 计算与标准位置的偏差
@@ -331,7 +331,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
 
         /// <summary>
         /// 从 DepthFrameData 获取点云并变换到基准坐标系，
-        /// 同时将相机深度方向（正前方）重定向到 Z 轴，保证后续算法和可视化的一致性。
+        /// 同时将相机深度方向（正前方）重定向到 Z 轴，保证后续算法 and 可视化的一致性。
         /// </summary>
         public static List<Vector3>? GetBasePointsFromFrame(DepthFrameData? frame)
         {
@@ -362,8 +362,14 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             List<Vector3> basePoints, double cameraZ,
             double zMin, double zMax,
             double? xMinRoI = null, double? xMaxRoI = null,
-            double? yMinRoI = null, double? yMaxRoI = null)
+            double? yMinRoI = null, double? yMaxRoI = null,
+            StackerOffsetConfig? cfg = null)
         {
+            if (cfg != null && cfg.UseRansac)
+            {
+                return ComputeLateralOffsetDebugByRansac(basePoints, cfg.RansacMaxIterations, cfg.RansacDistanceThreshold, xMinRoI, xMaxRoI);
+            }
+
             var d = new DebugData();
             double yLo = yMinRoI ?? -10000;
             double yHi = yMaxRoI ?? 10000;
@@ -411,8 +417,14 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             List<Vector3> basePoints, double cameraZ,
             double zMin, double zMax,
             double? yMinRoI = null, double? yMaxRoI = null,
-            double? xMinRoI = null, double? xMaxRoI = null)
+            double? xMinRoI = null, double? xMaxRoI = null,
+            StackerOffsetConfig? cfg = null)
         {
+            if (cfg != null && cfg.UseRansac)
+            {
+                return ComputeLateralOffsetByRansac(basePoints, cfg.RansacMaxIterations, cfg.RansacDistanceThreshold);
+            }
+
             double yLo = yMinRoI ?? -10000;
             double yHi = yMaxRoI ?? 10000;
 
@@ -424,6 +436,240 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 return double.NaN;
 
             return segRes.PrimaryBeamCenterX;
+        }
+
+        // ============================================================
+        // RANSAC 辅助算法实现
+        // ============================================================
+
+        /// <summary>
+        /// 针对立柱前表面的定制 RANSAC 平面拟合算法。
+        /// 约束拟合平面的法向量必须基本朝向相机（Z 轴方向）。
+        /// </summary>
+        private static (double A, double B, double C, double D, List<int> Inliers)
+            RansacPlaneFittingStacker(List<Vector3> points, int maxIterations, double distanceThreshold, double minNormalZ = 0.95)
+        {
+            if (points.Count < 3)
+                return (0, 0, 0, 0, new List<int>());
+
+            double bestA = 0, bestB = 0, bestC = 0, bestD = 0;
+            int bestCount = 0;
+            List<int> bestInliers = new();
+
+            var rng = new Random(42); // 固定种子确保算法输出确定性
+            int n = points.Count;
+
+            int maxFails = maxIterations * 3;
+            int fails = 0;
+
+            for (int iter = 0; iter < maxIterations && fails < maxFails; iter++)
+            {
+                int i0 = rng.Next(n);
+                int i1 = rng.Next(n);
+                while (i1 == i0) i1 = rng.Next(n);
+                int i2 = rng.Next(n);
+                while (i2 == i0 || i2 == i1) i2 = rng.Next(n);
+
+                Vector3 p0 = points[i0], p1 = points[i1], p2 = points[i2];
+
+                Vector3 v1 = p1 - p0;
+                Vector3 v2 = p2 - p0;
+                Vector3 normal = Vector3.Cross(v1, v2);
+
+                float lenSq = normal.LengthSquared();
+                if (lenSq < 1e-6f)
+                {
+                    fails++;
+                    iter--;
+                    continue;
+                }
+
+                normal = Vector3.Normalize(normal);
+                
+                // 朝向约束：立柱前表面法向在 Z 轴上的分量应接近 1
+                if (Math.Abs(normal.Z) < minNormalZ)
+                {
+                    fails++;
+                    iter--;
+                    continue;
+                }
+
+                double a = normal.X, b = normal.Y, c = normal.Z;
+                double d = -(a * p0.X + b * p0.Y + c * p0.Z);
+
+                var inliers = new List<int>();
+                for (int j = 0; j < n; j++)
+                {
+                    Vector3 pt = points[j];
+                    double dist = Math.Abs(a * pt.X + b * pt.Y + c * pt.Z + d);
+                    if (dist < distanceThreshold)
+                    {
+                        inliers.Add(j);
+                    }
+                }
+
+                if (inliers.Count > bestCount)
+                {
+                    bestCount = inliers.Count;
+                    bestA = a; bestB = b; bestC = c; bestD = d;
+                    bestInliers = inliers;
+                }
+            }
+
+            // 使用所有内点重新拟合消除随机性带来的平移偏差
+            if (bestInliers.Count >= 3)
+            {
+                Vector3 centroid = Vector3.Zero;
+                foreach (var idx in bestInliers) centroid += points[idx];
+                centroid /= bestInliers.Count;
+
+                double len = Math.Sqrt(bestA * bestA + bestB * bestB + bestC * bestC);
+                bestA /= len; bestB /= len; bestC /= len;
+                bestD = -(bestA * centroid.X + bestB * centroid.Y + bestC * centroid.Z);
+
+                bestInliers.Clear();
+                for (int j = 0; j < n; j++)
+                {
+                    Vector3 pt = points[j];
+                    double dist = Math.Abs(bestA * pt.X + bestB * pt.Y + bestC * pt.Z + bestD);
+                    if (dist < distanceThreshold)
+                    {
+                        bestInliers.Add(j);
+                    }
+                }
+            }
+
+            return (bestA, bestB, bestC, bestD, bestInliers);
+        }
+
+        private static double ComputeLateralOffsetByRansac(List<Vector3> points, int maxIterations, double distanceThreshold)
+        {
+            var (a, b, c, d, inliers) = RansacPlaneFittingStacker(points, maxIterations, distanceThreshold);
+            if (inliers.Count < MinPointCount)
+                return double.NaN;
+
+            var inlierXs = new List<double>(inliers.Count);
+            foreach (var idx in inliers)
+            {
+                inlierXs.Add(points[idx].X);
+            }
+            inlierXs.Sort();
+
+            // 双侧各剔除 2% 的噪点边界，获取鲁棒的宽度边缘
+            int idxLeft = (int)(inlierXs.Count * 0.02);
+            int idxRight = (int)(inlierXs.Count * 0.98);
+            if (idxRight <= idxLeft) return double.NaN;
+
+            double leftX = inlierXs[idxLeft];
+            double rightX = inlierXs[idxRight];
+
+            return (leftX + rightX) / 2.0;
+        }
+
+        private static DebugData ComputeLateralOffsetDebugByRansac(
+            List<Vector3> points, int maxIterations, double distanceThreshold,
+            double? xMinRoI = null, double? xMaxRoI = null)
+        {
+            var debug = new DebugData();
+            debug.RoiPointCount = points.Count;
+
+            // 1. 构建点云在 X 方向的深度投影图（与老版保持一致，供 UI 绘制）
+            double xMinV = double.MaxValue, xMaxV = double.MinValue;
+            foreach (var pt in points)
+            {
+                if (pt.X < xMinV) xMinV = pt.X;
+                if (pt.X > xMaxV) xMaxV = pt.X;
+            }
+            
+            if (xMaxV - xMinV < 50.0)
+            {
+                debug.ErrorMessage = $"X跨度太小({xMaxV - xMinV:F1}mm)";
+                return debug;
+            }
+
+            int bc = (int)Math.Ceiling((xMaxV - xMinV) / BinSizeMm) + 1;
+            if (bc < 20)
+            {
+                debug.ErrorMessage = $"bin数不足({bc})";
+                return debug;
+            }
+
+            var dp = new double[bc];
+            var bp = new int[bc];
+            var bx = new double[bc];
+            for (int i = 0; i < bc; i++)
+            {
+                dp[i] = double.MaxValue;
+                bx[i] = xMinV + i * BinSizeMm + BinSizeMm / 2.0;
+            }
+
+            foreach (var pt in points)
+            {
+                int bin = (int)((pt.X - xMinV) / BinSizeMm);
+                if (bin < 0 || bin >= bc) continue;
+                if (pt.Z < dp[bin]) dp[bin] = pt.Z;
+                bp[bin]++;
+            }
+
+            debug.XMin = xMinV;
+            debug.XMax = xMaxV;
+            debug.BinCount = bc;
+            debug.BinXCenters = bx;
+            debug.DepthProfile = dp;
+            debug.BinPopulation = bp;
+
+            // 2. 执行 RANSAC 平面拟合
+            var (a, b, c, dVal, inliers) = RansacPlaneFittingStacker(points, maxIterations, distanceThreshold);
+            if (inliers.Count < MinPointCount)
+            {
+                debug.ErrorMessage = $"RANSAC 拟合失败：有效内点数不足({inliers.Count} < {MinPointCount})";
+                return debug;
+            }
+
+            // 3. 计算立柱表面的有效 X/Z 边界
+            var inlierXs = new List<double>(inliers.Count);
+            var inlierZs = new List<double>(inliers.Count);
+            foreach (var idx in inliers)
+            {
+                inlierXs.Add(points[idx].X);
+                inlierZs.Add(points[idx].Z);
+            }
+            inlierXs.Sort();
+
+            int idxLeft = (int)(inlierXs.Count * 0.02);
+            int idxRight = (int)(inlierXs.Count * 0.98);
+            if (idxRight <= idxLeft)
+            {
+                debug.ErrorMessage = "内点跨度不足";
+                return debug;
+            }
+
+            double leftX = inlierXs[idxLeft];
+            double rightX = inlierXs[idxRight];
+            double ransacCenterX = (leftX + rightX) / 2.0;
+
+            // 4. 填充 Debug 可视化数据结构，与老算法保持无缝兼容
+            debug.Success = true;
+            debug.GapCenterX = ransacCenterX;
+            debug.CurrentGapCenterX = ransacCenterX;
+            debug.GapWidthMm = rightX - leftX;
+            debug.LateralOffsetMm = ransacCenterX;
+
+            // 梁阈值线（绘制在内点 Z 平面偏移阈值处，便于直观预览）
+            double avgZ = inlierZs.Average();
+            debug.BeamZThreshold = avgZ + distanceThreshold;
+            
+            // 背景深度（为直观起见取 ROI 最大深度）
+            double maxZ = points.Max(p => (double)p.Z);
+            debug.BackgroundZ = maxZ;
+
+            // 用单个 BeamRegion 承载拟合出的立柱，以供 UI 填充橘色高亮显示
+            debug.BeamRegions = new List<(double leftX, double rightX, double centerX, double width)>
+            {
+                (leftX, rightX, ransacCenterX, rightX - leftX)
+            };
+
+            return debug;
         }
     }
 }
