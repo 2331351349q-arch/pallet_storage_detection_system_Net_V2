@@ -155,35 +155,37 @@ namespace pallet_storage_detection_system_Net_V2
             };
             flow.Controls.Add(_cmbTuneCamera);
 
-            // 按鈕行
-            var btnLine = new FlowLayoutPanel { Width = FlowW, Height = 50, Margin = new Padding(0, 8, 0, 8) };
-            var btnInit = new Button { Text = "初始化相机", Width = (FlowW - 12) / 3, Height = 45, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(55, 60, 75), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            // 按钮行：初始化 + 采集
+            var btnLine = new FlowLayoutPanel { Width = FlowW, Height = 50, WrapContents = false, Margin = new Padding(0, 16, 0, 4) };
+            var btnInit = new Button { Text = "🔌 初始化", Width = (FlowW - 12) / 2, Height = 44, Margin = new Padding(2, 2, 2, 2), Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(80, 80, 80), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnInit.Click += BtnInit_Click;
-            var btnGrab = new Button { Text = "抓取一帧", Width = (FlowW - 12) / 3, Height = 45, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(60, 100, 55), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            var btnGrab = new Button { Text = "📸 采集", Width = (FlowW - 12) / 2, Height = 44, Margin = new Padding(2, 2, 2, 2), Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(40, 140, 90), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
             btnGrab.Click += BtnGrab_Click;
-            var btnSave = new Button { Text = "保存到配置", Width = (FlowW - 12) / 3, Height = 45, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(60, 80, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-            btnSave.Click += BtnSave_Click;
             btnLine.Controls.Add(btnInit);
             btnLine.Controls.Add(btnGrab);
-            btnLine.Controls.Add(btnSave);
             flow.Controls.Add(btnLine);
 
-            // 标准位置采集
-            var refLine = new FlowLayoutPanel { Width = FlowW, Height = 50, Margin = new Padding(0, 4, 0, 8) };
-            var btnCaptureRef = new Button { Text = "📌 采集标准位置", Width = (FlowW - 10) / 2, Height = 45, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(180, 160, 40), ForeColor = Color.Black, FlatStyle = FlatStyle.Flat };
+            // 💾 保存 ROI
+            var btnSave = new Button { Text = "💾 保存 ROI", Width = FlowW, Height = 40, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(60, 80, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0, 4, 0, 4) };
+            btnSave.Click += BtnSave_Click;
+            flow.Controls.Add(btnSave);
+
+            // 📌 采集标准位置
+            var btnCaptureRef = new Button { Text = "📌 采集标准位置", Width = FlowW, Height = 40, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(180, 120, 30), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0, 4, 0, 4) };
             btnCaptureRef.Click += BtnCaptureRef_Click;
-            var _lblRef = new Label { Text = "标准位置: 未设定", Width = (FlowW - 10) / 2, Height = 45, Font = new Font("Consolas", 10F, FontStyle.Bold), ForeColor = Color.Gold, TextAlign = ContentAlignment.MiddleLeft };
+            flow.Controls.Add(btnCaptureRef);
+
+            // 标准值状态
+            var _lblRef = new Label { Text = "标准位置: 未设定", Width = FlowW, Height = 38, Font = new Font("Consolas", 9F, FontStyle.Bold), ForeColor = Color.FromArgb(200, 200, 100), TextAlign = ContentAlignment.MiddleLeft };
             _lblRef.Name = "lblRef";
-            refLine.Controls.Add(btnCaptureRef);
-            refLine.Controls.Add(_lblRef);
-            flow.Controls.Add(refLine);
+            flow.Controls.Add(_lblRef);
 
             // 标定状态
             _lblCalibStatus = new Label { Width = FlowW, Height = 22, Font = new Font("Consolas", 8F), ForeColor = Color.Gray, TextAlign = ContentAlignment.MiddleLeft };
             flow.Controls.Add(_lblCalibStatus);
 
-            // 自动适配ROI按鈕
-            var btnAutoFitRoi = new Button { Text = "🎯 自动适配 ROI", Width = FlowW, Height = 45, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(40, 160, 120), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 8, 0, 12) };
+            // 🎯 自动适配 ROI
+            var btnAutoFitRoi = new Button { Text = "🎯 自动适配 ROI", Width = FlowW, Height = 36, Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold), BackColor = Color.FromArgb(40, 160, 120), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Margin = new Padding(0, 8, 0, 8) };
             btnAutoFitRoi.Click += BtnAutoFitRoi_Click;
             flow.Controls.Add(btnAutoFitRoi);
 
@@ -343,14 +345,14 @@ namespace pallet_storage_detection_system_Net_V2
         {
             Text = text, Width = FlowW, Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold),
             AutoSize = false, Height = 20, ForeColor = Color.FromArgb(200, 200, 220),
-            Margin = new Padding(0, 4, 0, 0)
+            Margin = new Padding(0, 14, 0, 4)
         };
 
         private static Label SectionLabel(string text) => new Label
         {
             Text = text, Width = FlowW, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
             AutoSize = false, Height = 32, ForeColor = Color.FromArgb(130, 200, 255),
-            Margin = new Padding(0, 16, 0, 6), BorderStyle = BorderStyle.None,
+            Margin = new Padding(0, 24, 0, 8), BorderStyle = BorderStyle.None,
             TextAlign = ContentAlignment.BottomLeft
         };
 
@@ -585,7 +587,7 @@ namespace pallet_storage_detection_system_Net_V2
             double? yMaxRoI = (Math.Abs(yMinRoiNum) > 0.5 || Math.Abs(yMaxRoiNum) > 0.5) ? yMaxRoiNum : null;
 
             string tuneCameraSn = _cmbTuneCamera.SelectedItem?.ToString() ?? "";
-            _currentDebug = StackerOffsetAlgo.RunDebug(_currentFrame1, _currentFrame2, zMin, zMax, refGap, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI, tuneCameraSn);
+            _currentDebug = StackerOffsetAlgo.RunDebug(_currentFrame1, _currentFrame2, zMin, zMax, refGap, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI, tuneCameraSn, CurrentBeamLength());
 
             // 显示检测到的 X 范围
             if (_currentDebug != null && _currentDebug.Success)
@@ -1278,31 +1280,15 @@ namespace pallet_storage_detection_system_Net_V2
             camParam.ZMin = zMinVal;
             camParam.ZMax = zMaxVal;
 
-            // X 范围：优先使用手动设定的值，其次使用检测到的范围
-            if (Math.Abs((double)_numXMinRoi.Value) > 0.5 || Math.Abs((double)_numXMaxRoi.Value) > 0.5)
-            {
-                camParam.XMin = (double)_numXMinRoi.Value;
-                camParam.XMax = (double)_numXMaxRoi.Value;
-            }
-            else if (_currentDebug?.Success == true)
-            {
-                camParam.XMin = _currentDebug.XMin;
-                camParam.XMax = _currentDebug.XMax;
-                AppendLog($"X ROI 使用检测范围: [{camParam.XMin:F0}, {camParam.XMax:F0}]", false);
-            }
+            camParam.XMin = (double)_numXMinRoi.Value;
+            camParam.XMax = (double)_numXMaxRoi.Value;
 
-            // Y 范围：优先使用手动设定的值
-            if (Math.Abs((double)_numYMinRoi.Value) > 0.5 || Math.Abs((double)_numYMaxRoi.Value) > 0.5)
-            {
-                camParam.YMin = (double)_numYMinRoi.Value;
-                camParam.YMax = (double)_numYMaxRoi.Value;
-            }
+            // Y 范围
+            camParam.YMin = (double)_numYMinRoi.Value;
+            camParam.YMax = (double)_numYMaxRoi.Value;
 
-            // 保存标准位置参考值（如果有成功检测）
-            if (_currentDebug?.Success == true)
-            {
-                camParam.ReferenceX = Math.Round(_currentDebug.GapCenterX, 2);
-            }
+            // 注意：标准位置参考值 (ReferenceX) 只能通过【采集标准位置】按钮设置，
+            // 保存 ROI 时不覆盖已有的标准值。
 
             // 加入列表（新条目）/ 列表中原位置不变
             if (isNew) cfg.CameraRoiParams.Add(camParam);

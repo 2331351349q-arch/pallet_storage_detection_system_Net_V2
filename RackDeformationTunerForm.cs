@@ -382,7 +382,7 @@ namespace pallet_storage_detection_system_Net_V2
         {
             Text = text, Width = FlowW, Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold),
             AutoSize = false, Height = 20, ForeColor = Color.FromArgb(200, 200, 220),
-            Margin = new Padding(0, 4, 0, 0)
+            Margin = new Padding(0, 14, 0, 4)
         };
 
         private static Label SectionLabel(string text) => new Label

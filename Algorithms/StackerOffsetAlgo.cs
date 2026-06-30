@@ -214,7 +214,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         /// <returns>包含所有中间数据的 DebugData。</returns>
         public static DebugData RunDebug(DepthFrameData? frame1, DepthFrameData? frame2, double zMin, double zMax,
             double referenceGapCenterX = 0, double? xMinRoI = null, double? xMaxRoI = null,
-            double? yMinRoI = null, double? yMaxRoI = null, string tuneCameraSn = "")
+            double? yMinRoI = null, double? yMaxRoI = null, string tuneCameraSn = "", int beamLength = 2180)
         {
             var debug = new DebugData { ReferenceGapCenterX = referenceGapCenterX };
 
@@ -233,7 +233,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     return debug;
                 }
 
-                var basePoints = GetFilteredPointsForDebug(targetFrame, cfg, tuneCameraSn, zMin, zMax, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI);
+                var basePoints = GetFilteredPointsForDebug(beamLength, targetFrame, cfg, tuneCameraSn, zMin, zMax, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI);
 
                 if (basePoints == null || basePoints.Count < MinPointCount)
                 {
@@ -295,7 +295,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             return filtered;
         }
 
-        private static List<Vector3>? GetFilteredPointsForDebug(DepthFrameData frame, StackerOffsetConfig? cfg, string tuneCameraSn, 
+        private static List<Vector3>? GetFilteredPointsForDebug(int beamLength, DepthFrameData frame, StackerOffsetConfig? cfg, string tuneCameraSn, 
             double zMin, double zMax, double? xMinRoI, double? xMaxRoI, double? yMinRoI, double? yMaxRoI)
         {
             var pts = GetBasePointsFromFrame(frame);
@@ -307,7 +307,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             // 如果这个相机不是正在调参的那个相机，就用配置文件里存的值
             if (frame.CameraSn != tuneCameraSn)
             {
-                var camParam = cfg?.FindCameraParam(frame.CameraSn);
+                var camParam = cfg?.FindCameraParam(frame.CameraSn, beamLength);
                 applyZMin = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
                 applyZMax = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
                 applyXMin = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : null;
