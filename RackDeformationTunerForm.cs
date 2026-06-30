@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -509,8 +509,8 @@ namespace pallet_storage_detection_system_Net_V2
                 // 加载当前侧的立柱与横梁标准值：左相机对应左立柱，右相机对应右立柱
                 var leftCamSn = _currentSideSNs.Count > 0 ? _currentSideSNs[0] : null;
                 var rightCamSn = _currentSideSNs.Count > 1 ? _currentSideSNs[1] : null;
-                var leftParam = cfg?.FindCameraParam(leftCamSn);
-                var rightParam = cfg?.FindCameraParam(rightCamSn);
+                var leftParam = cfg?.FindCameraParam(leftCamSn, CurrentBeamLength());
+                var rightParam = cfg?.FindCameraParam(rightCamSn, CurrentBeamLength());
 
                 _refRackDefLeft  = leftParam?.RefRackDefLeft ?? 0.0;
                 _refRackDefRight = rightParam?.RefRackDefRight ?? 0.0;
@@ -540,7 +540,7 @@ namespace pallet_storage_detection_system_Net_V2
             string side = CurrentSide();
 
             // 尝试获取该相机独立的 ROI
-            var camRoi = slotCfg?.FindCameraParam(sn);
+            var camRoi = slotCfg?.FindCameraParam(sn, CurrentBeamLength());
             double xMin, xMax, yMin, yMax, zMin, zMax;
 
             if (camRoi != null)
@@ -673,7 +673,7 @@ namespace pallet_storage_detection_system_Net_V2
             bool isPalletHole = _cmbRoiTarget.SelectedIndex == 2;
 
             // 1. 临时在内存中更新配置参数，供算法直接提取
-            var camParam = cfg?.FindCameraParam(tuneSn);
+            var camParam = cfg?.FindCameraParam(tuneSn, CurrentBeamLength());
             if (camParam == null && cfg != null && !string.IsNullOrEmpty(tuneSn))
             {
                 camParam = new CameraRoiParam { CameraSn = tuneSn };
@@ -797,7 +797,7 @@ namespace pallet_storage_detection_system_Net_V2
             }
             else
             {
-                var camParam = cfg?.FindCameraParam(frame.CameraSn);
+                var camParam = cfg?.FindCameraParam(frame.CameraSn, CurrentBeamLength());
                 zMin = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
                 zMax = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
                 xMinRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : (double?)null;

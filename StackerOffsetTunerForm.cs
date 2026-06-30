@@ -465,7 +465,7 @@ namespace pallet_storage_detection_system_Net_V2
         private void LoadRoiForCurrentCamera()
         {
             string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
-            var camParam = ConfigManager.Instance?.Algorithms?.StackerOffset?.FindCameraParam(sn);
+            var camParam = ConfigManager.Instance?.Algorithms?.StackerOffset?.FindCameraParam(sn, CurrentBeamLength());
             if (camParam != null)
             {
                 _numDepthMin.Value = Math.Clamp(camParam.ZMin, _numDepthMin.Minimum, _numDepthMin.Maximum);
@@ -506,7 +506,7 @@ namespace pallet_storage_detection_system_Net_V2
         private CameraRoiParam? GetCurrentCameraParam()
         {
             string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
-            return ConfigManager.Instance?.Algorithms?.StackerOffset?.FindCameraParam(sn);
+            return ConfigManager.Instance?.Algorithms?.StackerOffset?.FindCameraParam(sn, CurrentBeamLength());
         }
 
         private void UpdateRefLabel()
@@ -1390,10 +1390,10 @@ namespace pallet_storage_detection_system_Net_V2
             string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             double newRef = Math.Round(_currentDebug.GapCenterX, 2);
 
-            // 保存到相机独立参数
-            var camParam = cfg.FindCameraParam(sn);
+            // 获取或创建 ROI 参数条目
+            var camParam = cfg.FindCameraParam(sn, CurrentBeamLength());
             bool isNew = camParam == null;
-            if (isNew) camParam = new CameraRoiParam { CameraSn = sn };
+            if (isNew) camParam = new CameraRoiParam { CameraSn = sn, BeamLength = CurrentBeamLength() };
             
             camParam.ReferenceX = newRef;
             camParam.XMin = (double)_numXMinRoi.Value;
