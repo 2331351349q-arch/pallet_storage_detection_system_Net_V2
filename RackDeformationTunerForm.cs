@@ -23,6 +23,7 @@ namespace pallet_storage_detection_system_Net_V2
         // ---- 控件 ----
         private ComboBox _cmbSide = null!;
         private ComboBox _cmbTuneCamera = null!;
+        private ComboBox _cmbBeamLength = null!;
         private NumericUpDown _numYaw = null!;
         private NumericUpDown _numPitch = null!;
         private NumericUpDown _numDepthMin = null!;
@@ -156,6 +157,19 @@ namespace pallet_storage_detection_system_Net_V2
             _cmbSide.SelectedIndex = 0;
             _cmbSide.SelectedIndexChanged += (_, __) => { UpdateCameraSnFromConfig(); LoadRoiForCurrentCamera(); };
             flow.Controls.Add(_cmbSide);
+
+            // 货架长度选择
+            flow.Controls.Add(BoldLabel("货架长度"));
+            _cmbBeamLength = new ComboBox { Width = FlowW, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cmbBeamLength.Items.AddRange(new object[] { "2180", "1380" });
+            _cmbBeamLength.SelectedIndex = 0;
+            _cmbBeamLength.SelectedIndexChanged += (_, __) =>
+            {
+                LoadRoiForCurrentCamera();
+                UpdatePreviewImage();
+                Recalculate();
+            };
+            flow.Controls.Add(_cmbBeamLength);
 
             // 调参相机选择
             flow.Controls.Add(BoldLabel("当前调参相机 SN"));
@@ -443,6 +457,8 @@ namespace pallet_storage_detection_system_Net_V2
             UpdateCameraSnFromConfig();
         }
 
+        private int CurrentBeamLength() => int.TryParse(_cmbBeamLength.SelectedItem?.ToString(), out int len) ? len : 2180;
+
         /// <summary>仅加载当前相机 SN 对应的独立 ROI 参数（不触发完整 LoadConfigValues）。</summary>
         private void LoadRoiForCurrentCamera()
         {
@@ -450,7 +466,7 @@ namespace pallet_storage_detection_system_Net_V2
             var cfg = ConfigManager.Instance?.Algorithms?.RackDeformation;
 
             // --- 1. 加载 RackDeformation 滑块参数 ---
-            var camParam = cfg?.FindCameraParam(sn);
+            var camParam = cfg?.FindCameraParam(sn, CurrentBeamLength());
             
             if (camParam != null)
             {
@@ -695,9 +711,9 @@ namespace pallet_storage_detection_system_Net_V2
                 }
             }
 
-            // 2. 调用算法层面的单相机分割，实现无缝的调参计算
-            _seg1 = RackDeformationAlgo.SegmentSingleCamera(_currentFrame1, cfg);
-            _seg2 = RackDeformationAlgo.SegmentSingleCamera(_currentFrame2, cfg);
+            // 2. 算法核心分割，实现独立的点云过滤
+            _seg1 = RackDeformationAlgo.SegmentSingleCamera(CurrentBeamLength(), _currentFrame1, cfg);
+            _seg2 = RackDeformationAlgo.SegmentSingleCamera(CurrentBeamLength(), _currentFrame2, cfg);
 
             _currentSeg = (_currentFrame1?.CameraSn == tuneSn) ? _seg1 :
                           (_currentFrame2?.CameraSn == tuneSn) ? _seg2 :
@@ -1352,6 +1368,7 @@ namespace pallet_storage_detection_system_Net_V2
             string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(sn)) { AppendLog("请先选择调参相机SN", true); return; }
 
+            int beamLen = CurrentBeamLength();
             int zMinVal = (int)_numDepthMin.Value;
             int zMaxVal = (int)_numDepthMax.Value;
             double xMinVal = (double)_numXMinRoi.Value;
@@ -1360,9 +1377,9 @@ namespace pallet_storage_detection_system_Net_V2
             double yMaxVal = (double)_numYMaxRoi.Value;
 
             // 查找或创建该相机的 ROI 参数条目
-            var camParam = cfg.FindCameraParam(sn);
+            var camParam = cfg.FindCameraParam(sn, beamLen);
             bool isNew = camParam == null;
-            if (isNew) camParam = new CameraRoiParam { CameraSn = sn };
+            if (isNew) camParam = new CameraRoiParam { CameraSn = sn, BeamLength = beamLen };
 
             bool isBeam = _cmbRoiTarget.SelectedIndex == 1;
             bool isPalletHole = _cmbRoiTarget.SelectedIndex == 2;
@@ -1431,10 +1448,10 @@ namespace pallet_storage_detection_system_Net_V2
 
             if (!string.IsNullOrEmpty(leftCamSn))
             {
-                var leftParam = (leftCamSn == sn) ? camParam : cfg.FindCameraParam(leftCamSn);
+                var leftParam = (leftCamSn == sn) ? camParam : cfg.FindCameraParam(leftCamSn, beamLen);
                 if (leftParam == null)
                 {
-                    leftParam = new CameraRoiParam { CameraSn = leftCamSn };
+                    leftParam = new CameraRoiParam { CameraSn = leftCamSn, BeamLength = beamLen };
                     cfg.CameraRoiParams.Add(leftParam);
                 }
                 leftParam.RefRackDefLeft = _refRackDefLeft;
@@ -1444,10 +1461,10 @@ namespace pallet_storage_detection_system_Net_V2
 
             if (!string.IsNullOrEmpty(rightCamSn))
             {
-                var rightParam = (rightCamSn == sn) ? camParam : cfg.FindCameraParam(rightCamSn);
+                var rightParam = (rightCamSn == sn) ? camParam : cfg.FindCameraParam(rightCamSn, beamLen);
                 if (rightParam == null)
                 {
-                    rightParam = new CameraRoiParam { CameraSn = rightCamSn };
+                    rightParam = new CameraRoiParam { CameraSn = rightCamSn, BeamLength = beamLen };
                     cfg.CameraRoiParams.Add(rightParam);
                 }
                 rightParam.RefRackDefRight = _refRackDefRight;
@@ -1460,7 +1477,7 @@ namespace pallet_storage_detection_system_Net_V2
 
             ConfigManager.SaveConfig();
             string targetName = isPalletHole ? "托盘插孔" : (isBeam ? "横梁" : "立柱");
-            AppendLog($"✅ 已保存相机 [{sn}] 的 [{targetName} ROI] 及其向后兼容参数", false);
+            AppendLog($"✅ 已保存相机 [{sn}] (Length={beamLen}) 的 [{targetName} ROI] 及其向后兼容参数", false);
             AppendLog($"   标准基准: 立柱L={_refRackDefLeft:F2} R={_refRackDefRight:F2}, 横梁L={_refBeamDefLeft:F2} R={_refBeamDefRight:F2}mm, 插孔L={_refPalletHoleDefLeft:F2} R={_refPalletHoleDefRight:F2}mm", false);
         }
     }

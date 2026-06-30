@@ -16,19 +16,20 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         /// 执行货位占用检测。
         /// 双帧策略：检测两台相机各自的有效点云数量或有效像素，且均满足条件。
         /// </summary>
-        public static bool Run(string side, object img1, object img2, Models.DetectionResult res)
+        public static bool Run(Models.TaskData task, object img1, object img2, Models.DetectionResult res)
         {
             try
             {
                 var cfg = ConfigManager.Instance?.Algorithms?.SlotOccupancy;
+                string side = task.Side;
                 int threshold = cfg?.PointThreshold ?? 10000;
                 
                 var sns = ConfigManager.GetTargetCameraSNs(1, side);
                 string sn1 = sns != null && sns.Count > 0 ? sns[0] : "";
                 string sn2 = sns != null && sns.Count > 1 ? sns[1] : sn1;
 
-                var roi1 = ResolveRoi3d(cfg, sn1, side);
-                var roi2 = ResolveRoi3d(cfg, sn2, side);
+                var roi1 = ResolveRoi3d(cfg, sn1, task);
+                var roi2 = ResolveRoi3d(cfg, sn2, task);
 
                 var f1 = EvaluateSingleFrame(img1, threshold, roi1);
                 var f2 = EvaluateSingleFrame(img2, threshold, roi2);
@@ -90,18 +91,20 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             return count;
         }
 
-        private static (double MinX, double MaxX, double MinY, double MaxY, double MinZ, double MaxZ) ResolveRoi3d(SlotOccupancyConfig? cfg, string sn, string side)
+        private static (double MinX, double MaxX, double MinY, double MaxY, double MinZ, double MaxZ) ResolveRoi3d(SlotOccupancyConfig? cfg, string sn, Models.TaskData task)
         {
-            var p = cfg?.FindCameraParam(sn);
+            var p = cfg?.FindCameraParam(sn, task.BeamLength);
             if (p != null)
             {
                 return (p.XMin, p.XMax, p.YMin, p.YMax, p.ZMin, p.ZMax);
             }
-
-            var roiList = (side?.ToLower() == "right") ? cfg?.Roi3dRight : cfg?.Roi3dLeft;
-            if (roiList != null && roiList.Count >= 6)
+            else
             {
-                return (roiList[0], roiList[1], roiList[2], roiList[3], roiList[4], roiList[5]);
+                var roiList = task.Side == "right" ? cfg?.Roi3dRight : cfg?.Roi3dLeft;
+                if (roiList != null && roiList.Count >= 6)
+                {
+                    return (roiList[0], roiList[1], roiList[2], roiList[3], roiList[4], roiList[5]);
+                }
             }
 
             return (-500, 500, -500, 500, 1000, 3000);

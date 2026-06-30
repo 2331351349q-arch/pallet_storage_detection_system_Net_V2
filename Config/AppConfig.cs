@@ -194,11 +194,11 @@ namespace pallet_storage_detection_system_Net_V2.Config
         /// <summary>
         /// 根据相机 SN 查找对应的 ROI 参数，未找到返回 null。
         /// </summary>
-        public CameraRoiParam? FindCameraParam(string? sn)
+        public CameraRoiParam? FindCameraParam(string? sn, int beamLength = 2180)
         {
             if (string.IsNullOrWhiteSpace(sn)) return null;
             return CameraRoiParams?.FirstOrDefault(p =>
-                string.Equals(p.CameraSn, sn, StringComparison.OrdinalIgnoreCase));
+                string.Equals(p.CameraSn, sn, StringComparison.OrdinalIgnoreCase) && p.BeamLength == beamLength);
         }
     }
 
@@ -271,11 +271,11 @@ namespace pallet_storage_detection_system_Net_V2.Config
         /// <summary>
         /// 根据相机 SN 查找对应的 ROI 参数，未找到返回 null。
         /// </summary>
-        public CameraRoiParam? FindCameraParam(string? sn)
+        public CameraRoiParam? FindCameraParam(string? sn, int beamLength = 2180)
         {
             if (string.IsNullOrWhiteSpace(sn)) return null;
             return CameraRoiParams?.FirstOrDefault(p =>
-                string.Equals(p.CameraSn, sn, StringComparison.OrdinalIgnoreCase));
+                string.Equals(p.CameraSn, sn, StringComparison.OrdinalIgnoreCase) && p.BeamLength == beamLength);
         }
     }
 
@@ -285,6 +285,9 @@ namespace pallet_storage_detection_system_Net_V2.Config
     /// </summary>
     public class CameraRoiParam
     {
+        /// <summary>货架横梁长度，区分不同尺寸货架的标定数据 (例如 2180, 1380)。默认 2180。</summary>
+        public int BeamLength { get; set; } = 2180;
+
         /// <summary>相机序列号，用于匹配</summary>
         public string CameraSn { get; set; } = "";
 
@@ -416,11 +419,11 @@ namespace pallet_storage_detection_system_Net_V2.Config
         /// <summary>
         /// 根据相机 SN 查找对应的 ROI 参数，未找到返回 null。
         /// </summary>
-        public CameraRoiParam? FindCameraParam(string? sn)
+        public CameraRoiParam? FindCameraParam(string? sn, int beamLength = 2180)
         {
             if (string.IsNullOrWhiteSpace(sn)) return null;
             return CameraRoiParams?.FirstOrDefault(p =>
-                string.Equals(p.CameraSn, sn, StringComparison.OrdinalIgnoreCase));
+                string.Equals(p.CameraSn, sn, StringComparison.OrdinalIgnoreCase) && p.BeamLength == beamLength);
         }
     }
 

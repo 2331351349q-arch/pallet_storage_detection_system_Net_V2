@@ -210,7 +210,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                                     }
                                     
                                     var tempRes = new DetectionResult();
-                                    bool success = await ExecuteAlgorithmAsync(4, side, image1, image2, targetSNs, tempRes);
+                                    bool success = await ExecuteAlgorithmAsync(new TaskData { Flag = 4, Side = side, BeamLength = task.BeamLength }, image1, image2, targetSNs, tempRes);
                                     
                                     if (!string.IsNullOrEmpty(tempRes.ResultBarcodes))
                                     {
@@ -348,7 +348,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                         // 4. (图片保存已移至全流程最后一步异步执行，保障算法与 Redis 极速响应)
 
                         var algoStartTime = DateTime.Now;
-                        algoSuccess = await ExecuteAlgorithmAsync(task.Flag, task.Side, image1, image2, targetSNs, result);
+                        algoSuccess = await ExecuteAlgorithmAsync(task, image1, image2, targetSNs, result);
                         LogPhaseTime($"算法执行(Flag{task.Flag})", algoStartTime);
                     }
 
@@ -447,14 +447,13 @@ namespace pallet_storage_detection_system_Net_V2.Control
         /// 算法执行路由入口。
         /// 负责根据任务 Flag 将采集到的底层图像数据分发给不同的视觉处理模型类。
         /// </summary>
-        /// <param name="flag">任务功能号 (1-5)。</param>
-        /// <param name="side">测点侧位 ("left"/"right")。</param>
+        /// <param name="task">包含 Flag、Side 和 BeamLength 的任务数据对象。</param>
         /// <param name="img1">左侧原始采集到的图像对象（通常为 Bitmap）。</param>
         /// <param name="img2">右侧原始采集到的图像对象。</param>
         /// <param name="targetSNs">抓取图像所对应的相机序列号列表。</param>
         /// <param name="res">外部传入的任务结果记录实体，算法将在此基础上填充计算后的数值。</param>
         /// <returns>算法处理是否成功。若为 false，系统将记录日志并中止该次上报。</returns>
-        private async Task<bool> ExecuteAlgorithmAsync(int flag, string side, object img1, object img2, List<string> targetSNs, DetectionResult res)
+        private async Task<bool> ExecuteAlgorithmAsync(TaskData task, object img1, object img2, List<string> targetSNs, DetectionResult res)
         {
             // 在此模拟一个 500ms 的图像处理延迟，代表真实的 Halcon/OpenCV 计算开销。
             await Task.Delay(500);
@@ -462,33 +461,33 @@ namespace pallet_storage_detection_system_Net_V2.Control
             try
             {
                 // 根据 Flag 核心指令分流至具体的静态算法类进行高性能计算。
-                switch (flag)
+                switch (task.Flag)
                 {
                     case 1:
                         // 货位占用检查 (Flag 1) - 双相机输入
-                        return Algorithms.SlotOccupancyAlgo.Run(side, img1, img2, res);
+                        return Algorithms.SlotOccupancyAlgo.Run(task, img1, img2, res);
 
                     case 2:
                         // 堆垛机偏移检测 (Flag 2) — 双相机融合输入
-                        return Algorithms.StackerOffsetAlgo.Run(img1, img2, res);
+                        return Algorithms.StackerOffsetAlgo.Run(task, img1, img2, res);
 
                     case 3:
                         // 货架立柱托臂变形检测 (Flag 3) — 双相机融合输入
-                        return Algorithms.RackDeformationAlgo.Run(img1, img2, res);
+                        return Algorithms.RackDeformationAlgo.Run(task, img1, img2, res);
 
                     case 4:
                     case 5:
                         // 视觉盘库逻辑：4 为启动任务，5 为停止任务 (Flag 4/5)
-                        return Algorithms.VisualInventoryAlgo.Run(flag, img1, img2, targetSNs, res, Log);
+                        return Algorithms.VisualInventoryAlgo.Run(task.Flag, img1, img2, targetSNs, res, Log);
 
                     default:
-                        Log($"无法识别的任务指令 Flag={flag}，取消算法路由。");
+                        Log($"无法识别的任务指令 Flag={task.Flag}，取消算法路由。");
                         return false;
                 }
             }
             catch (Exception ex)
             {
-                Log($"算法模块内部逻辑崩溃 (Flag={flag}): {ex.Message}");
+                Log($"算法模块内部逻辑崩溃 (Flag={task.Flag}): {ex.Message}");
                 return false;
             }
         }

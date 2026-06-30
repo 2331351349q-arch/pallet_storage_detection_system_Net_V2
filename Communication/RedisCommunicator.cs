@@ -1,4 +1,4 @@
-﻿using StackExchange.Redis;
+using StackExchange.Redis;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -102,12 +102,20 @@ namespace pallet_storage_detection_system_Net_V2.Communication
                             _taskDetectedTime = DateTime.Now;
                             var sideStr = await _taskDb.StringGetAsync("vision_task_side");
                             var timeStr = await _taskDb.StringGetAsync("vision_task_time");
+                            var beamLenStr = await _taskDb.StringGetAsync("vision_task_beam_length");
+
+                            int beamLength = 2180;
+                            if (beamLenStr.HasValue && int.TryParse(beamLenStr, out int parsedLen))
+                            {
+                                beamLength = parsedLen;
+                            }
 
                             var task = new TaskData
                             {
                                 Flag = currentFlag,
                                 Side = sideStr.HasValue ? sideStr.ToString() : "left",
-                                TaskTime = timeStr.HasValue ? timeStr.ToString() : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                                TaskTime = timeStr.HasValue ? timeStr.ToString() : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                                BeamLength = beamLength
                             };
 
                             // 广播任务到达事件。
@@ -177,6 +185,7 @@ namespace pallet_storage_detection_system_Net_V2.Communication
                 await _taskDb.StringSetAsync("vision_task_flag", "0");
                 await _taskDb.StringSetAsync("vision_task_side", "");
                 await _taskDb.StringSetAsync("vision_task_time", "");
+                await _taskDb.StringSetAsync("vision_task_beam_length", "");
                 Console.WriteLine("Redis 任务触发键已成功被初始化/清空。");
             }
             catch (Exception) { /* 忽略通讯异常 */ }

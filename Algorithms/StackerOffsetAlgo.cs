@@ -137,7 +137,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         /// <param name="img2">深度帧数据 2（可能为 null）。</param>
         /// <param name="res">检测结果模型，偏移量写入对应侧的值。</param>
         /// <returns>算法是否执行成功。</returns>
-        public static bool Run(object img1, object img2, DetectionResult res)
+        public static bool Run(TaskData task, object img1, object img2, DetectionResult res)
         {
             try
             {
@@ -150,7 +150,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 // 处理第一台相机
                 if (frame1 != null)
                 {
-                    var pts1 = GetFilteredPoints(frame1, cfg, out double ref1);
+                    var pts1 = GetFilteredPoints(task.BeamLength, frame1, cfg, out double ref1);
                     if (pts1 != null && pts1.Count >= MinPointCount)
                     {
                         double center1 = ComputeLateralOffset(pts1, 0, -10000, 10000, null, null, null, null, cfg);
@@ -165,7 +165,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 // 处理第二台相机
                 if (frame2 != null)
                 {
-                    var pts2 = GetFilteredPoints(frame2, cfg, out double ref2);
+                    var pts2 = GetFilteredPoints(task.BeamLength, frame2, cfg, out double ref2);
                     if (pts2 != null && pts2.Count >= MinPointCount)
                     {
                         double center2 = ComputeLateralOffset(pts2, 0, -10000, 10000, null, null, null, null, cfg);
@@ -267,13 +267,13 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         /// <summary>
         /// 获取应用了相机各自 ROI 过滤后的基准点云。
         /// </summary>
-        public static List<Vector3>? GetFilteredPoints(DepthFrameData frame, StackerOffsetConfig? cfg, out double reference)
+        public static List<Vector3>? GetFilteredPoints(int beamLength, DepthFrameData frame, StackerOffsetConfig? cfg, out double reference)
         {
             reference = 0;
             var pts = GetBasePointsFromFrame(frame);
             if (pts == null) return null;
 
-            var camParam = cfg?.FindCameraParam(frame.CameraSn);
+            var camParam = cfg?.FindCameraParam(frame.CameraSn, beamLength);
             double zMin = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
             double zMax = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
             reference = camParam?.ReferenceX ?? cfg?.ReferenceGapCenterX ?? 0.0;

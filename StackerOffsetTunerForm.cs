@@ -21,6 +21,7 @@ namespace pallet_storage_detection_system_Net_V2
         // ---- 控件 ----
         private ComboBox _cmbSide = null!;
         private ComboBox _cmbTuneCamera = null!;
+        private ComboBox _cmbBeamLength = null!;
         private NumericUpDown _numYaw = null!;
         private NumericUpDown _numPitch = null!;
         private NumericUpDown _numDepthMin = null!;
@@ -129,6 +130,19 @@ namespace pallet_storage_detection_system_Net_V2
             _cmbSide.SelectedIndex = 0;
             _cmbSide.SelectedIndexChanged += (_, __) => { UpdateCameraSnFromConfig(); LoadCameraParams(); };
             flow.Controls.Add(_cmbSide);
+
+            // 货架长度选择
+            flow.Controls.Add(BoldLabel("货架长度"));
+            _cmbBeamLength = new ComboBox { Width = FlowW, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cmbBeamLength.Items.AddRange(new object[] { "2180", "1380" });
+            _cmbBeamLength.SelectedIndex = 0;
+            _cmbBeamLength.SelectedIndexChanged += (_, __) =>
+            {
+                LoadConfigValues();
+                UpdatePreviewImage();
+                Recalculate();
+            };
+            flow.Controls.Add(_cmbBeamLength);
 
             // 调参相机选择
             flow.Controls.Add(BoldLabel("当前调参相机 SN"));
@@ -403,6 +417,7 @@ namespace pallet_storage_detection_system_Net_V2
         // ============ 逻辑 ============
 
         private string CurrentSide() => _cmbSide.SelectedItem?.ToString() ?? "left";
+        private int CurrentBeamLength() => int.TryParse(_cmbBeamLength.SelectedItem?.ToString(), out int len) ? len : 2180;
 
         private void LoadConfigValues()
         {
@@ -410,7 +425,7 @@ namespace pallet_storage_detection_system_Net_V2
             if (cfg == null) return;
 
             string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
-            var camParam = cfg.FindCameraParam(sn);
+            var camParam = cfg.FindCameraParam(sn, CurrentBeamLength());
 
             if (camParam != null)
             {
@@ -427,7 +442,7 @@ namespace pallet_storage_detection_system_Net_V2
                     _numYMinRoi.Value = Math.Clamp((decimal)camParam.YMin, _numYMinRoi.Minimum, _numYMinRoi.Maximum);
                     _numYMaxRoi.Value = Math.Clamp((decimal)camParam.YMax, _numYMaxRoi.Minimum, _numYMaxRoi.Maximum);
                 }
-                AppendLog($"已从配置加载相机 [{sn}] 的独立 ROI 参数: Z=[{camParam.ZMin},{camParam.ZMax}], X=[{camParam.XMin:F0},{camParam.XMax:F0}], Y=[{camParam.YMin:F0},{camParam.YMax:F0}], RefX={camParam.ReferenceX:F1}", false);
+                AppendLog($"已从配置加载相机 [{sn}] (Length={CurrentBeamLength()}) 的独立 ROI 参数: Z=[{camParam.ZMin},{camParam.ZMax}], X=[{camParam.XMin:F0},{camParam.XMax:F0}], Y=[{camParam.YMin:F0},{camParam.YMax:F0}], RefX={camParam.ReferenceX:F1}", false);
             }
             else
             {
@@ -1251,13 +1266,14 @@ namespace pallet_storage_detection_system_Net_V2
             string sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(sn)) { AppendLog("请先选择当前调参相机SN", true); return; }
 
+            int beamLen = CurrentBeamLength();
             int zMinVal = (int)_numDepthMin.Value;
             int zMaxVal = (int)_numDepthMax.Value;
 
             // 查找或创建该相机的 ROI 参数条目
-            var camParam = cfg.FindCameraParam(sn);
+            var camParam = cfg.FindCameraParam(sn, beamLen);
             bool isNew = camParam == null;
-            if (isNew) camParam = new CameraRoiParam { CameraSn = sn };
+            if (isNew) camParam = new CameraRoiParam { CameraSn = sn, BeamLength = beamLen };
 
             camParam.ZMin = zMinVal;
             camParam.ZMax = zMaxVal;
@@ -1293,7 +1309,7 @@ namespace pallet_storage_detection_system_Net_V2
 
             ConfigManager.SaveConfig();
             UpdateRefLabel();
-            AppendLog($"✅ 已保存相机 [{sn}] 的 ROI 参数: Z=[{zMinVal},{zMaxVal}], X=[{camParam.XMin:F0},{camParam.XMax:F0}], Y=[{camParam.YMin:F0},{camParam.YMax:F0}], RefX={camParam.ReferenceX:F1} mm", false);
+            AppendLog($"✅ 已保存相机 [{sn}] 的 ROI 参数: Length=[{beamLen}], Z=[{zMinVal},{zMaxVal}], X=[{camParam.XMin:F0},{camParam.XMax:F0}], Y=[{camParam.YMin:F0},{camParam.YMax:F0}], RefX={camParam.ReferenceX:F1} mm", false);
         }
 
         /// <summary>

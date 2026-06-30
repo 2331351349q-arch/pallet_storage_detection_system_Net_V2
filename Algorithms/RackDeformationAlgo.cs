@@ -22,7 +22,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         /// 再按角色汇总（frame1→左立柱，frame2→右立柱，两侧 BeamPoints 合并→横梁）。
         /// 任一相机分割失败时对应结果置 0 并降级处理，不阻断整体检测。
         /// </summary>
-        public static bool Run(object img1, object img2, Models.DetectionResult res)
+        public static bool Run(Models.TaskData task, object img1, object img2, Models.DetectionResult res)
         {
             try
             {
@@ -31,8 +31,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 var frame2 = img2 as Devices.DepthFrameData;
 
                 // 分相机独立分割，互不干扰
-                var seg1 = SegmentSingleCamera(frame1, cfg);
-                var seg2 = SegmentSingleCamera(frame2, cfg);
+                var seg1 = SegmentSingleCamera(task.BeamLength, frame1, cfg);
+                var seg2 = SegmentSingleCamera(task.BeamLength, frame2, cfg);
 
                 if (seg1 == null && seg2 == null)
                 {
@@ -55,8 +55,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 double rawPalletHoleR = ComputeBeamDeformation(seg2?.PalletHolePoints);
 
                 // 减去各自的标准基准值
-                var camParamL = cfg?.FindCameraParam(frame1?.CameraSn);
-                var camParamR = cfg?.FindCameraParam(frame2?.CameraSn);
+                var camParamL = cfg?.FindCameraParam(frame1?.CameraSn, task.BeamLength);
+                var camParamR = cfg?.FindCameraParam(frame2?.CameraSn, task.BeamLength);
 
                 double refRackL = camParamL?.RefRackDefLeft ?? 0.0;
                 double refRackR = camParamR?.RefRackDefRight ?? 0.0;
@@ -102,14 +102,14 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         /// 与另一台相机完全解耦，互不影响。失败或点云不足时返回 null。
         /// </summary>
         public static SegmentationResult? SegmentSingleCamera(
-            Devices.DepthFrameData? frame, Config.RackDeformationConfig? cfg)
+            int beamLength, Devices.DepthFrameData? frame, Config.RackDeformationConfig? cfg)
         {
             if (frame == null) return null;
 
             var pts = StackerOffsetAlgo.GetBasePointsFromFrame(frame);
             if (pts == null || pts.Count < 500) return null;
 
-            var camParam = cfg?.FindCameraParam(frame.CameraSn);
+            var camParam = cfg?.FindCameraParam(frame.CameraSn, beamLength);
 
             // 如果配置了双 ROI (立柱或横梁 ROI)，直接按范围提取点云，无需做 X 轴深度剖面自适应分割
             if (camParam != null && (camParam.ColXMax > camParam.ColXMin || camParam.BeamXMax > camParam.BeamXMin || camParam.PalletHoleXMax > camParam.PalletHoleXMin))
@@ -186,12 +186,12 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             return seg.Success ? seg : null;
         }
 
-        public static List<Vector3>? GetFilteredPoints(Devices.DepthFrameData frame, Config.RackDeformationConfig? cfg)
+        public static List<Vector3>? GetFilteredPoints(int beamLength, Devices.DepthFrameData frame, Config.RackDeformationConfig? cfg)
         {
             var pts = StackerOffsetAlgo.GetBasePointsFromFrame(frame);
             if (pts == null) return null;
 
-            var camParam = cfg?.FindCameraParam(frame.CameraSn);
+            var camParam = cfg?.FindCameraParam(frame.CameraSn, beamLength);
             double zMin = camParam?.ZMin ?? cfg?.DepthMin ?? 1000;
             double zMax = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
             double? xMinRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : null;

@@ -13,6 +13,7 @@ namespace pallet_storage_detection_system_Net_V2
     {
         private ComboBox _cmbSide = null!;
         private ComboBox _cmbTuneCamera = null!;
+        private ComboBox _cmbBeamLength = null!;
         private NumericUpDown _numSample = null!;
         private NumericUpDown _numYaw = null!;
         private NumericUpDown _numPitch = null!;
@@ -97,6 +98,17 @@ namespace pallet_storage_detection_system_Net_V2
                 RedrawCloudAndStats();
             };
             leftFlow.Controls.Add(_cmbTuneCamera);
+
+            leftFlow.Controls.Add(new Label { Text = "货架长度", Width = 340, Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold) });
+            _cmbBeamLength = new ComboBox { Width = 340, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cmbBeamLength.Items.AddRange(new object[] { "2180", "1380" });
+            _cmbBeamLength.SelectedIndex = 0;
+            _cmbBeamLength.SelectedIndexChanged += (_, __) =>
+            {
+                LoadRoiForCurrentCamera();
+                RedrawCloudAndStats();
+            };
+            leftFlow.Controls.Add(_cmbBeamLength);
 
             var btnLine = new FlowLayoutPanel { Width = 340, Height = 36 };
             var btnInit = new Button { Text = "初始化目标相机", Width = 160, Height = 30 };
@@ -282,13 +294,15 @@ namespace pallet_storage_detection_system_Net_V2
                 _cmbTuneCamera.SelectedIndex = 0;
         }
 
+        private int CurrentBeamLength() => int.TryParse(_cmbBeamLength.SelectedItem?.ToString(), out int len) ? len : 2180;
+
         private void LoadRoiForCurrentCamera()
         {
             var sn = _cmbTuneCamera.SelectedItem?.ToString() ?? string.Empty;
             var cfg = ConfigManager.Instance?.Algorithms?.SlotOccupancy;
             Roi3D roi;
 
-            var p = cfg?.FindCameraParam(sn);
+            var p = cfg?.FindCameraParam(sn, CurrentBeamLength());
             if (p != null)
             {
                 roi = new Roi3D(p.XMin, p.XMax, p.YMin, p.YMax, p.ZMin, p.ZMax);
@@ -409,6 +423,7 @@ namespace pallet_storage_detection_system_Net_V2
                 return;
             }
 
+            int beamLen = CurrentBeamLength();
             var slot = ConfigManager.Instance?.Algorithms?.SlotOccupancy;
             if (slot == null)
             {
@@ -416,10 +431,10 @@ namespace pallet_storage_detection_system_Net_V2
                 return;
             }
 
-            var p = slot.FindCameraParam(sn);
+            var p = slot.FindCameraParam(sn, beamLen);
             if (p == null)
             {
-                p = new CameraRoiParam { CameraSn = sn };
+                p = new CameraRoiParam { CameraSn = sn, BeamLength = beamLen };
                 slot.CameraRoiParams.Add(p);
             }
 
@@ -431,7 +446,7 @@ namespace pallet_storage_detection_system_Net_V2
             p.ZMax = (int)roi.MaxZ;
 
             ConfigManager.SaveConfig();
-            AppendLog($"ROI已保存到 config.json (SN={sn})", false);
+            AppendLog($"ROI已保存到 config.json (SN={sn}, Length={beamLen})", false);
             RedrawCloudAndStats();
         }
 

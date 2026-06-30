@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -29,6 +29,11 @@ namespace pallet_storage_detection_system_Net_V2.Models
         public string TaskTime { get; set; }
 
         /// <summary>
+        /// 货架横梁长度，区分不同尺寸货架的标定数据 (例如 2180, 1380)。默认 2180。
+        /// </summary>
+        public int BeamLength { get; set; } = 2180;
+
+        /// <summary>
         /// 重写 ToString 方法，用于在日志界面清晰展示任务关键参数。
         /// 内部包含了对时间字符串乱码的清洗逻辑。
         /// </summary>
@@ -40,7 +45,7 @@ namespace pallet_storage_detection_system_Net_V2.Models
             cleanTime = System.Text.RegularExpressions.Regex.Replace(cleanTime, @"[^\x20-\x7E]", "");
             cleanTime = System.Text.RegularExpressions.Regex.Replace(cleanTime, @"\s+", " ").Trim();
             
-            return $"Flag={Flag}, Side={Side}, Time={cleanTime}";
+            return $"Flag={Flag}, Side={Side}, Beam={BeamLength}, Time={cleanTime}";
         }
     }
 }
