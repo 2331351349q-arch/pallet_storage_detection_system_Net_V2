@@ -456,6 +456,18 @@ namespace pallet_storage_detection_system_Net_V2.Config
             LeftSideSns = new List<string> { "DA9434411", "DA9434623" },
             RightSideSns = new List<string> { "DA9434653", "DA9434361" }
         };
+
+        /// <summary>
+        /// 是否启用多重曝光轮询扫码模式（循环调节曝光拍摄多张）
+        /// </summary>
+        [Category("1. 曝光参数"), DisplayName("启用多重曝光轮询")]
+        public bool EnableExposureCycle { get; set; } = false;
+
+        /// <summary>
+        /// 多重曝光轮询的曝光时间序列 (单位: 微秒 us)
+        /// </summary>
+        [Category("1. 曝光参数"), DisplayName("曝光时间序列(微秒)")]
+        public List<float> ExposureTimeSequence { get; set; } = new List<float> { 2000f, 4000f, 8000f, 15000f };
     }
 
     /// <summary>

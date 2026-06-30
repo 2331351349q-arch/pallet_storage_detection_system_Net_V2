@@ -13,6 +13,7 @@ namespace pallet_storage_detection_system_Net_V2.Devices
     public class HikvisionCamera : ICameraDevice
     {
         private MyCamera _device;
+        private int _exposureIndex = 0;
 
         /// <summary>
         /// 目标设备的唯一序列号。
@@ -119,6 +120,7 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                 _device.MV_CC_CloseDevice_NET();
                 _device.MV_CC_DestroyDevice_NET();
                 IsConnected = false;
+                _exposureIndex = 0;
             }
         }
 
@@ -130,6 +132,7 @@ namespace pallet_storage_detection_system_Net_V2.Devices
             if (!IsConnected) return false;
             if (IsCapturing) return true;
 
+            _exposureIndex = 0; // 重置曝光轮询序号
             int nRet = _device.MV_CC_StartGrabbing_NET();
             if (nRet == MyCamera.MV_OK)
             {
@@ -147,6 +150,7 @@ namespace pallet_storage_detection_system_Net_V2.Devices
             if (!IsCapturing) return;
             _device.MV_CC_StopGrabbing_NET();
             IsCapturing = false;
+            _exposureIndex = 0; // 重置曝光轮询序号
         }
 
         /// <summary>
@@ -164,6 +168,24 @@ namespace pallet_storage_detection_system_Net_V2.Devices
 
             return await Task.Run(() =>
             {
+                // 自动曝光轮询逻辑 (方案 3)
+                var viCfg = Config.ConfigManager.Instance?.Algorithms?.VisualInventory;
+                if (viCfg != null && viCfg.EnableExposureCycle && viCfg.ExposureTimeSequence != null && viCfg.ExposureTimeSequence.Count > 0)
+                {
+                    // 1. 关闭自动曝光模式 (0: Off)，允许手动控制参数
+                    _device.MV_CC_SetEnumValue_NET("ExposureAuto", 0);
+
+                    // 2. 取出并写入下一个预设曝光值 (us)
+                    float expTimeUs = viCfg.ExposureTimeSequence[_exposureIndex % viCfg.ExposureTimeSequence.Count];
+                    _exposureIndex = (_exposureIndex + 1) % viCfg.ExposureTimeSequence.Count;
+
+                    int nRetExp = _device.MV_CC_SetFloatValue_NET("ExposureTime", expTimeUs);
+                    if (nRetExp != MyCamera.MV_OK)
+                    {
+                        Console.WriteLine($"警告: 相机 {SerialNumber} 设置曝光时间 {expTimeUs} us 失败: {nRetExp:X}");
+                    }
+                }
+
                 // 发送软件触发指令，要求相机立刻拍一张
                 int nRetTrigger = _device.MV_CC_SetCommandValue_NET("TriggerSoftware");
                 if (nRetTrigger != MyCamera.MV_OK)
