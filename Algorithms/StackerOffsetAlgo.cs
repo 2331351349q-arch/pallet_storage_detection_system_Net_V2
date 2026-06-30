@@ -47,7 +47,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         internal const double BeamHeightHalfRange = 800.0;
 
         /// <summary>最少有效点数阈值</summary>
-        internal const int MinPointCount = 500;
+        internal const int MinPointCount = 200;
 
         /// <summary>单侧偏移量异常值上限 (mm)，超过此值忽略</summary>
         internal const double MaxOffsetMm = 100.0;
@@ -145,43 +145,47 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 var frame1 = img1 as DepthFrameData;
                 var frame2 = img2 as DepthFrameData;
 
-                var basePoints = new List<Vector3>();
-                double reference = 0;
-                
+                var offsets = new List<double>();
+
                 // 处理第一台相机
                 if (frame1 != null)
                 {
                     var pts1 = GetFilteredPoints(frame1, cfg, out double ref1);
-                    if (pts1 != null) basePoints.AddRange(pts1);
-                    reference = ref1; // 默认使用第一台相机的参考值
+                    if (pts1 != null && pts1.Count >= MinPointCount)
+                    {
+                        double center1 = ComputeLateralOffset(pts1, 0, -10000, 10000, null, null, null, null);
+                        if (!double.IsNaN(center1))
+                        {
+                            double offset1 = center1 - ref1;
+                            if (Math.Abs(offset1) <= MaxOffsetMm) offsets.Add(offset1);
+                        }
+                    }
                 }
 
                 // 处理第二台相机
                 if (frame2 != null)
                 {
                     var pts2 = GetFilteredPoints(frame2, cfg, out double ref2);
-                    if (pts2 != null) basePoints.AddRange(pts2);
-                    // 如果 frame1 没拿到 reference，用 frame2 的
-                    if (frame1 == null && ref2 != 0) reference = ref2;
+                    if (pts2 != null && pts2.Count >= MinPointCount)
+                    {
+                        double center2 = ComputeLateralOffset(pts2, 0, -10000, 10000, null, null, null, null);
+                        if (!double.IsNaN(center2))
+                        {
+                            double offset2 = center2 - ref2;
+                            if (Math.Abs(offset2) <= MaxOffsetMm) offsets.Add(offset2);
+                        }
+                    }
                 }
 
-                if (basePoints.Count < MinPointCount)
+                if (offsets.Count == 0)
                 {
                     res.OffsetLatMmValue = 0;
                     return false;
                 }
 
-                // 计算合并后的偏移（这里的 cameraZ 传 0 即可，因为后续处理已在基准坐标系）
-                double currentGapCenter = ComputeLateralOffset(basePoints, 0, -10000, 10000, null, null, null, null);
-                if (double.IsNaN(currentGapCenter))
-                {
-                    res.OffsetLatMmValue = 0;
-                    return false;
-                }
-
-                // 偏差 = 当前开口中心 - 标准位置开口中心
-                // 正值 = 堆垛机偏右（需左移修正），负值 = 偏左（需右移修正）
-                double offset = currentGapCenter - reference;
+                // 偏差 = 当前单立柱中心 - 标准位置单立柱中心
+                // 取有效相机的平均值
+                double offset = offsets.Average();
                 res.OffsetLatMmValue = Math.Round(offset, 2);
                 return true;
             }
@@ -217,27 +221,26 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             try
             {
                 var cfg = ConfigManager.Instance?.Algorithms?.StackerOffset;
-                var basePoints = new List<Vector3>();
+                
+                // 仅处理当前正在调参的相机
+                var targetFrame = (frame1 != null && frame1.CameraSn == tuneCameraSn) ? frame1 : 
+                                  (frame2 != null && frame2.CameraSn == tuneCameraSn) ? frame2 : 
+                                  frame1 ?? frame2;
 
-                if (frame1 != null)
+                if (targetFrame == null)
                 {
-                    var pts = GetFilteredPointsForDebug(frame1, cfg, tuneCameraSn, zMin, zMax, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI);
-                    if (pts != null) basePoints.AddRange(pts);
-                }
-
-                if (frame2 != null)
-                {
-                    var pts = GetFilteredPointsForDebug(frame2, cfg, tuneCameraSn, zMin, zMax, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI);
-                    if (pts != null) basePoints.AddRange(pts);
-                }
-
-                if (basePoints.Count < MinPointCount)
-                {
-                    debug.ErrorMessage = $"有效点数不足 ({basePoints.Count} < {MinPointCount})";
+                    debug.ErrorMessage = "无有效深度帧";
                     return debug;
                 }
 
-                // 合并后不需要再传 zMin/zMax/ROI（传全局最大范围以保留合并结果）
+                var basePoints = GetFilteredPointsForDebug(targetFrame, cfg, tuneCameraSn, zMin, zMax, xMinRoI, xMaxRoI, yMinRoI, yMaxRoI);
+
+                if (basePoints == null || basePoints.Count < MinPointCount)
+                {
+                    debug.ErrorMessage = $"有效点数不足 ({(basePoints?.Count ?? 0)} < {MinPointCount})";
+                    return debug;
+                }
+
                 debug = ComputeLateralOffsetDebug(basePoints, 0, -10000, 10000, null, null, null, null);
                 debug.ReferenceGapCenterX = referenceGapCenterX;
 
@@ -252,7 +255,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             }
             catch (Exception ex)
             {
-                debug.ErrorMessage = ex.Message;
+                debug.ErrorMessage = $"算法异常: {ex.Message}";
                 return debug;
             }
         }
@@ -276,15 +279,15 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             reference = camParam?.ReferenceX ?? cfg?.ReferenceGapCenterX ?? 0.0;
             double? xMinRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : null;
             double? xMaxRoI = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMax : null;
-            double? yMinRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMin : null;
-            double? yMaxRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMax : null;
+            double yMinRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMin : -BeamHeightHalfRange;
+            double yMaxRoI = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMax : BeamHeightHalfRange;
 
             var filtered = new List<Vector3>(pts.Count);
             foreach (var p in pts)
             {
                 if (p.Z >= zMin && p.Z <= zMax &&
                     (!xMinRoI.HasValue || p.X >= xMinRoI.Value) && (!xMaxRoI.HasValue || p.X <= xMaxRoI.Value) &&
-                    (!yMinRoI.HasValue || p.Y >= yMinRoI.Value) && (!yMaxRoI.HasValue || p.Y <= yMaxRoI.Value))
+                    (p.Y >= yMinRoI && p.Y <= yMaxRoI))
                 {
                     filtered.Add(p);
                 }
@@ -309,8 +312,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 applyZMax = camParam?.ZMax ?? cfg?.DepthMax ?? 3000;
                 applyXMin = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMin : null;
                 applyXMax = (camParam != null && camParam.XMax > camParam.XMin) ? camParam.XMax : null;
-                applyYMin = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMin : null;
-                applyYMax = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMax : null;
+                applyYMin = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMin : -BeamHeightHalfRange;
+                applyYMax = (camParam != null && camParam.YMax > camParam.YMin) ? camParam.YMax : BeamHeightHalfRange;
             }
 
             var filtered = new List<Vector3>(pts.Count);
@@ -362,12 +365,12 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             double? yMinRoI = null, double? yMaxRoI = null)
         {
             var d = new DebugData();
-            double yLo = yMinRoI ?? -BeamHeightHalfRange;
-            double yHi = yMaxRoI ?? BeamHeightHalfRange;
+            double yLo = yMinRoI ?? -10000;
+            double yHi = yMaxRoI ?? 10000;
 
             var segRes = CloudSegmentationHelper.Segment(
                 basePoints, zMin, zMax, yLo, yHi, xMinRoI, xMaxRoI,
-                BinSizeMm, MinBeamBinWidth, MinPointCount, false);
+                BinSizeMm, MinBeamBinWidth, MinPointCount, false, null, null, requireGap: false);
 
             d.ErrorMessage = segRes.ErrorMessage;
             d.RoiPointCount = segRes.RoiPoints?.Count ?? 0;
@@ -395,15 +398,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             d.LeftBracketWidthMm = segRes.LeftBracketWidthMm;
             d.RightBracketWidthMm = segRes.RightBracketWidthMm;
             
-            d.GapCenterX = segRes.GapCenterX;
-            
-            if (Math.Abs(d.GapCenterX) > MaxOffsetMm) 
-            { 
-                d.Success = false;
-                d.ErrorMessage = $"偏移异常({d.GapCenterX:F1}mm>{MaxOffsetMm}mm)"; 
-                return d; 
-            }
-            
+            d.GapCenterX = segRes.PrimaryBeamCenterX; // 用单立柱中心复用 GapCenterX，兼容下层UI
             d.LateralOffsetMm = d.GapCenterX;
 
             return d;
@@ -418,17 +413,17 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             double? yMinRoI = null, double? yMaxRoI = null,
             double? xMinRoI = null, double? xMaxRoI = null)
         {
-            double yLo = yMinRoI ?? -BeamHeightHalfRange;
-            double yHi = yMaxRoI ?? BeamHeightHalfRange;
+            double yLo = yMinRoI ?? -10000;
+            double yHi = yMaxRoI ?? 10000;
 
             var segRes = CloudSegmentationHelper.Segment(
                 basePoints, zMin, zMax, yLo, yHi, xMinRoI, xMaxRoI,
-                BinSizeMm, MinBeamBinWidth, MinPointCount, false);
+                BinSizeMm, MinBeamBinWidth, MinPointCount, false, null, null, requireGap: false);
 
-            if (!segRes.Success || Math.Abs(segRes.GapCenterX) > MaxOffsetMm)
+            if (!segRes.Success)
                 return double.NaN;
 
-            return segRes.GapCenterX;
+            return segRes.PrimaryBeamCenterX;
         }
     }
 }

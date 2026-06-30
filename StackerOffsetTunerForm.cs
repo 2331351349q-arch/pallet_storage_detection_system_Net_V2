@@ -142,12 +142,12 @@ namespace pallet_storage_detection_system_Net_V2
             flow.Controls.Add(_cmbTuneCamera);
 
             // 按鈕行
-            var btnLine = new FlowLayoutPanel { Width = FlowW, Height = 36 };
-            var btnInit = new Button { Text = "初始化相机", Width = (FlowW - 6) / 3, Height = 30, BackColor = Color.FromArgb(55, 60, 75), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            var btnLine = new FlowLayoutPanel { Width = FlowW, Height = 50, Margin = new Padding(0, 8, 0, 8) };
+            var btnInit = new Button { Text = "初始化相机", Width = (FlowW - 12) / 3, Height = 45, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(55, 60, 75), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnInit.Click += BtnInit_Click;
-            var btnGrab = new Button { Text = "抓取一帧", Width = (FlowW - 6) / 3, Height = 30, BackColor = Color.FromArgb(60, 100, 55), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            var btnGrab = new Button { Text = "抓取一帧", Width = (FlowW - 12) / 3, Height = 45, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(60, 100, 55), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnGrab.Click += BtnGrab_Click;
-            var btnSave = new Button { Text = "保存到配置", Width = (FlowW - 6) / 3, Height = 30, BackColor = Color.FromArgb(60, 80, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            var btnSave = new Button { Text = "保存到配置", Width = (FlowW - 12) / 3, Height = 45, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(60, 80, 130), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnSave.Click += BtnSave_Click;
             btnLine.Controls.Add(btnInit);
             btnLine.Controls.Add(btnGrab);
@@ -155,10 +155,10 @@ namespace pallet_storage_detection_system_Net_V2
             flow.Controls.Add(btnLine);
 
             // 标准位置采集
-            var refLine = new FlowLayoutPanel { Width = FlowW, Height = 36 };
-            var btnCaptureRef = new Button { Text = "📌 采集标准位置", Width = (FlowW - 6) / 2, Height = 30, BackColor = Color.FromArgb(180, 160, 40), ForeColor = Color.Black, FlatStyle = FlatStyle.Flat };
+            var refLine = new FlowLayoutPanel { Width = FlowW, Height = 50, Margin = new Padding(0, 4, 0, 8) };
+            var btnCaptureRef = new Button { Text = "📌 采集标准位置", Width = (FlowW - 10) / 2, Height = 45, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(180, 160, 40), ForeColor = Color.Black, FlatStyle = FlatStyle.Flat };
             btnCaptureRef.Click += BtnCaptureRef_Click;
-            var _lblRef = new Label { Text = "标准位置: 未设定", Width = (FlowW - 6) / 2, Height = 30, Font = new Font("Consolas", 9F, FontStyle.Bold), ForeColor = Color.Gold, TextAlign = ContentAlignment.MiddleLeft };
+            var _lblRef = new Label { Text = "标准位置: 未设定", Width = (FlowW - 10) / 2, Height = 45, Font = new Font("Consolas", 10F, FontStyle.Bold), ForeColor = Color.Gold, TextAlign = ContentAlignment.MiddleLeft };
             _lblRef.Name = "lblRef";
             refLine.Controls.Add(btnCaptureRef);
             refLine.Controls.Add(_lblRef);
@@ -169,7 +169,7 @@ namespace pallet_storage_detection_system_Net_V2
             flow.Controls.Add(_lblCalibStatus);
 
             // 自动适配ROI按鈕
-            var btnAutoFitRoi = new Button { Text = "🎯 自动适配 ROI", Width = FlowW, Height = 30, BackColor = Color.FromArgb(40, 160, 120), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            var btnAutoFitRoi = new Button { Text = "🎯 自动适配 ROI", Width = FlowW, Height = 45, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold), BackColor = Color.FromArgb(40, 160, 120), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Margin = new Padding(0, 8, 0, 12) };
             btnAutoFitRoi.Click += BtnAutoFitRoi_Click;
             flow.Controls.Add(btnAutoFitRoi);
 
@@ -265,7 +265,7 @@ namespace pallet_storage_detection_system_Net_V2
 
             // 结果信息
             flow.Controls.Add(SectionLabel("✨ 实时检测结果"));
-            _lblResult = new Label { Width = FlowW, Height = 220, AutoSize = false, Font = new Font("Consolas", 11F, FontStyle.Bold), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(20, 28, 20), ForeColor = Color.Lime };
+            _lblResult = new Label { Width = FlowW, Height = 350, AutoSize = false, Font = new Font("Consolas", 14F, FontStyle.Bold), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(20, 28, 20), ForeColor = Color.Lime, Margin = new Padding(0, 4, 0, 16) };
             flow.Controls.Add(_lblResult);
 
             // 日志
@@ -323,7 +323,7 @@ namespace pallet_storage_detection_system_Net_V2
             botSplit.SplitterMoved += (_, __) => RedrawProfile();
         }
 
-        private const int FlowW = 420; // 左侧控件宽度常量
+        private const int FlowW = 460; // 左侧控件宽度常量
 
         private static Label BoldLabel(string text) => new Label
         {
@@ -334,15 +334,15 @@ namespace pallet_storage_detection_system_Net_V2
 
         private static Label SectionLabel(string text) => new Label
         {
-            Text = text, Width = FlowW, Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold),
-            AutoSize = false, Height = 26, ForeColor = Color.FromArgb(130, 200, 255),
-            Margin = new Padding(0, 8, 0, 2), BorderStyle = BorderStyle.None,
+            Text = text, Width = FlowW, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
+            AutoSize = false, Height = 32, ForeColor = Color.FromArgb(130, 200, 255),
+            Margin = new Padding(0, 16, 0, 6), BorderStyle = BorderStyle.None,
             TextAlign = ContentAlignment.BottomLeft
         };
 
         private void ApplyProportions(SplitContainer main, SplitContainer right, SplitContainer bot)
         {
-            if (main.Width > 100) main.SplitterDistance = Math.Max(440, Math.Min(500, main.Width * 30 / 100));
+            if (main.Width > 100) main.SplitterDistance = Math.Max(490, Math.Min(550, main.Width * 32 / 100));
             if (right.Height > 100) right.SplitterDistance = Math.Max(280, right.Height * 58 / 100);
             if (bot.Width > 100) bot.SplitterDistance = Math.Max(400, bot.Width * 72 / 100);
         }
@@ -613,8 +613,8 @@ namespace pallet_storage_detection_system_Net_V2
                 $"┌─ 检测结果 ─────────────────\n" +
                 $"│ 偏移量:    {d.LateralOffsetMm:F2} mm  {dirStr}\n" +
                 $"│ 状态:      {statusStr}\n" +
-                $"│ 当前开口中心: {d.GapCenterX:F1} mm\n" +
-                (hasRef ? $"│ 标准开口中心: {refVal:F1} mm\n" : "│ 标准开口中心: (未设定)\n") +
+                $"│ 当前立柱中心: {d.GapCenterX:F1} mm\n" +
+                (hasRef ? $"│ 标准立柱中心: {refVal:F1} mm\n" : "│ 标准立柱中心: (未设定)\n") +
                 $"│ 主开口宽度: {d.GapWidthMm:F1} mm\n" +
                 $"│ 检测到梁:   {beamCount} 根  | 货位: {gapCount} 个\n" +
                 $"│ ROI内总点:  {d.RoiPointCount:N0}\n" +
@@ -1221,14 +1221,14 @@ namespace pallet_storage_detection_system_Net_V2
         {
             if (_currentDebug == null || !_currentDebug.Success || _currentDebug.BeamRegions.Count == 0)
             {
-                AppendLog("自动适配失败: 当前没有成功检测到两根完整的梁，请确保深度图中有清晰的货位开口。", true);
+            AppendLog("自动适配失败: 当前没有检测到立柱", true);
                 return;
             }
 
             var d = _currentDebug;
             if (d.AllGaps.Count == 0)
             {
-                AppendLog("自动适配失败: 无法找到合适的开口。", true);
+                AppendLog("自动适配失败: 无法找到立柱。", true);
                 return;
             }
 
@@ -1239,7 +1239,7 @@ namespace pallet_storage_detection_system_Net_V2
             _numXMinRoi.Value = (decimal)(Math.Round((gapCenter - targetHalfWidth) / 50.0) * 50.0);
             _numXMaxRoi.Value = (decimal)(Math.Round((gapCenter + targetHalfWidth) / 50.0) * 50.0);
 
-            AppendLog($"自动适配 ROI 成功: 围绕开口中心 {gapCenter:F0}，设定 X 范围 [{_numXMinRoi.Value:F0}, {_numXMaxRoi.Value:F0}]", false);
+            AppendLog($"自动适配 ROI 成功: 围绕立柱中心 {gapCenter:F0}，设定 X 范围 [{_numXMinRoi.Value:F0}, {_numXMaxRoi.Value:F0}]", false);
             Recalculate();
         }
 

@@ -32,6 +32,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
         public double GapCenterX { get; set; } = double.NaN;
         public double GapWidthMm { get; set; }
 
+        public double PrimaryBeamCenterX { get; set; } = double.NaN;
+
         public double RefinedLeftBeamInnerX { get; set; } = double.NaN;
         public double RefinedRightBeamInnerX { get; set; } = double.NaN;
         public double RefinedGapCenterX { get; set; } = double.NaN;
@@ -69,7 +71,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             int minBeamBinWidth = 3,
             int minPointCount = 500,
             bool extractComponentClouds = false,
-            double? beamYMin = null, double? beamYMax = null)
+            double? beamYMin = null, double? beamYMax = null,
+            bool requireGap = true)
         {
             var res = new SegmentationResult();
 
@@ -115,9 +118,22 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             
             double bgZ = vz[(int)(vz.Count * 0.95)];
             double frontZ = vz[(int)(vz.Count * 0.05)];
-            if (bgZ - frontZ < 15.0) { res.ErrorMessage = $"深度落差太小({bgZ - frontZ:F1}mm<15mm)，未找到明显开口"; return res; }
+            
+            if (requireGap)
+            {
+                if (bgZ - frontZ < 15.0) { res.ErrorMessage = $"深度落差太小({bgZ - frontZ:F1}mm<15mm)，未找到明显开口"; return res; }
+            }
             
             double bThresh = frontZ + (bgZ - frontZ) * 0.6;
+            
+            // 单立柱模式下，如果用户框选的 ROI 没有包含真实的深处背景，
+            // 导致 bgZ 和 frontZ 都在立柱上，此时强制设定一个最小的立柱厚度容差，避免噪点导致立柱被切分。
+            // 由于用户确认没有托臂和螺丝，表面非常干净，这里缩紧到 40mm
+            if (!requireGap && bThresh - frontZ < 40.0)
+            {
+                bThresh = frontZ + 40.0;
+            }
+
             res.BackgroundZ = bgZ; res.BeamZThreshold = bThresh;
 
             // 4. 梁边缘检测
@@ -138,7 +154,27 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             if (bs != null && (bc - 1 - bs.Value + 1) >= minBeamBinWidth)
             { int s = bs.Value; double lx = xMinV + s * binSizeMm; br.Add((lx, xEnd, (lx + xEnd) / 2, xEnd - lx)); }
             res.BeamRegions = br;
-            if (br.Count < 2) { res.ErrorMessage = $"梁不足({br.Count}<2)"; return res; }
+
+            if (br.Count > 0)
+            {
+                res.PrimaryBeamCenterX = br[0].c;
+            }
+
+            if (requireGap)
+            {
+                if (br.Count < 2) { res.ErrorMessage = $"梁不足({br.Count}<2)"; return res; }
+            }
+            else
+            {
+                if (br.Count < 1) { res.ErrorMessage = $"未检测到梁({br.Count}<1)"; return res; }
+                
+                // 单立柱模式，不需要找开口
+                if (br.Count < 2)
+                {
+                    res.Success = true;
+                    return res;
+                }
+            }
 
             // 5. 识别开口
             double bestC = double.NaN, bestW = 0;
