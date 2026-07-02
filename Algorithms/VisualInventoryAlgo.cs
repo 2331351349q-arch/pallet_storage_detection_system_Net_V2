@@ -126,6 +126,23 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     }
                 }
 
+                // 2.5 核心预处理阶段：放大与光照修正 (对抗大小码及反光)
+                try
+                {
+                    // 放大 2.0 倍，使用 bilinear 插值算法消除大码锯齿，同时保证 40*40 小码足够大
+                    HOperatorSet.ZoomImageFactor(ho_Image, out HObject ho_ImageZoomed, 2.0, 2.0, "bilinear");
+                    // 使用 illuminate 对抗大面积反光，替代容易让大码过曝的 scale_image_max
+                    HOperatorSet.Illuminate(ho_ImageZoomed, out HObject ho_ImageEnhanced, 101, 101, 0.7);
+                    
+                    ho_Image.Dispose();
+                    ho_ImageZoomed.Dispose();
+                    ho_Image = ho_ImageEnhanced; // 替换为处理后的最终图像
+                }
+                catch (Exception ex)
+                {
+                    onLog?.Invoke($"⚠️ [{sn}] 图像预处理(放大/光照补偿)异常，继续使用原图进行识别: {ex.Message}");
+                }
+
                 // 3. 创建 DataCode/BarCode 句柄
                 HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "maximum_recognition", out hv_DataCodeHandle_ECC200);
                 HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "maximum_recognition", out hv_DataCodeHandle_QR);
@@ -141,33 +158,25 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 // 3. 寻找 DataMatrix
                 HObject ho_SymbolXLDs_ECC200 = null;
                 HTuple hv_ResultHandles_ECC200, hv_DecodedDataStrings_ECC200;
-                HOperatorSet.FindDataCode2d(ho_Image, out ho_SymbolXLDs_ECC200, hv_DataCodeHandle_ECC200, "stop_after_result_num", 1, out hv_ResultHandles_ECC200, out hv_DecodedDataStrings_ECC200);
+                HOperatorSet.FindDataCode2d(ho_Image, out ho_SymbolXLDs_ECC200, hv_DataCodeHandle_ECC200, "stop_after_result_num", 8, out hv_ResultHandles_ECC200, out hv_DecodedDataStrings_ECC200);
                 if (ho_SymbolXLDs_ECC200 != null) ho_SymbolXLDs_ECC200.Dispose();
                 if (hv_DecodedDataStrings_ECC200 != null && hv_DecodedDataStrings_ECC200.Length > 0)
                 {
                     var strings = hv_DecodedDataStrings_ECC200.SArr;
                     foreach (var s in strings)
-                    {
-                        var t = s?.Trim() ?? "";
-                        if (!string.IsNullOrWhiteSpace(t) && t.Length > 4) 
-                            results.Add(t);
-                    }
+                        if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
                 }
 
                 // 4. 寻找 QR Code
                 HObject ho_SymbolXLDs_QR = null;
                 HTuple hv_ResultHandles_QR, hv_DecodedDataStrings_QR;
-                HOperatorSet.FindDataCode2d(ho_Image, out ho_SymbolXLDs_QR, hv_DataCodeHandle_QR, "stop_after_result_num", 1, out hv_ResultHandles_QR, out hv_DecodedDataStrings_QR);
+                HOperatorSet.FindDataCode2d(ho_Image, out ho_SymbolXLDs_QR, hv_DataCodeHandle_QR, "stop_after_result_num", 8, out hv_ResultHandles_QR, out hv_DecodedDataStrings_QR);
                 if (ho_SymbolXLDs_QR != null) ho_SymbolXLDs_QR.Dispose();
                 if (hv_DecodedDataStrings_QR != null && hv_DecodedDataStrings_QR.Length > 0)
                 {
                     var strings = hv_DecodedDataStrings_QR.SArr;
                     foreach (var s in strings)
-                    {
-                        var t = s?.Trim() ?? "";
-                        if (!string.IsNullOrWhiteSpace(t) && t.Length > 4) 
-                            results.Add(t);
-                    }
+                        if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
                 }
 
                 // 5. 寻找 1D 条形码 ("auto" 支持识别大多数常见条码如 Code 128, Code 39, EAN 等)
@@ -179,12 +188,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 {
                     var strings = hv_DecodedDataStrings_BarCode.SArr;
                     foreach (var s in strings)
-                    {
-                        var t = s?.Trim() ?? "";
-                        // 过滤掉长度小于等于4的短字符串，以防 Halcon 将背景噪声误识别为无效短码（例如 3798, 3538）
-                        if (!string.IsNullOrWhiteSpace(t) && t.Length > 4) 
-                            results.Add(t);
-                    }
+                        if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
                 }
 
 
