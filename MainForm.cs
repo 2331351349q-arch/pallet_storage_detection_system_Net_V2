@@ -17,6 +17,9 @@ namespace pallet_storage_detection_system_Net_V2
         private ToolHubForm? _toolHubForm;
         private readonly Dictionary<int, Label> _cameraLabels = new();
 
+        private static readonly object _logLock = new object();
+        private static readonly string _logDirectory = @"E:\Log";
+
         /// <summary>
         /// 构造函数：初始化主界面，设置列表框样式并最大化窗口。
         /// （1）SetupListBox配置日志列表框的 UI 表现与上下文菜单。
@@ -183,6 +186,24 @@ namespace pallet_storage_detection_system_Net_V2
 
             listBox_Log.Items.Add(message);
             listBox_Log.TopIndex = listBox_Log.Items.Count - 1;
+
+            System.Threading.Tasks.Task.Run(() => 
+            {
+                try
+                {
+                    lock (_logLock)
+                    {
+                        if (!System.IO.Directory.Exists(_logDirectory))
+                        {
+                            System.IO.Directory.CreateDirectory(_logDirectory);
+                        }
+                        string logFile = System.IO.Path.Combine(_logDirectory, $"AppLog_{DateTime.Now:yyyyMMdd}.txt");
+                        string timestampMessage = message.StartsWith("[") ? message : $"[{DateTime.Now:HH:mm:ss.fff}] {message}";
+                        System.IO.File.AppendAllText(logFile, timestampMessage + Environment.NewLine);
+                    }
+                }
+                catch { }
+            });
         }
 
         /// <summary>
