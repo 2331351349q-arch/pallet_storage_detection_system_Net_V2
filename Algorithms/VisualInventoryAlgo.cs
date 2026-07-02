@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Linq;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
 using HalconDotNet;
 using pallet_storage_detection_system_Net_V2.Models;
 using pallet_storage_detection_system_Net_V2.Config;
@@ -30,32 +32,35 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             }
 
             int totalDecodeCount = 0;
-            var allBarcodes = new HashSet<string>();
+            var allBarcodes = new ConcurrentDictionary<string, byte>();
 
-            for (int i = 0; i < bitmaps.Count; i++)
+            var decodeTasks = bitmaps.Select((bmp, i) => Task.Run(() =>
             {
                 var decodeStart = DateTime.Now;
                 string sn = targetSNs != null && i < targetSNs.Count ? targetSNs[i] : "";
-                var barcodes = DecodeBarcodesHalcon(bitmaps[i], sn, onLog, i + 1);
+                var barcodes = DecodeBarcodesHalcon(bmp, sn, onLog, i + 1);
                 var decodeMs = (DateTime.Now - decodeStart).TotalMilliseconds;
 
                 foreach (var b in barcodes)
                 {
-                    if (allBarcodes.Add(b))
+                    if (allBarcodes.TryAdd(b, 0))
                     {
                         onLog?.Invoke($"  - 相机#{i + 1} 扫到: {b} ({decodeMs:F0}ms)");
                     }
                 }
-                totalDecodeCount += barcodes.Count;
+                
+                System.Threading.Interlocked.Add(ref totalDecodeCount, barcodes.Count);
 
                 if (barcodes.Count == 0)
                 {
                     onLog?.Invoke($"  - 相机#{i + 1} 未识别 ({decodeMs:F0}ms)");
                 }
-            }
+            })).ToArray();
+
+            Task.WaitAll(decodeTasks);
 
             // 去重
-            var sortedBarcodes = allBarcodes.OrderBy(b => b).ToArray();
+            var sortedBarcodes = allBarcodes.Keys.OrderBy(b => b).ToArray();
             res.ResultBarcodes = System.Text.Json.JsonSerializer.Serialize(sortedBarcodes);
 
             var elapsed = (DateTime.Now - startTime).TotalMilliseconds;
@@ -134,9 +139,13 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     // 使用 illuminate 对抗大面积反光，替代容易让大码过曝的 scale_image_max
                     HOperatorSet.Illuminate(ho_ImageZoomed, out HObject ho_ImageEnhanced, 101, 101, 0.7);
                     
+                    // 追加锐化操作，补偿 bilinear 插值带来的边缘模糊问题
+                    HOperatorSet.Emphasize(ho_ImageEnhanced, out HObject ho_ImageEmphasized, 7, 7, 1);
+                    
                     ho_Image.Dispose();
                     ho_ImageZoomed.Dispose();
-                    ho_Image = ho_ImageEnhanced; // 替换为处理后的最终图像
+                    ho_ImageEnhanced.Dispose();
+                    ho_Image = ho_ImageEmphasized; // 替换为处理后的最终图像
                 }
                 catch (Exception ex)
                 {
@@ -151,9 +160,11 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 // 强制要求适应任何极性（黑底白码、白底黑码）、镜像反转等极端情况
                 HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_ECC200, "polarity", "any");
                 HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_ECC200, "mirrored", "any");
+                HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_ECC200, "timeout", 2000); // 放宽至 2000ms 超时限制
                 
                 HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "polarity", "any");
                 HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "mirrored", "any");
+                HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "timeout", 2000); // 放宽至 2000ms 超时限制
 
                 // 3. 寻找 DataMatrix
                 HObject ho_SymbolXLDs_ECC200 = null;
