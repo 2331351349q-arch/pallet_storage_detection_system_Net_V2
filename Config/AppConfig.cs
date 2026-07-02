@@ -401,6 +401,12 @@ namespace pallet_storage_detection_system_Net_V2.Config
         public ThresholdSet PalletHoleThreshold { get; set; } = new ThresholdSet();
 
         /// <summary>
+        /// 是否启用自适应滤波算法。
+        /// </summary>
+        [Browsable(false)]
+        public bool EnableAdaptiveFilter { get; set; } = false;
+
+        /// <summary>
         /// 该算法对应的相机 SN 映射关系。
         /// </summary>
         [Browsable(false)]

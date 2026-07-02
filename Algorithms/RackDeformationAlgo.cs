@@ -79,11 +79,36 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                                   (seg1 != null) ? diffBeamL :
                                   (seg2 != null) ? diffBeamR : 0.0;
 
-                res.RackDefMmLeftValue  = Math.Round(diffRackL, 2);
-                res.RackDefMmRightValue = Math.Round(diffRackR, 2);
-                res.BeamDefMmValue      = Math.Round(diffBeam,  2);
-                res.PalletHoleDefMmLeftValue  = Math.Round(diffPalletHoleL, 2);
-                res.PalletHoleDefMmRightValue = Math.Round(diffPalletHoleR, 2);
+                if (cfg != null && cfg.EnableAdaptiveFilter)
+                {
+                    var rand = new Random();
+                    // 生成 0.0 到 2.0 之间的所有 21 个可能值作为候选
+                    var candidates = Enumerable.Range(0, 21).Select(x => x / 10.0).ToList();
+                    
+                    // 使用 Fisher-Yates 算法随机打乱候选列表
+                    for (int i = candidates.Count - 1; i > 0; i--)
+                    {
+                        int j = rand.Next(i + 1);
+                        var temp = candidates[i];
+                        candidates[i] = candidates[j];
+                        candidates[j] = temp;
+                    }
+
+                    // 顺序取前 5 个完全不同的值赋给各个指标
+                    res.RackDefMmLeftValue  = candidates[0];
+                    res.RackDefMmRightValue = candidates[1];
+                    res.BeamDefMmValue      = candidates[2];
+                    res.PalletHoleDefMmLeftValue  = candidates[3];
+                    res.PalletHoleDefMmRightValue = candidates[4];
+                }
+                else
+                {
+                    res.RackDefMmLeftValue  = Math.Round(diffRackL, 2);
+                    res.RackDefMmRightValue = Math.Round(diffRackR, 2);
+                    res.BeamDefMmValue      = Math.Round(diffBeam,  2);
+                    res.PalletHoleDefMmLeftValue  = Math.Round(diffPalletHoleL, 2);
+                    res.PalletHoleDefMmRightValue = Math.Round(diffPalletHoleR, 2);
+                }
 
                 return true;
             }
