@@ -82,8 +82,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 if (cfg != null && cfg.EnableAdaptiveFilter)
                 {
                     var rand = new Random();
-                    // 生成 0.0 到 2.0 之间的所有 21 个可能值作为候选
-                    var candidates = Enumerable.Range(0, 21).Select(x => x / 10.0).ToList();
+                    // 生成 0.0 到 3.0 之间的所有 31 个可能值作为候选
+                    var candidates = Enumerable.Range(0, 31).Select(x => x / 10.0).ToList();
                     
                     // 使用 Fisher-Yates 算法随机打乱候选列表
                     for (int i = candidates.Count - 1; i > 0; i--)
