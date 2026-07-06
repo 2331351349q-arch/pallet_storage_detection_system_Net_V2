@@ -403,7 +403,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                     return $"📌 结果明细(Flag1): slot_occupied={(res.SlotOccupied ? "true" : "false")}";
 
                 case 2:
-                    return $"📌 结果明细(Flag2): offset_{res.Side}={res.OffsetLatMmValue:F1}mm {res.OffsetLatMmWarningAlarm}";
+                    return $"📌 结果明细(Flag2): slot_occupied={(res.SlotOccupied ? "true" : "false")}, offset_{res.Side}={res.OffsetLatMmValue:F1}mm {res.OffsetLatMmWarningAlarm}";
 
                 case 3:
                     return $"📌 结果明细(Flag3): rackL={res.RackDefMmLeftValue:F1}mm {res.RackDefMmLeftWarningAlarm}, rackR={res.RackDefMmRightValue:F1}mm {res.RackDefMmRightWarningAlarm}, beam={res.BeamDefMmValue:F1}mm {res.BeamDefMmWarningAlarm}, palletL={res.PalletHoleDefMmLeftValue:F1}mm {res.PalletHoleDefMmLeftWarningAlarm}, palletR={res.PalletHoleDefMmRightValue:F1}mm {res.PalletHoleDefMmRightWarningAlarm}";
@@ -448,7 +448,9 @@ namespace pallet_storage_detection_system_Net_V2.Control
 
                     case 2:
                         // 堆垛机偏移检测 (Flag 2) — 双相机融合输入
-                        return Algorithms.StackerOffsetAlgo.Run(task, img1, img2, res);
+                        bool occupancyOk = Algorithms.SlotOccupancyAlgo.Run(task, img1, img2, res);
+                        bool offsetOk = Algorithms.StackerOffsetAlgo.Run(task, img1, img2, res);
+                        return occupancyOk && offsetOk;
 
                     case 3:
                         // 货架立柱托臂变形检测 (Flag 3) — 双相机融合输入

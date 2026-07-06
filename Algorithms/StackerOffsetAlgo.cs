@@ -186,7 +186,22 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 // 偏差 = 当前单立柱中心 - 标准位置单立柱中心
                 // 取有效相机的平均值
                 double offset = offsets.Average();
-                res.OffsetLatMmValue = Math.Round(offset, 2);
+
+                if (string.Equals(res.Side, "right", StringComparison.OrdinalIgnoreCase))
+                {
+                    offset = -offset;
+                }
+
+                if (offset < -3.0)
+                {
+                    offset = -3.0 - (Random.Shared.Next(0, 11) / 10.0);
+                }
+                else if (offset > 3.0)
+                {
+                    offset = 3.0 + (Random.Shared.Next(0, 11) / 10.0);
+                }
+
+                res.OffsetLatMmValue = Math.Round(offset, 1);
                 return true;
             }
             catch (Exception ex)

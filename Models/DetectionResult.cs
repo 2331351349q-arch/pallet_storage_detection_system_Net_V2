@@ -168,6 +168,7 @@ namespace pallet_storage_detection_system_Net_V2.Models
                     entries.Add(new HashEntry("slot_occupied", SlotOccupied ? "true" : "false"));
                     break;
                 case 2:
+                    entries.Add(new HashEntry("slot_occupied", SlotOccupied ? "true" : "false"));
                     if (string.Equals(Side, "left", StringComparison.OrdinalIgnoreCase))
                     {
                         entries.Add(new HashEntry("offset_lat_mm_left_value", OffsetLatMmValue.ToString("F1")));
