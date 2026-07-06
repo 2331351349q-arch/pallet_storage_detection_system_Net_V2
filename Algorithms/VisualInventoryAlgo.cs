@@ -23,7 +23,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             var bitmaps = new List<System.Drawing.Bitmap>();
 
             if (img1 is System.Drawing.Bitmap bmp1) bitmaps.Add(bmp1);
-            if (img2 is System.Drawing.Bitmap bmp2) bitmaps.Add(bmp2);
+            if (img2 is System.Drawing.Bitmap bmp2 && !object.ReferenceEquals(img1, img2)) bitmaps.Add(bmp2);
 
             if (bitmaps.Count == 0)
             {
@@ -69,18 +69,6 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             {
                 onLog?.Invoke($"⏱️  [盘库启动(Flag4)] 扫码完成: 共识别 {sortedBarcodes.Length} 个唯一条码，耗时: {elapsed:F2}ms");
             }
-            else if (flag == 5)
-            {
-                if (onLog != null)
-                {
-                    onLog($"📋 [读码结果] 共扫描到 {sortedBarcodes.Length} 个唯一条码。");
-                    if (sortedBarcodes.Length > 0)
-                    {
-                        onLog($"🧾 [扫码明细] {string.Join(", ", sortedBarcodes)}");
-                    }
-                    onLog($"⏱️  [盘库结束(Flag5)] 扫码耗时: {elapsed:F2}ms");
-                }
-            }
 
             return true;
         }
@@ -95,17 +83,19 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
 
             try
             {
-                // 1. 将 Bitmap 转换为 HALCON HObject (格式要求对应)
-                HOperatorSet.GenEmptyObj(out ho_Image);
+                HObject ho_ImageTemp = null;
                 var bmpData = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
                 try
                 {
-                    // 使用 GenImageInterleaved 直接将 BGR 字节流转化为 HALCON 对象
-                    HOperatorSet.GenImageInterleaved(out ho_Image, bmpData.Scan0, "bgr", bitmap.Width, bitmap.Height, -1, "byte", bitmap.Width, bitmap.Height, 0, 0, -1, 0);
+                    // 使用 GenImageInterleaved 直接将 BGR 字节流转化为临时 HALCON 对象
+                    HOperatorSet.GenImageInterleaved(out ho_ImageTemp, bmpData.Scan0, "bgr", bitmap.Width, bitmap.Height, -1, "byte", bitmap.Width, bitmap.Height, 0, 0, -1, 0);
+                    // 复制图像，防止 UnlockBits 后内存失效导致 halcon.dll 抛出 c0000005 闪退
+                    HOperatorSet.CopyImage(ho_ImageTemp, out ho_Image);
                 }
                 finally
                 {
                     bitmap.UnlockBits(bmpData);
+                    ho_ImageTemp?.Dispose();
                 }
 
                 // 2. ROI 区域裁剪加速 (极其关键：减少 90% 运算量)

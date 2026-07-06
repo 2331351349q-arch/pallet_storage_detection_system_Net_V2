@@ -221,10 +221,10 @@ namespace pallet_storage_detection_system_Net_V2
 
             if (imageObj == null)
             {
-                if (cameraIndex == 1) { pictureBox_Camera1.Image?.Dispose(); pictureBox_Camera1.Image = null; }
-                else if (cameraIndex == 2) { pictureBox_Camera2.Image?.Dispose(); pictureBox_Camera2.Image = null; }
-                else if (cameraIndex == 3) { pictureBox_Camera3.Image?.Dispose(); pictureBox_Camera3.Image = null; }
-                else if (cameraIndex == 4) { pictureBox_Camera4.Image?.Dispose(); pictureBox_Camera4.Image = null; }
+                if (cameraIndex == 1) { var old = pictureBox_Camera1.Image; pictureBox_Camera1.Image = null; old?.Dispose(); }
+                else if (cameraIndex == 2) { var old = pictureBox_Camera2.Image; pictureBox_Camera2.Image = null; old?.Dispose(); }
+                else if (cameraIndex == 3) { var old = pictureBox_Camera3.Image; pictureBox_Camera3.Image = null; old?.Dispose(); }
+                else if (cameraIndex == 4) { var old = pictureBox_Camera4.Image; pictureBox_Camera4.Image = null; old?.Dispose(); }
                 return;
             }
 
@@ -242,23 +242,27 @@ namespace pallet_storage_detection_system_Net_V2
             {
                 if (cameraIndex == 1)
                 {
-                    pictureBox_Camera1.Image?.Dispose();
+                    var old = pictureBox_Camera1.Image;
                     pictureBox_Camera1.Image = (System.Drawing.Image)displayImage.Clone();
+                    old?.Dispose();
                 }
                 else if (cameraIndex == 2)
                 {
-                    pictureBox_Camera2.Image?.Dispose();
+                    var old = pictureBox_Camera2.Image;
                     pictureBox_Camera2.Image = (System.Drawing.Image)displayImage.Clone();
+                    old?.Dispose();
                 }
                 else if (cameraIndex == 3)
                 {
-                    pictureBox_Camera3.Image?.Dispose();
+                    var old = pictureBox_Camera3.Image;
                     pictureBox_Camera3.Image = (System.Drawing.Image)displayImage.Clone();
+                    old?.Dispose();
                 }
                 else if (cameraIndex == 4)
                 {
-                    pictureBox_Camera4.Image?.Dispose();
+                    var old = pictureBox_Camera4.Image;
                     pictureBox_Camera4.Image = (System.Drawing.Image)displayImage.Clone();
+                    old?.Dispose();
                 }
             }
         }

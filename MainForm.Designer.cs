@@ -237,7 +237,7 @@ namespace pallet_storage_detection_system_Net_V2
             Controls.Add(tableLayoutPanel_Main);
             Controls.Add(panel_Top);
             Name = "MainForm";
-            Text = "料箱库视觉识别系统";
+            Text = "托盘库视觉识别系统";
             Load += MainForm_Load;
             panel_Top.ResumeLayout(false);
             tableLayoutPanel_Main.ResumeLayout(false);
