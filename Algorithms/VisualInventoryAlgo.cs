@@ -34,8 +34,9 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             int totalDecodeCount = 0;
             var allBarcodes = new ConcurrentDictionary<string, byte>();
 
-            var decodeTasks = bitmaps.Select((bmp, i) => Task.Run(() =>
+            for (int i = 0; i < bitmaps.Count; i++)
             {
+                var bmp = bitmaps[i];
                 var decodeStart = DateTime.Now;
                 string sn = targetSNs != null && i < targetSNs.Count ? targetSNs[i] : "";
                 var barcodes = DecodeBarcodesHalcon(bmp, sn, onLog, i + 1);
@@ -49,15 +50,13 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     }
                 }
                 
-                System.Threading.Interlocked.Add(ref totalDecodeCount, barcodes.Count);
+                totalDecodeCount += barcodes.Count;
 
                 if (barcodes.Count == 0)
                 {
                     onLog?.Invoke($"  - 相机#{i + 1} 未识别 ({decodeMs:F0}ms)");
                 }
-            })).ToArray();
-
-            Task.WaitAll(decodeTasks);
+            }
 
             // 去重
             var sortedBarcodes = allBarcodes.Keys.OrderBy(b => b).ToArray();
@@ -75,28 +74,17 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
 
         private static List<string> DecodeBarcodesHalcon(System.Drawing.Bitmap bitmap, string sn, Action<string>? onLog, int cameraIndex)
         {
-            var results = new HashSet<string>();
+            var results = new List<string>();
             HObject ho_Image = null;
-            HTuple hv_DataCodeHandle_ECC200 = null;
             HTuple hv_DataCodeHandle_QR = null;
             HTuple hv_BarCodeHandle = null;
 
+            System.Drawing.Imaging.BitmapData bmpData = null;
             try
             {
-                HObject ho_ImageTemp = null;
-                var bmpData = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-                try
-                {
-                    // 使用 GenImageInterleaved 直接将 BGR 字节流转化为临时 HALCON 对象
-                    HOperatorSet.GenImageInterleaved(out ho_ImageTemp, bmpData.Scan0, "bgr", bitmap.Width, bitmap.Height, -1, "byte", bitmap.Width, bitmap.Height, 0, 0, -1, 0);
-                    // 复制图像，防止 UnlockBits 后内存失效导致 halcon.dll 抛出 c0000005 闪退
-                    HOperatorSet.CopyImage(ho_ImageTemp, out ho_Image);
-                }
-                finally
-                {
-                    bitmap.UnlockBits(bmpData);
-                    ho_ImageTemp?.Dispose();
-                }
+                bmpData = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+                // 使用 GenImageInterleaved 直接将 BGR 字节流转化为 HALCON 对象
+                HOperatorSet.GenImageInterleaved(out ho_Image, bmpData.Scan0, "bgr", bitmap.Width, bitmap.Height, -1, "byte", bitmap.Width, bitmap.Height, 0, 0, -1, 0);
 
                 // 2. ROI 区域裁剪加速 (极其关键：减少 90% 运算量)
                 if (!string.IsNullOrEmpty(sn) && ConfigManager.Instance?.Camera2DCalibrations != null)
@@ -142,31 +130,14 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     onLog?.Invoke($"⚠️ [{sn}] 图像预处理(放大/光照补偿)异常，继续使用原图进行识别: {ex.Message}");
                 }
 
-                // 3. 创建 DataCode/BarCode 句柄
-                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "maximum_recognition", out hv_DataCodeHandle_ECC200);
+                // 3. 创建 DataCode/BarCode 句柄 (仅注册现场实际使用的码制以提升效率)
                 HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "maximum_recognition", out hv_DataCodeHandle_QR);
-                HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
+                HOperatorSet.CreateBarCodeModel(new HTuple(new string[] { "Code 128", "Code 39" }), new HTuple(), out hv_BarCodeHandle);
 
                 // 强制要求适应任何极性（黑底白码、白底黑码）、镜像反转等极端情况
-                HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_ECC200, "polarity", "any");
-                HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_ECC200, "mirrored", "any");
-                HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_ECC200, "timeout", 2000); // 放宽至 2000ms 超时限制
-                
                 HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "polarity", "any");
                 HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "mirrored", "any");
-                HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "timeout", 2000); // 放宽至 2000ms 超时限制
-
-                // 3. 寻找 DataMatrix
-                HObject ho_SymbolXLDs_ECC200 = null;
-                HTuple hv_ResultHandles_ECC200, hv_DecodedDataStrings_ECC200;
-                HOperatorSet.FindDataCode2d(ho_Image, out ho_SymbolXLDs_ECC200, hv_DataCodeHandle_ECC200, "stop_after_result_num", 8, out hv_ResultHandles_ECC200, out hv_DecodedDataStrings_ECC200);
-                if (ho_SymbolXLDs_ECC200 != null) ho_SymbolXLDs_ECC200.Dispose();
-                if (hv_DecodedDataStrings_ECC200 != null && hv_DecodedDataStrings_ECC200.Length > 0)
-                {
-                    var strings = hv_DecodedDataStrings_ECC200.SArr;
-                    foreach (var s in strings)
-                        if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
-                }
+                HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "timeout", 500); // 限制超时为 500ms，加快没有条码时的退出速度
 
                 // 4. 寻找 QR Code
                 HObject ho_SymbolXLDs_QR = null;
@@ -180,10 +151,10 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                         if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
                 }
 
-                // 5. 寻找 1D 条形码 ("auto" 支持识别大多数常见条码如 Code 128, Code 39, EAN 等)
+                // 5. 寻找 1D 条形码 (仅检测现场实际使用的 Code 128 / Code 39，提升效率)
                 HObject ho_SymbolRegions_BarCode = null;
                 HTuple hv_DecodedDataStrings_BarCode;
-                HOperatorSet.FindBarCode(ho_Image, out ho_SymbolRegions_BarCode, hv_BarCodeHandle, "auto", out hv_DecodedDataStrings_BarCode);
+                HOperatorSet.FindBarCode(ho_Image, out ho_SymbolRegions_BarCode, hv_BarCodeHandle, new HTuple(new string[] { "Code 128", "Code 39" }), out hv_DecodedDataStrings_BarCode);
                 if (ho_SymbolRegions_BarCode != null) ho_SymbolRegions_BarCode.Dispose();
                 if (hv_DecodedDataStrings_BarCode != null && hv_DecodedDataStrings_BarCode.Length > 0)
                 {
@@ -191,8 +162,6 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     foreach (var s in strings)
                         if (!string.IsNullOrWhiteSpace(s)) results.Add(s.Trim());
                 }
-
-
             }
             catch (HalconException hex)
             {
@@ -206,9 +175,13 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             {
                 // 必须释放 HALCON 非托管资源，防止内存泄漏
                 if (ho_Image != null) ho_Image.Dispose();
-                if (hv_DataCodeHandle_ECC200 != null) HOperatorSet.ClearDataCode2dModel(hv_DataCodeHandle_ECC200);
                 if (hv_DataCodeHandle_QR != null) HOperatorSet.ClearDataCode2dModel(hv_DataCodeHandle_QR);
                 if (hv_BarCodeHandle != null) HOperatorSet.ClearBarCodeModel(hv_BarCodeHandle);
+
+                if (bmpData != null)
+                {
+                    bitmap.UnlockBits(bmpData);
+                }
             }
 
             return results.ToList();
