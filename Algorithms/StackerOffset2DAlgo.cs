@@ -102,7 +102,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 if (finalOffset > 1000.0) finalOffset = 1000.0;
 
                 res.OffsetLatMmValue = Math.Round(finalOffset, 1);
-                Console.WriteLine($"[StackerOffset2DAlgo] 计算完成：最终水平偏移 = {res.OffsetLatMmValue} mm (由 {offsets.Count} 台相机均值计算得到)");
+                Console.WriteLine($"[StackerOffset2DAlgo] 计算完成：最终水平偏移 = {res.OffsetLatMmValue} pixel (由 {offsets.Count} 台相机均值计算得到)");
                 return true;
             }
             catch (Exception ex)
@@ -205,75 +205,137 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 return null;
             }
 
-            // 5. RANSAC 寻找第一条最佳线
+            // 5. RANSAC 寻找线段
             var remainingCandidates = new List<RotatedRect>(allCandidates);
-            var bestInliers = new List<RotatedRect>();
-            double bestSlopeK = 0, bestInterceptC = 0;
+            var detectedLines = new List<Line2D>();
+            var lineInliersList = new List<List<RotatedRect>>();
+            
+            // 如果设定了标准位置参考值，由于立柱可能存在双列孔洞，我们寻找最多 2 条线，然后选择最接近标准值的一条。
+            // 如果未设定标准参考值，则默认沿用原有逻辑寻找最契合的 1 条直线。
+            int maxLinesToFind = referenceOffsetXToUse.HasValue ? 2 : 1;
+            int minInliers = 3;
+            double distanceThresh = 15.0;
             var rng = new Random(42);
 
-            for (int iter = 0; iter < 300; iter++)
+            for (int lineIdx = 0; lineIdx < maxLinesToFind; lineIdx++)
             {
-                int i1 = rng.Next(remainingCandidates.Count);
-                int i2 = rng.Next(remainingCandidates.Count);
-                if (i1 == i2) continue;
+                if (remainingCandidates.Count < minInliers) break;
 
-                var p1 = remainingCandidates[i1].Center;
-                var p2 = remainingCandidates[i2].Center;
-
-                double dy = p2.Y - p1.Y;
-                if (Math.Abs(dy) < 10.0) continue;
-
-                double k = (p2.X - p1.X) / dy;
-                if (Math.Abs(k) > 0.35) continue; // 偏角过大
-
-                double c = p1.X - k * p1.Y;
-
-                var inliers = new List<RotatedRect>();
-                foreach (var e in remainingCandidates)
+                var tempBestInliers = new List<RotatedRect>();
+                for (int iter = 0; iter < 300; iter++)
                 {
-                    double expectedX = k * e.Center.Y + c;
-                    if (Math.Abs(e.Center.X - expectedX) < 15.0) // 15像素距离阈值
+                    int i1 = rng.Next(remainingCandidates.Count);
+                    int i2 = rng.Next(remainingCandidates.Count);
+                    if (i1 == i2) continue;
+
+                    var p1 = remainingCandidates[i1].Center;
+                    var p2 = remainingCandidates[i2].Center;
+
+                    double dy = p2.Y - p1.Y;
+                    if (Math.Abs(dy) < 10.0) continue;
+
+                    double k = (p2.X - p1.X) / dy;
+                    if (Math.Abs(k) > 0.35) continue; // 偏角过大
+
+                    double c = p1.X - k * p1.Y;
+
+                    var inliers = new List<RotatedRect>();
+                    foreach (var e in remainingCandidates)
                     {
-                        inliers.Add(e);
+                        double expectedX = k * e.Center.Y + c;
+                        if (Math.Abs(e.Center.X - expectedX) < distanceThresh)
+                        {
+                            inliers.Add(e);
+                        }
+                    }
+
+                    if (inliers.Count > tempBestInliers.Count)
+                    {
+                        tempBestInliers = inliers;
                     }
                 }
 
-                if (inliers.Count > bestInliers.Count)
+                if (tempBestInliers.Count >= minInliers)
                 {
-                    bestInliers = inliers;
-                    bestSlopeK = k;
-                    bestInterceptC = c;
+                    var linePts = tempBestInliers.Select(e => new Point2f(e.Center.X, e.Center.Y)).ToArray();
+                    var fittedLine = Cv2.FitLine(linePts, DistanceTypes.L2, 0, 0.01, 0.01);
+                    detectedLines.Add(fittedLine);
+                    lineInliersList.Add(tempBestInliers);
+
+                    foreach (var inlier in tempBestInliers)
+                    {
+                        remainingCandidates.Remove(inlier);
+                    }
+                }
+                else
+                {
+                    break;
                 }
             }
 
-            if (bestInliers.Count < 3)
+            if (detectedLines.Count == 0)
             {
                 Console.WriteLine($"[StackerOffset2DAlgo] 相机 {sn} 未能通过 RANSAC 提取出符合对齐条件的直线。");
                 processBmp.Dispose();
                 return null;
             }
 
-            // 精细最小二乘拟合
-            var linePts = bestInliers.Select(e => new Point2f(e.Center.X, e.Center.Y)).ToArray();
-            var fittedLine = Cv2.FitLine(linePts, DistanceTypes.L2, 0, 0.01, 0.01);
-
-            double finalK = fittedLine.Vx / fittedLine.Vy;
-            double finalC = fittedLine.X1 - finalK * fittedLine.Y1;
-
+            // 选择最契合标准值（或最多内点）的一条拟合直线
             float midY = mat.Height / 2f;
-            float actualCenterX = (float)(finalK * midY + finalC);
+            Line2D selectedLine;
+            List<RotatedRect> selectedInliers;
+            float actualCenterX;
+
+            if (referenceOffsetXToUse.HasValue)
+            {
+                float refX = referenceOffsetXToUse.Value;
+                var lineInfos = new List<(Line2D line, double xAtMid, List<RotatedRect> inliers)>();
+                for (int i = 0; i < detectedLines.Count; i++)
+                {
+                    var line = detectedLines[i];
+                    double k = line.Vx / line.Vy;
+                    double c = line.X1 - k * line.Y1;
+                    double xAtMid = k * midY + c;
+                    lineInfos.Add((line, xAtMid, lineInliersList[i]));
+                }
+                // 按与参考值的偏差绝对值升序排序，选择最接近参考值的那一条
+                lineInfos = lineInfos.OrderBy(item => Math.Abs(item.xAtMid - refX)).ToList();
+
+                selectedLine = lineInfos[0].line;
+                actualCenterX = (float)lineInfos[0].xAtMid;
+                selectedInliers = lineInfos[0].inliers;
+
+                // 若最接近的直线的偏差依然过大（例如超过 70 像素），则输出警告日志
+                double dev = Math.Abs(actualCenterX - refX);
+                if (dev > 70.0)
+                {
+                    Console.WriteLine($"[StackerOffset2DAlgo] 警告: 相机 {sn} 检测到的最佳孔洞列中心 {actualCenterX:F1} px 距离标准参考值 {refX:F1} px 偏差过大 ({dev:F1} px)，可能是由于错列检测或堆垛机严重偏离。");
+                }
+            }
+            else
+            {
+                selectedLine = detectedLines[0];
+                selectedInliers = lineInliersList[0];
+                double k = selectedLine.Vx / selectedLine.Vy;
+                double c = selectedLine.X1 - k * selectedLine.Y1;
+                actualCenterX = (float)(k * midY + c);
+            }
+
+            double finalK = selectedLine.Vx / selectedLine.Vy;
+            double finalC = selectedLine.X1 - finalK * selectedLine.Y1;
+            var bestInliers = selectedInliers;
 
             // 6. 计算像素偏差
             // 标准位置参考值
-            float refX = referenceOffsetXToUse ?? (mat.Width / 2f);
+            float refXVal = referenceOffsetXToUse ?? (mat.Width / 2f);
 
-            double offsetPixel = actualCenterX - refX;
+            double offsetPixel = actualCenterX - refXVal;
 
             // 7. 可视化回绘到 PreviewImage
             try
             {
                 // 绘制背景噪点（灰色圈）
-                foreach (var e in remainingCandidates)
+                foreach (var e in allCandidates)
                 {
                     if (!bestInliers.Contains(e))
                     {
@@ -317,7 +379,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     using (var descFont = new Font("Microsoft YaHei UI", 12F))
                       using (var bgBrush = new SolidBrush(Color.FromArgb(180, 20, 20, 20)))
                     {
-                        string refText = referenceOffsetXToUse.HasValue ? $"标准:{refX:F1}px" : "基于画面中心";
+                        string refText = referenceOffsetXToUse.HasValue ? $"标准:{refXVal:F1}px" : "基于画面中心";
                         string infoText = $"偏差: {offsetPixel:F1} 像素 ({refText})";
                         string descText = $"[2D算法] 相机 SN: {sn} | 找到孔洞数: {bestInliers.Count}个 | 线中心: {actualCenterX:F1}px";
 

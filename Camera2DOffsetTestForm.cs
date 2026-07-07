@@ -853,6 +853,14 @@ namespace pallet_storage_detection_system_Net_V2
             var lineInliersList = new List<List<RotatedRect>>();
 
             int maxLinesToFind = (int)_nudLinesToFit.Value;
+            bool selectByRef = false;
+            // 如果设定了标准参考值并且期望只拟合 1 条直线，我们拟合至多 2 条直线以便从中优选与标准值同一列的那条。
+            if (maxLinesToFind == 1 && _referenceOffsetX.HasValue)
+            {
+                maxLinesToFind = 2;
+                selectByRef = true;
+            }
+
             int minInliers = 3;    
             double distanceThresh = 15.0; 
 
@@ -942,7 +950,22 @@ namespace pallet_storage_detection_system_Net_V2
             lineInfos = lineInfos.OrderBy(item => item.xAtMid).ToList();
 
             float actualCenterX = 0;
-            if (lineInfos.Count == 1)
+            if (selectByRef && _referenceOffsetX.HasValue && lineInfos.Count > 1)
+            {
+                // 按与参考值的偏差绝对值升序排序，选择最接近参考值的那一条
+                lineInfos = lineInfos.OrderBy(item => Math.Abs(item.xAtMid - _referenceOffsetX.Value)).ToList();
+                actualCenterX = (float)lineInfos[0].xAtMid;
+                AppendLog($"📊 检测到多条列，已选择最靠近标准值 ({_referenceOffsetX.Value:F1} px) 的列，中心为: {actualCenterX:F1} px");
+
+                // 将舍弃的直线的内点重新放回 remainingCandidates，使其能够作为背景噪点（灰色圈）绘制
+                for (int i = 1; i < lineInfos.Count; i++)
+                {
+                    remainingCandidates.AddRange(lineInfos[i].inliers);
+                }
+                // 只保留最接近的那一条直线
+                lineInfos = new List<(Line2D line, double xAtMid, List<RotatedRect> inliers)> { lineInfos[0] };
+            }
+            else if (lineInfos.Count == 1)
             {
                 actualCenterX = (float)lineInfos[0].xAtMid;
                 AppendLog($"📊 检测到 1 条立柱列中心: {actualCenterX:F1} px");

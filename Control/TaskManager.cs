@@ -131,7 +131,8 @@ namespace pallet_storage_detection_system_Net_V2.Control
                     };
 
                     bool algoSuccess;
-                    var imagesToSave = new List<(String Name, Image Img)>();
+                    var imagesToSave = new List<(string Name, Image Img)>();
+                    object?[]? imagesToProcess = null;
 
                     // 2. 统一抓图流程：除 Flag 5 以外的所有任务类型均通过相机抓图。
                     if (task.Flag == 5)
@@ -295,6 +296,10 @@ namespace pallet_storage_detection_system_Net_V2.Control
                         var image2 = images.Length > 1 ? images[1] : image1;
                         Log($"{images.Length} 帧图像抓取完毕，进入算法周期。");
 
+                        var algoStartTime = DateTime.Now;
+                        algoSuccess = await ExecuteAlgorithmAsync(task, image1, image2, targetSNs, result);
+                        LogPhaseTime($"算法执行(Flag{task.Flag})", algoStartTime);
+
                         // 同步推送至 UI 渲染界面（最多更新 4 个窗口，索引从 1 起）。
                         for (int i = 0; i < images.Length && i < 4; i++)
                         {
@@ -318,12 +323,6 @@ namespace pallet_storage_detection_system_Net_V2.Control
                                 imagesToSave.Add((name, (Image)depthFrame.PreviewImage.Clone()));
                             }
                         }
-
-                        // 4. (图片保存已移至全流程最后一步异步执行，保障算法与 Redis 极速响应)
-
-                        var algoStartTime = DateTime.Now;
-                        algoSuccess = await ExecuteAlgorithmAsync(task, image1, image2, targetSNs, result);
-                        LogPhaseTime($"算法执行(Flag{task.Flag})", algoStartTime);
                     }
 
                     result.Success = algoSuccess;
@@ -403,7 +402,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                     return $"📌 结果明细(Flag1): slot_occupied={(res.SlotOccupied ? "true" : "false")}";
 
                 case 2:
-                    return $"📌 结果明细(Flag2): slot_occupied={(res.SlotOccupied ? "true" : "false")}, offset_{res.Side}={res.OffsetLatMmValue:F1}mm {res.OffsetLatMmWarningAlarm}";
+                    return $"📌 结果明细(Flag2): slot_occupied={(res.SlotOccupied ? "true" : "false")}, offset_{res.Side}={res.OffsetLatMmValue:F1}pixel {res.OffsetLatMmWarningAlarm}";
 
                 case 3:
                     return $"📌 结果明细(Flag3): rackL={res.RackDefMmLeftValue:F1}mm {res.RackDefMmLeftWarningAlarm}, rackR={res.RackDefMmRightValue:F1}mm {res.RackDefMmRightWarningAlarm}, beam={res.BeamDefMmValue:F1}mm {res.BeamDefMmWarningAlarm}, palletL={res.PalletHoleDefMmLeftValue:F1}mm {res.PalletHoleDefMmLeftWarningAlarm}, palletR={res.PalletHoleDefMmRightValue:F1}mm {res.PalletHoleDefMmRightWarningAlarm}";
