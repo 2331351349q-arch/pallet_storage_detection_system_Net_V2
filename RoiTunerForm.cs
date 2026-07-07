@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -50,8 +50,8 @@ namespace pallet_storage_detection_system_Net_V2
 
         private void InitializeUi()
         {
-            Text = "SlotOccupancy ROI 调整工具（内嵌）";
-            Width = 1500;
+            Text = "货位有无检测工具";
+            Width = 1200;
             Height = 900;
             StartPosition = FormStartPosition.CenterParent;
 
@@ -306,6 +306,7 @@ namespace pallet_storage_detection_system_Net_V2
             if (p != null)
             {
                 roi = new Roi3D(p.XMin, p.XMax, p.YMin, p.YMax, p.ZMin, p.ZMax);
+                AppendLog($"已加载相机 [{sn}] 长度 {CurrentBeamLength()} 的独立 ROI 参数", false);
             }
             else
             {
@@ -313,6 +314,17 @@ namespace pallet_storage_detection_system_Net_V2
                 roi = (roiList != null && roiList.Count >= 6)
                     ? new Roi3D(roiList[0], roiList[1], roiList[2], roiList[3], roiList[4], roiList[5])
                     : new Roi3D(-500, 500, -500, 500, 1000, 3000);
+                
+                // 检查是否有其它长度的配置，给出友好的提示
+                var otherLenParam = cfg?.CameraRoiParams?.FirstOrDefault(x => string.Equals(x.CameraSn, sn, StringComparison.OrdinalIgnoreCase));
+                if (otherLenParam != null)
+                {
+                    AppendLog($"当前长度 {CurrentBeamLength()} 无参数，但发现长度 {otherLenParam.BeamLength} 存有参数，请切换查看", true);
+                }
+                else
+                {
+                    AppendLog($"相机 [{sn}] 无独立参数，使用全局默认值", false);
+                }
             }
 
             _txtMinX.Text = roi.MinX.ToString("F0");

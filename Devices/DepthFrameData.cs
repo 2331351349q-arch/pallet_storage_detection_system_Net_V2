@@ -11,7 +11,12 @@ namespace pallet_storage_detection_system_Net_V2.Devices
         public int Width { get; }
         public int Height { get; }
         public ushort[] DepthRaw { get; }
-        public Bitmap PreviewImage { get; }
+        public Bitmap PreviewImage { get; set; }
+        
+        /// <summary>
+        /// 真实 2D 彩色图像（来自 RGB 传感器，可能为 null）
+        /// </summary>
+        public Bitmap? ColorImage { get; set; }
 
         /// <summary>
         /// 从 SDK 帧元数据中提取的相机内参（fx, fy, cx, cy），可能为 null。

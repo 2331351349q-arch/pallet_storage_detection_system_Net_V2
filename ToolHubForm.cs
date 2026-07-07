@@ -15,6 +15,7 @@ namespace pallet_storage_detection_system_Net_V2
         private RackDeformationTunerForm? _rackDeformationTunerForm;
         private CameraControlForm? _cameraControlForm;
         private Camera2DCalibrationForm? _camera2DCalibrationForm;
+        private Camera2DOffsetTestForm? _camera2DOffsetTestForm;
 
         public ToolHubForm()
         {
@@ -29,7 +30,7 @@ namespace pallet_storage_detection_system_Net_V2
             var root = new TableLayoutPanel
             {
                 ColumnCount = 6,
-                RowCount = 2,
+                RowCount = 3,
                 Dock = DockStyle.Fill,
                 Padding = new Padding(36, 32, 36, 32),
                 BackColor = Color.FromArgb(240, 242, 248),
@@ -41,7 +42,8 @@ namespace pallet_storage_detection_system_Net_V2
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / 6F));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / 6F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 90F));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
 
             // ── 标题（跨列）──
             var titlePanel = new TableLayoutPanel
@@ -78,7 +80,7 @@ namespace pallet_storage_detection_system_Net_V2
             root.SetColumnSpan(titlePanel, 6);
 
             // ── 三张卡片 ──
-            root.Controls.Add(BuildCard("📐", "ROI 区域调窗",
+            root.Controls.Add(BuildCard("📐", "货位有无检测工具",
                 "实时预览 3D 点云，调整槽位检测区域，\n验证有货/无货效果",
                 Color.FromArgb(0, 122, 204), OpenRoiTuner), 0, 1);
 
@@ -102,8 +104,12 @@ namespace pallet_storage_detection_system_Net_V2
                 "加载棋盘格图片，输入标定板参数，\n计算海康相机内参矩阵与畸变系数",
                 Color.FromArgb(200, 80, 0), OpenCamera2DCalibration), 5, 1);
 
+            root.Controls.Add(BuildCard("👁️", "2D 偏移算法测试",
+                "加载 2D 图像进行立柱双模孔洞识别，\n计算左右立柱中心线与像素偏差",
+                Color.FromArgb(233, 30, 99), OpenCamera2DOffsetTest), 0, 2);
+
             Controls.Add(root);
-            ClientSize = new Size(2040, 650);
+            ClientSize = new Size(2040, 950);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -289,6 +295,20 @@ namespace pallet_storage_detection_system_Net_V2
             if (!_camera2DCalibrationForm.Visible) _camera2DCalibrationForm.Show(Owner ?? this);
             _camera2DCalibrationForm.BringToFront();
             _camera2DCalibrationForm.Focus();
+        }
+
+        private void OpenCamera2DOffsetTest()
+        {
+            if (_camera2DOffsetTestForm == null || _camera2DOffsetTestForm.IsDisposed)
+            {
+                _camera2DOffsetTestForm = new Camera2DOffsetTestForm();
+                _camera2DOffsetTestForm.FormClosed += (_, __) => _camera2DOffsetTestForm = null;
+                _camera2DOffsetTestForm.Show(Owner ?? this);
+                return;
+            }
+            if (!_camera2DOffsetTestForm.Visible) _camera2DOffsetTestForm.Show(Owner ?? this);
+            _camera2DOffsetTestForm.BringToFront();
+            _camera2DOffsetTestForm.Focus();
         }
     }
 }

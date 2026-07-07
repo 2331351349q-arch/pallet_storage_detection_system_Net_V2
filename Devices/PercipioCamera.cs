@@ -90,8 +90,16 @@ namespace pallet_storage_detection_system_Net_V2.Devices
 
             _device.StopCapture(); // 幂等操作，确保启动前处于干净状态。
             
-            // 默认生产环境仅开启深度图传感器。
+            // 开启深度图与彩色传感器。
             _device.SetSensorEnabled(SensorType.Depth, true);
+            try
+            {
+                _device.SetSensorEnabled(SensorType.Color, true);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[警告] 无法启用 Color 传感器: {ex.Message}");
+            }
 
             // 配置连续采集模式 (Continuous)。
             CameraFeature feat;
@@ -207,10 +215,34 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                 using var colorMat = new Mat();
                 Cv2.ApplyColorMap(grayMat, colorMat, ColormapTypes.Jet);
 
+                // 尝试抓取真实彩色图像并注入
+                Bitmap? colorBmp = null;
+                try
+                {
+                    var colorFrame = frameSet.GetFrame(SensorType.Color);
+                    if (colorFrame != null && colorFrame.Image != null)
+                    {
+                        var colorImg = colorFrame.Image;
+                        IntPtr colorPtr = colorImg.GetData();
+                        int cW = (int)colorImg.Width;
+                        int cH = (int)colorImg.Height;
+                        if (colorPtr != IntPtr.Zero && cW > 0 && cH > 0)
+                        {
+                            using var colorMatExt = Mat.FromPixelData(cH, cW, MatType.CV_8UC3, colorPtr);
+                            colorBmp = colorMatExt.ToBitmap();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[警告] 提取 2D 彩色帧失败: {ex.Message}");
+                }
+
                 // 4. 将处理后的彩色 Mat 转换为托管位图。
                 Bitmap bmp = BitmapConverter.ToBitmap(colorMat);
 
                 var depthFrame = new DepthFrameData(SerialNumber, width, height, rawDepth, bmp);
+                depthFrame.ColorImage = colorBmp;
 
                 // ★ 方案A：尝试从帧元数据中提取 SDK 内置内参（只需成功一次，后续复用缓存）
                 if (_cachedIntrinsics == null)

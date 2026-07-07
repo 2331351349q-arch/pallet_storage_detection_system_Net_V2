@@ -449,7 +449,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                     case 2:
                         // 堆垛机偏移检测 (Flag 2) — 双相机融合输入
                         bool occupancyOk = Algorithms.SlotOccupancyAlgo.Run(task, img1, img2, res);
-                        bool offsetOk = Algorithms.StackerOffsetAlgo.Run(task, img1, img2, res);
+                        bool offsetOk = Algorithms.StackerOffset2DAlgo.Run(task, img1, img2, res);
                         return occupancyOk && offsetOk;
 
                     case 3:
