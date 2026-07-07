@@ -400,8 +400,17 @@ namespace pallet_storage_detection_system_Net_V2
                             int index = i + 1; // PictureBox index 1-4 (不管左侧还是右侧，都在 UI 的 4 个画面中显示)
                             tasks.Add(cam.GrabFrameAsync().ContinueWith(t => 
                             {
-                                if (t.Result != null && !token.IsCancellationRequested)
-                                    Manager_OnImageUpdated(index, t.Result);
+                                if (t.Result != null)
+                                {
+                                    if (!token.IsCancellationRequested)
+                                    {
+                                        Manager_OnImageUpdated(index, t.Result);
+                                    }
+                                    if (t.Result is IDisposable disp)
+                                    {
+                                        disp.Dispose();
+                                    }
+                                }
                             }));
                         }
                     }

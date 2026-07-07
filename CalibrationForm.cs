@@ -58,6 +58,16 @@ namespace pallet_storage_detection_system_Net_V2
         {
             InitializeUi();
             PopulateCameraList();
+            FormClosed += OnFormClosed;
+        }
+
+        private void OnFormClosed(object? sender, FormClosedEventArgs e)
+        {
+            if (_currentCamera != null && _currentCamera.IsCapturing)
+            {
+                try { _currentCamera.StopGrabbing(); } catch { }
+            }
+            _capturedFrame?.Dispose();
         }
 
         // ============ UI 初始化 ============
@@ -374,6 +384,7 @@ namespace pallet_storage_detection_system_Net_V2
                 var obj = await _currentCamera.GrabFrameAsync();
                 if (obj is DepthFrameData df)
                 {
+                    _capturedFrame?.Dispose();
                     _capturedFrame = df;
                     _pbPreview.Image?.Dispose();
                     _pbPreview.Image = new Bitmap(df.PreviewImage);
@@ -386,6 +397,7 @@ namespace pallet_storage_detection_system_Net_V2
                 }
                 else
                 {
+                    if (obj is IDisposable disp) disp.Dispose();
                     MessageBox.Show("采集失败：未获取到深度数据。");
                     _btnCapture.Enabled = true;
                     _btnCapture.Text = "📷 抓取一帧";

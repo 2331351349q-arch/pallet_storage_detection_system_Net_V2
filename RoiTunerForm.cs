@@ -46,6 +46,13 @@ namespace pallet_storage_detection_system_Net_V2
             UpdateCameraSnFromConfig();
             LoadRoiForCurrentCamera();
             RedrawCloudAndStats();
+            FormClosed += OnFormClosed;
+        }
+
+        private void OnFormClosed(object? sender, FormClosedEventArgs e)
+        {
+            _currentFrame1?.Dispose();
+            _currentFrame2?.Dispose();
         }
 
         private void InitializeUi()
@@ -402,8 +409,17 @@ namespace pallet_storage_detection_system_Net_V2
 
                 var results = await Task.WhenAll(tasks);
                 
+                _currentFrame1?.Dispose();
+                _currentFrame2?.Dispose();
                 _currentFrame1 = results.Length > 0 ? results[0] as DepthFrameData : null;
                 _currentFrame2 = results.Length > 1 ? results[1] as DepthFrameData : null;
+
+                for (int i = 0; i < results.Length; i++)
+                {
+                    if (i == 0 && _currentFrame1 == null && results[0] is IDisposable disp1) disp1.Dispose();
+                    if (i == 1 && _currentFrame2 == null && results[1] is IDisposable disp2) disp2.Dispose();
+                    if (i > 1 && results[i] is IDisposable dispExtra) dispExtra.Dispose();
+                }
 
                 if (_currentFrame1 != null) {
                     AppendLog($"抓图成功 (1) {_currentFrame1.CameraSn}", false);

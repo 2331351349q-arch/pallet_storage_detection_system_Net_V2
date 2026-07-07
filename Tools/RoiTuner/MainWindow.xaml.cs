@@ -36,6 +36,12 @@ public partial class MainWindow : Window
         txtSampleStep.Text = ((int)sldSampleStep.Value).ToString();
         txtCameraSn.LostFocus += TxtCameraSn_LostFocus;
         LoadConfigAndRefreshUi();
+        Closed += MainWindow_Closed;
+    }
+
+    private void MainWindow_Closed(object? sender, EventArgs e)
+    {
+        _currentFrame?.Dispose();
     }
 
     private static JsonSerializerOptions CreateJsonOptions()
@@ -434,9 +440,14 @@ public partial class MainWindow : Window
             if (frameObj is not DepthFrameData depthFrame)
             {
                 AppendLog("抓取结果不是深度帧，无法进行点云ROI测试。", true);
+                if (frameObj is IDisposable disp)
+                {
+                    disp.Dispose();
+                }
                 return;
             }
 
+            _currentFrame?.Dispose();
             _currentFrame = depthFrame;
             imgPreview.Source = ConvertBitmapToBitmapSource(depthFrame.PreviewImage);
 

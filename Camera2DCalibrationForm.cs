@@ -1380,26 +1380,29 @@ namespace pallet_storage_detection_system_Net_V2
                 }
 
                 var frameObj = await cam.GrabFrameAsync();
-                if (frameObj is Bitmap bmp)
+                using (frameObj as IDisposable)
                 {
-                    string dir = _imageFiles.Count > 0 ? Path.GetDirectoryName(_imageFiles[0])! : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Captures");
-                    if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                    string fp = Path.Combine(dir, $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}.jpg");
-                    bmp.Save(fp, System.Drawing.Imaging.ImageFormat.Jpeg);
-                    
-                    _imageFiles.Add(fp);
-                    _validImages.Add(fp);
-                    _currentIdx = _imageFiles.Count - 1;
-                    LoadImage(_currentIdx);
-                    
-                    _lstFiles.Items.Add($"[ ] {Path.GetFileName(fp)}");
-                    _lstFiles.SelectedIndex = _lstFiles.Items.Count - 1;
+                    if (frameObj is Bitmap bmp)
+                    {
+                        string dir = _imageFiles.Count > 0 ? Path.GetDirectoryName(_imageFiles[0])! : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Captures");
+                        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                        string fp = Path.Combine(dir, $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}.jpg");
+                        bmp.Save(fp, System.Drawing.Imaging.ImageFormat.Jpeg);
+                        
+                        _imageFiles.Add(fp);
+                        _validImages.Add(fp);
+                        _currentIdx = _imageFiles.Count - 1;
+                        LoadImage(_currentIdx);
+                        
+                        _lstFiles.Items.Add($"[ ] {Path.GetFileName(fp)}");
+                        _lstFiles.SelectedIndex = _lstFiles.Items.Count - 1;
 
-                    AppendLog($"✅ 图像采集成功，已保存至: {fp}");
-                }
-                else
-                {
-                    AppendLog("❌ 抓取到的帧格式不支持，非 Bitmap。");
+                        AppendLog($"✅ 图像采集成功，已保存至: {fp}");
+                    }
+                    else
+                    {
+                        AppendLog("❌ 抓取到的帧格式不支持，非 Bitmap。");
+                    }
                 }
             }
             catch (Exception ex)

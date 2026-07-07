@@ -313,20 +313,23 @@ namespace pallet_storage_detection_system_Net_V2
                                 try
                                 {
                                     var frame = await dev.GrabFrameAsync();
-                                    if (frame != null && _pictureBoxes.TryGetValue(cfg.Sn, out var pb))
+                                    using (frame as IDisposable)
                                     {
-                                        Image? imgToDisplay = null;
-                                        if (frame is Image img) imgToDisplay = (Image)img.Clone();
-                                        else if (frame is DepthFrameData depth && depth.PreviewImage != null) imgToDisplay = (Image)depth.PreviewImage.Clone();
-
-                                        if (imgToDisplay != null && !pb.IsDisposed && pb.IsHandleCreated)
+                                        if (frame != null && _pictureBoxes.TryGetValue(cfg.Sn, out var pb))
                                         {
-                                            pb.BeginInvoke(new Action(() =>
+                                            Image? imgToDisplay = null;
+                                            if (frame is Image img) imgToDisplay = (Image)img.Clone();
+                                            else if (frame is DepthFrameData depth && depth.PreviewImage != null) imgToDisplay = (Image)depth.PreviewImage.Clone();
+
+                                            if (imgToDisplay != null && !pb.IsDisposed && pb.IsHandleCreated)
                                             {
-                                                var old = pb.Image;
-                                                pb.Image = imgToDisplay;
-                                                old?.Dispose();
-                                            }));
+                                                pb.BeginInvoke(new Action(() =>
+                                                {
+                                                    var old = pb.Image;
+                                                    pb.Image = imgToDisplay;
+                                                    old?.Dispose();
+                                                }));
+                                            }
                                         }
                                     }
                                 }

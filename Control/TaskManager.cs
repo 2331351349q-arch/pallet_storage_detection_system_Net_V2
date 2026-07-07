@@ -241,7 +241,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                             // 释放本地 images
                             for (int i = 0; i < images.Length; i++)
                             {
-                                if (images[i] is Image img) { img.Dispose(); }
+                                if (images[i] is IDisposable disp) { disp.Dispose(); }
                             }
                         }
 
@@ -322,6 +322,12 @@ namespace pallet_storage_detection_system_Net_V2.Control
                             {
                                 imagesToSave.Add((name, (Image)depthFrame.PreviewImage.Clone()));
                             }
+                        }
+
+                        // 释放本地 images 资源，防止内存/句柄泄漏
+                        for (int i = 0; i < images.Length; i++)
+                        {
+                            if (images[i] is IDisposable disp) { disp.Dispose(); }
                         }
                     }
 

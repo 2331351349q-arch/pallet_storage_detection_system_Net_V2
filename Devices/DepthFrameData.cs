@@ -5,7 +5,7 @@ using pallet_storage_detection_system_Net_V2.Config;
 
 namespace pallet_storage_detection_system_Net_V2.Devices
 {
-    public sealed class DepthFrameData
+    public sealed class DepthFrameData : System.IDisposable
     {
         public string CameraSn { get; }
         public int Width { get; }
@@ -227,6 +227,12 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                 _pointCloud = points;
 
             return points;
+        }
+
+        public void Dispose()
+        {
+            PreviewImage?.Dispose();
+            ColorImage?.Dispose();
         }
     }
 }

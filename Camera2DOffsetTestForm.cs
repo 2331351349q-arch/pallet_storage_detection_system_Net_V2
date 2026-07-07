@@ -694,31 +694,34 @@ namespace pallet_storage_detection_system_Net_V2
 
                 // 抓取帧
                 object frameObj = await camera.GrabFrameAsync();
-                if (frameObj is DepthFrameData frame)
+                using (frameObj as IDisposable)
                 {
-                    _currentMat?.Dispose();
-
-                    // 优先提取 2D 彩色原始图像，若相机无 RGB 功能则使用 Pseudo-color depth 图像降级代替
-                    Bitmap srcBmp = frame.ColorImage ?? frame.PreviewImage;
-                    if (srcBmp != null)
+                    if (frameObj is DepthFrameData frame)
                     {
-                        _currentMat = srcBmp.ToMat();
-                        _pbImage.Image?.Dispose();
-                        _pbImage.Image = _currentMat.ToBitmap();
-                        _btnDetect.Enabled = true;
-                        _btnSetRef.Enabled = false;
-                        
-                        string frameType = frame.ColorImage != null ? "2D 真实彩色图" : "深度图(伪彩色映射)";
-                        AppendLog($"✅ 图像单帧采集成功！分辨率: {srcBmp.Width}x{srcBmp.Height} ({frameType})");
+                        _currentMat?.Dispose();
+
+                        // 优先提取 2D 彩色原始图像，若相机无 RGB 功能则使用 Pseudo-color depth 图像降级代替
+                        Bitmap srcBmp = frame.ColorImage ?? frame.PreviewImage;
+                        if (srcBmp != null)
+                        {
+                            _currentMat = srcBmp.ToMat();
+                            _pbImage.Image?.Dispose();
+                            _pbImage.Image = _currentMat.ToBitmap();
+                            _btnDetect.Enabled = true;
+                            _btnSetRef.Enabled = false;
+                            
+                            string frameType = frame.ColorImage != null ? "2D 真实彩色图" : "深度图(伪彩色映射)";
+                            AppendLog($"✅ 图像单帧采集成功！分辨率: {srcBmp.Width}x{srcBmp.Height} ({frameType})");
+                        }
+                        else
+                        {
+                            throw new Exception("采集到的帧图像内容为空。");
+                        }
                     }
                     else
                     {
-                        throw new Exception("采集到的帧图像内容为空。");
+                        throw new Exception("接收到的帧对象类型不匹配。");
                     }
-                }
-                else
-                {
-                    throw new Exception("接收到的帧对象类型不匹配。");
                 }
             }
             catch (Exception ex)
