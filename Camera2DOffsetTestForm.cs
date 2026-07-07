@@ -25,6 +25,7 @@ namespace pallet_storage_detection_system_Net_V2
 
         // ─────────────────────────── 控件 ───────────────────────────
         private ComboBox _cmbCamera = null!;
+        private ComboBox _cmbBeamLength = null!;
         private PictureBox _pbImage = null!;
         private TextBox _txtLog = null!;
         
@@ -121,6 +122,21 @@ namespace pallet_storage_detection_system_Net_V2
             };
             _cmbCamera.SelectedIndexChanged += CmbCamera_SelectedIndexChanged;
             flow.Controls.Add(_cmbCamera);
+
+            // 0.1 选择货架规格 (BeamLength)
+            flow.Controls.Add(SectionLabel("📐 选择调试货架规格", flowW));
+            _cmbBeamLength = new ComboBox
+            {
+                Width = flowW - 20,
+                Height = 28,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = new Font("Microsoft YaHei UI", 9F)
+            };
+            _cmbBeamLength.Items.Add("1380");
+            _cmbBeamLength.Items.Add("2180");
+            _cmbBeamLength.SelectedIndex = 0; // 默认为 1380
+            _cmbBeamLength.SelectedIndexChanged += CmbBeamLength_SelectedIndexChanged;
+            flow.Controls.Add(_cmbBeamLength);
 
             // 1. 图像载入与 ROI 绘制
             flow.Controls.Add(SectionLabel("📂 图像与 ROI 操作", flowW));
@@ -314,6 +330,21 @@ namespace pallet_storage_detection_system_Net_V2
             LoadCameraConfigFromCache(sn);
         }
 
+        private void CmbBeamLength_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            string? sn = GetSelectedSn();
+            if (string.IsNullOrEmpty(sn)) return;
+
+            LoadCameraConfigFromCache(sn);
+        }
+
+        private int GetSelectedBeamLength()
+        {
+            if (_cmbBeamLength.SelectedItem?.ToString() == "2180")
+                return 2180;
+            return 1380;
+        }
+
         // ─────────────────────────── 配置文件读写 ───────────────────────────
 
         private void LoadGlobalConfigFromFile()
@@ -327,6 +358,7 @@ namespace pallet_storage_detection_system_Net_V2
                     if (config != null)
                     {
                         _globalConfig = config;
+                        _globalConfig.MigrateAll();
                         AppendLog($"✅ 成功载入本地历史配置文件，共包含 {_globalConfig.Cameras.Count} 台相机配置");
                         return;
                     }
@@ -343,6 +375,8 @@ namespace pallet_storage_detection_system_Net_V2
         {
             if (_globalConfig.Cameras.TryGetValue(sn, out var param))
             {
+                param.MigrateOldConfig();
+
                 _nudCValue.Value = Math.Clamp(param.CValue, _nudCValue.Minimum, _nudCValue.Maximum);
                 _nudBlockSize.Value = Math.Clamp(param.BlockSize, _nudBlockSize.Minimum, _nudBlockSize.Maximum);
                 _nudMinArea.Value = Math.Clamp(param.MinArea, _nudMinArea.Minimum, _nudMinArea.Maximum);
@@ -356,22 +390,31 @@ namespace pallet_storage_detection_system_Net_V2
                 _nudSlotAspectMax.Value = Math.Clamp((decimal)param.SlotAspectMax, _nudSlotAspectMax.Minimum, _nudSlotAspectMax.Maximum);
                 _nudSlotSolidMin.Value = Math.Clamp((decimal)param.SlotSolidMin, _nudSlotSolidMin.Minimum, _nudSlotSolidMin.Maximum);
 
-                _roiPoints = param.RoiPoints ?? new List<System.Drawing.Point>();
-                _referenceOffsetX = param.ReferenceOffsetX;
+                int beam = GetSelectedBeamLength();
+                if (beam == 2180)
+                {
+                    _roiPoints = param.RoiPoints2180 != null ? new List<System.Drawing.Point>(param.RoiPoints2180) : new List<System.Drawing.Point>();
+                    _referenceOffsetX = param.ReferenceOffsetX2180;
+                }
+                else
+                {
+                    _roiPoints = param.RoiPoints1380 != null ? new List<System.Drawing.Point>(param.RoiPoints1380) : new List<System.Drawing.Point>();
+                    _referenceOffsetX = param.ReferenceOffsetX1380;
+                }
 
                 if (_referenceOffsetX.HasValue)
                 {
-                    _lblRefStatus.Text = $"当前标准中心: {_referenceOffsetX.Value:F1} px (已锁定)";
+                    _lblRefStatus.Text = $"当前标准中心 ({beam}): {_referenceOffsetX.Value:F1} px (已锁定)";
                     _lblRefStatus.ForeColor = Color.FromArgb(180, 80, 0);
                 }
                 else
                 {
-                    _lblRefStatus.Text = "当前标准中心: 未设定 (将以图像几何中心为基准)";
+                    _lblRefStatus.Text = $"当前标准中心 ({beam}): 未设定 (将以图像几何中心为基准)";
                     _lblRefStatus.ForeColor = Color.FromArgb(100, 100, 100);
                 }
 
                 _pbImage.Invalidate();
-                AppendLog($"✅ 已载入相机 SN [{sn}] 的专属参数和 ROI 设定！");
+                AppendLog($"✅ 已载入相机 SN [{sn}] (规格 {beam}) 的专属参数和 ROI 设定！");
             }
             else
             {
@@ -410,24 +453,35 @@ namespace pallet_storage_detection_system_Net_V2
 
             try
             {
-                var param = new Camera2DOffsetParam
+                if (!_globalConfig.Cameras.TryGetValue(sn, out var param))
                 {
-                    CValue = (int)_nudCValue.Value,
-                    BlockSize = (int)_nudBlockSize.Value,
-                    MinArea = (int)_nudMinArea.Value,
-                    MaxArea = (int)_nudMaxArea.Value,
-                    LinesToFit = (int)_nudLinesToFit.Value,
+                    param = new Camera2DOffsetParam();
+                }
 
-                    RoundAspectMin = (double)_nudRoundAspectMin.Value,
-                    RoundSolidMin = (double)_nudRoundSolidMin.Value,
+                param.CValue = (int)_nudCValue.Value;
+                param.BlockSize = (int)_nudBlockSize.Value;
+                param.MinArea = (int)_nudMinArea.Value;
+                param.MaxArea = (int)_nudMaxArea.Value;
+                param.LinesToFit = (int)_nudLinesToFit.Value;
 
-                    SlotAspectMin = (double)_nudSlotAspectMin.Value,
-                    SlotAspectMax = (double)_nudSlotAspectMax.Value,
-                    SlotSolidMin = (double)_nudSlotSolidMin.Value,
+                param.RoundAspectMin = (double)_nudRoundAspectMin.Value;
+                param.RoundSolidMin = (double)_nudRoundSolidMin.Value;
 
-                    RoiPoints = new List<System.Drawing.Point>(_roiPoints),
-                    ReferenceOffsetX = _referenceOffsetX
-                };
+                param.SlotAspectMin = (double)_nudSlotAspectMin.Value;
+                param.SlotAspectMax = (double)_nudSlotAspectMax.Value;
+                param.SlotSolidMin = (double)_nudSlotSolidMin.Value;
+
+                int beam = GetSelectedBeamLength();
+                if (beam == 2180)
+                {
+                    param.RoiPoints2180 = new List<System.Drawing.Point>(_roiPoints);
+                    param.ReferenceOffsetX2180 = _referenceOffsetX;
+                }
+                else
+                {
+                    param.RoiPoints1380 = new List<System.Drawing.Point>(_roiPoints);
+                    param.ReferenceOffsetX1380 = _referenceOffsetX;
+                }
 
                 _globalConfig.Cameras[sn] = param;
 
@@ -441,8 +495,8 @@ namespace pallet_storage_detection_system_Net_V2
                 string json = JsonSerializer.Serialize(_globalConfig, options);
                 File.WriteAllText(ConfigPath, json);
 
-                AppendLog($"💾 相机 SN [{sn}] 参数与 ROI 设定已保存成功！");
-                MessageBox.Show($"相机 [{sn}] 参数保存成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AppendLog($"💾 相机 SN [{sn}] (规格 {beam}) 参数与 ROI 设定已保存成功！");
+                MessageBox.Show($"相机 [{sn}] (规格 {beam}) 参数保存成功！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {

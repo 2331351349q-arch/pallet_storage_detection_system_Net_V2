@@ -46,6 +46,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 }
 
                 globalCfg ??= new OffsetTestConfig();
+                globalCfg.MigrateAll();
                 var offsets = new List<double>();
 
                 // 处理第一台相机
@@ -78,15 +79,27 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 // 均值作为最终偏差
                 double finalOffset = offsets.Average();
 
-                // 遵循原始算法关于侧边的方向反转约定
+                // 遵循最终偏移输出正负号的物理对应关系（均以往里侧走为正值）：
+                // 
+                // 1. 对于 right 一侧（面向右侧货架）：
+                //    - 最终计算结果为正值（+），表示堆垛机偏右侧，需要往左侧移动（即相机的 X 轴负方向）。
+                //    - 堆垛机偏右侧时，静止柱子在相机画面中偏左（actualCenterX < refX，即原始偏差 dx < 0）。
+                //    - 既然原始偏差 dx < 0（负值）对应“需要向左移动（正值）”，因此 right 侧必须进行取反。
+                //
                 if (string.Equals(res.Side, "right", StringComparison.OrdinalIgnoreCase))
                 {
                     finalOffset = -finalOffset;
                 }
+                //
+                // 2. 对于 left 一侧（面向左侧货架）：
+                //    - 相机 X+ 方向（偏右）为向里，对应的计算偏移量为正值，也是堆垛机需要移动的正方向。
+                //    - 堆垛机偏左/偏外侧时，静止柱子在相机画面中偏右（actualCenterX > refX，即原始偏差 dx > 0）。
+                //    - 既然原始偏差 dx > 0（正值）对应“向里移动（正值）”，因此 left 侧保持同号，无需取反。
+                //
 
-                // 钳制异常偏离范围（安全限止）
-                if (finalOffset < -100.0) finalOffset = -100.0;
-                if (finalOffset > 100.0) finalOffset = 100.0;
+                // 钳制异常偏离范围（像素级安全限制）
+                if (finalOffset < -1000.0) finalOffset = -1000.0;
+                if (finalOffset > 1000.0) finalOffset = 1000.0;
 
                 res.OffsetLatMmValue = Math.Round(finalOffset, 1);
                 Console.WriteLine($"[StackerOffset2DAlgo] 计算完成：最终水平偏移 = {res.OffsetLatMmValue} mm (由 {offsets.Count} 台相机均值计算得到)");
@@ -106,9 +119,19 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             if (string.IsNullOrEmpty(sn)) return null;
 
             // 获取该相机的参数，若不存在则跳过该相机
-            if (!config.Cameras.TryGetValue(sn, out var param) || param.RoiPoints == null || param.RoiPoints.Count != 4)
+            if (!config.Cameras.TryGetValue(sn, out var param))
             {
-                Console.WriteLine($"[StackerOffset2DAlgo] 相机 {sn} 未配置多边形 ROI 区域或参数，跳过偏移计算。");
+                Console.WriteLine($"[StackerOffset2DAlgo] 相机 {sn} 未配置参数，跳过偏移计算。");
+                return null;
+            }
+
+            // 根据 BeamLength 选取 ROI 区域与标准参考值
+            var roiPointsToUse = (task.BeamLength == 1380) ? param.RoiPoints1380 : param.RoiPoints2180;
+            var referenceOffsetXToUse = (task.BeamLength == 1380) ? param.ReferenceOffsetX1380 : param.ReferenceOffsetX2180;
+
+            if (roiPointsToUse == null || roiPointsToUse.Count != 4)
+            {
+                Console.WriteLine($"[StackerOffset2DAlgo] 相机 {sn} 未配置货架规格 {task.BeamLength} 的多边形 ROI 区域，跳过偏移计算。");
                 return null;
             }
 
@@ -142,7 +165,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             var detectedSlots = new List<RotatedRect>();
             var allCandidates = new List<RotatedRect>();
 
-            var roiPts = param.RoiPoints.Select(p => new OpenCvSharp.Point(p.X, p.Y)).ToArray();
+            var roiPts = roiPointsToUse.Select(p => new OpenCvSharp.Point(p.X, p.Y)).ToArray();
 
             foreach (var contour in contours)
             {
@@ -240,53 +263,11 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             float midY = mat.Height / 2f;
             float actualCenterX = (float)(finalK * midY + finalC);
 
-            // 6. 计算物理偏差 (像素 -> 毫米)
-            // 读取标定参数里的 Fx，默认为 1450
-            double fx = 1450.0;
-            var calib = ConfigManager.Instance?.Camera2DCalibrations?.FirstOrDefault(c => c.CameraSn == sn);
-            if (calib != null && calib.Fx > 100)
-            {
-                fx = calib.Fx;
-            }
-
-            // 动态测量深度 Z：读取 ROI 边界框内深度帧的平均物理深度
-            double avgZ = 0;
-            try
-            {
-                int minX = Math.Max(0, param.RoiPoints.Min(p => p.X));
-                int maxX = Math.Min(frame.Width - 1, param.RoiPoints.Max(p => p.X));
-                int minY = Math.Max(0, param.RoiPoints.Min(p => p.Y));
-                int maxY = Math.Min(frame.Height - 1, param.RoiPoints.Max(p => p.Y));
-
-                double sumZ = 0;
-                int countZ = 0;
-                for (int y = minY; y <= maxY; y++)
-                {
-                    for (int x = minX; x <= maxX; x++)
-                    {
-                        ushort d = frame.DepthRaw[y * frame.Width + x];
-                        if (d > 500 && d < 4000) // 合理范围（0.5米 ~ 4米）
-                        {
-                            sumZ += d;
-                            countZ++;
-                        }
-                    }
-                }
-                avgZ = countZ > 0 ? sumZ / countZ : 0;
-            }
-            catch { }
-
-            // 如果无法测量深度，则根据货位类型回退到公称距离
-            if (avgZ <= 500)
-            {
-                avgZ = (task.BeamLength == 2180) ? 2180.0 : 1380.0;
-            }
-
+            // 6. 计算像素偏差
             // 标准位置参考值
-            float refX = param.ReferenceOffsetX ?? (mat.Width / 2f);
+            float refX = referenceOffsetXToUse ?? (mat.Width / 2f);
 
             double offsetPixel = actualCenterX - refX;
-            double offsetMm = (offsetPixel * avgZ) / fx;
 
             // 7. 可视化回绘到 PreviewImage
             try
@@ -326,7 +307,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     using (var roiPen = new Pen(Color.FromArgb(0, 255, 255), 2f))
                     using (var roiBrush = new SolidBrush(Color.FromArgb(30, 0, 255, 255)))
                     {
-                        var screenPts = param.RoiPoints.ToArray();
+                        var screenPts = roiPointsToUse.ToArray();
                         g.DrawPolygon(roiPen, screenPts);
                         g.FillPolygon(roiBrush, screenPts);
                     }
@@ -336,8 +317,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     using (var descFont = new Font("Microsoft YaHei UI", 12F))
                       using (var bgBrush = new SolidBrush(Color.FromArgb(180, 20, 20, 20)))
                     {
-                        string refText = param.ReferenceOffsetX.HasValue ? $"标准:{refX:F1}px" : "基于画面中心";
-                        string infoText = $"偏差: {offsetMm:F1} mm ({refText}, 测距:{avgZ:F0}mm)";
+                        string refText = referenceOffsetXToUse.HasValue ? $"标准:{refX:F1}px" : "基于画面中心";
+                        string infoText = $"偏差: {offsetPixel:F1} 像素 ({refText})";
                         string descText = $"[2D算法] 相机 SN: {sn} | 找到孔洞数: {bestInliers.Count}个 | 线中心: {actualCenterX:F1}px";
 
                         g.FillRectangle(bgBrush, 30, 20, 1100, 95);
@@ -359,7 +340,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 processBmp.Dispose();
             }
 
-            return offsetMm;
+            return offsetPixel;
         }
     }
 }
