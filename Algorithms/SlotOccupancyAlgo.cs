@@ -106,7 +106,6 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                     return (roiList[0], roiList[1], roiList[2], roiList[3], roiList[4], roiList[5]);
                 }
             }
-
             return (-500, 500, -500, 500, 1000, 3000);
         }
 

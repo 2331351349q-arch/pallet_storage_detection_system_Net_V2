@@ -46,6 +46,7 @@ namespace pallet_storage_detection_system_Net_V2
         private NumericUpDown _nudSlotAspectMin = null!;
         private NumericUpDown _nudSlotAspectMax = null!;
         private NumericUpDown _nudSlotSolidMin = null!;
+        private NumericUpDown _nudPixelToMmRatio = null!;
 
         // 操作按钮
         private Button _btnLoad = null!;
@@ -191,6 +192,7 @@ namespace pallet_storage_detection_system_Net_V2
             flow.Controls.Add(PropRow("最小面积 (px)", _nudMinArea = new NumericUpDown { Minimum = 1, Maximum = 10000, Value = 30, Width = 80 }, flowW));
             flow.Controls.Add(PropRow("最大面积 (px)", _nudMaxArea = new NumericUpDown { Minimum = 100, Maximum = 100000, Value = 8000, Width = 80 }, flowW));
             flow.Controls.Add(PropRow("拟合直线数量", _nudLinesToFit = new NumericUpDown { Minimum = 1, Maximum = 4, Value = 1, Width = 80 }, flowW));
+            flow.Controls.Add(PropRow("像素/毫米比例 (Ratio)", _nudPixelToMmRatio = new NumericUpDown { Minimum = 0.0001M, Maximum = 10.0M, DecimalPlaces = 4, Increment = 0.001M, Value = 0.125M, Width = 80 }, flowW));
 
             // 3. 圆孔识别参数
             flow.Controls.Add(SectionLabel("⚪ 圆孔筛选阈值 (Round)", flowW));
@@ -389,6 +391,7 @@ namespace pallet_storage_detection_system_Net_V2
                 _nudSlotAspectMin.Value = Math.Clamp((decimal)param.SlotAspectMin, _nudSlotAspectMin.Minimum, _nudSlotAspectMin.Maximum);
                 _nudSlotAspectMax.Value = Math.Clamp((decimal)param.SlotAspectMax, _nudSlotAspectMax.Minimum, _nudSlotAspectMax.Maximum);
                 _nudSlotSolidMin.Value = Math.Clamp((decimal)param.SlotSolidMin, _nudSlotSolidMin.Minimum, _nudSlotSolidMin.Maximum);
+                _nudPixelToMmRatio.Value = Math.Clamp((decimal)(param.PixelToMmRatio > 0 ? param.PixelToMmRatio : 0.125), _nudPixelToMmRatio.Minimum, _nudPixelToMmRatio.Maximum);
 
                 int beam = GetSelectedBeamLength();
                 if (beam == 2180)
@@ -431,6 +434,7 @@ namespace pallet_storage_detection_system_Net_V2
                 _nudSlotAspectMin.Value = 0.10M;
                 _nudSlotAspectMax.Value = 0.55M;
                 _nudSlotSolidMin.Value = 0.90M;
+                _nudPixelToMmRatio.Value = 0.125M;
 
                 _roiPoints.Clear();
                 _referenceOffsetX = null;
@@ -470,6 +474,7 @@ namespace pallet_storage_detection_system_Net_V2
                 param.SlotAspectMin = (double)_nudSlotAspectMin.Value;
                 param.SlotAspectMax = (double)_nudSlotAspectMax.Value;
                 param.SlotSolidMin = (double)_nudSlotSolidMin.Value;
+                param.PixelToMmRatio = (double)_nudPixelToMmRatio.Value;
 
                 int beam = GetSelectedBeamLength();
                 if (beam == 2180)
@@ -992,6 +997,9 @@ namespace pallet_storage_detection_system_Net_V2
                 offset = actualCenterX - imgCenter;
             }
 
+            double ratio = (double)_nudPixelToMmRatio.Value;
+            double offsetMm = offset * ratio;
+
             foreach (var e in remainingCandidates)
             {
                 Cv2.Ellipse(srcCopy, e, Scalar.Gray, 1);
@@ -1049,8 +1057,8 @@ namespace pallet_storage_detection_system_Net_V2
                 using (var bgBrush = new SolidBrush(Color.FromArgb(180, 20, 20, 20)))
                 {
                     string refMode = _referenceOffsetX.HasValue ? "基于标准值" : "基于画面中心";
-                    string infoText = $"偏差: {offset:F1} 像素 ({refMode})";
-                    string descText = "RANSAC 提取孔洞（彩色圈代表对应的列特征，灰色圈为过滤噪点）";
+                    string infoText = $"偏差: {offsetMm:F2} mm ({refMode})";
+                    string descText = $"RANSAC 提取孔洞 (比例: {ratio:F4} mm/px，彩色圈为对应列特征)";
 
                     g.FillRectangle(bgBrush, 30, 20, 1100, 100);
                     g.DrawString(infoText, titleFont, Brushes.Cyan, 40, 25);
@@ -1059,7 +1067,7 @@ namespace pallet_storage_detection_system_Net_V2
             }
 
             _pbImage.Image = bmp;
-            AppendLog($"📊 计算中心位置: {actualCenterX:F1} px. 偏移结果: {offset:F2} px");
+            AppendLog($"📊 计算中心位置: {actualCenterX:F1} px. 偏移结果: {offset:F2} px ({offsetMm:F2} mm)");
         }
 
         private void AppendLog(string msg)

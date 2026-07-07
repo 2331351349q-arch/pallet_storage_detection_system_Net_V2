@@ -97,12 +97,12 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 //    - 既然原始偏差 dx > 0（正值）对应“向里移动（正值）”，因此 left 侧保持同号，无需取反。
                 //
 
-                // 钳制异常偏离范围（像素级安全限制）
-                if (finalOffset < -1000.0) finalOffset = -1000.0;
-                if (finalOffset > 1000.0) finalOffset = 1000.0;
+                // 钳制异常偏离范围（物理毫米级安全限制）
+                if (finalOffset < -500.0) finalOffset = -500.0;
+                if (finalOffset > 500.0) finalOffset = 500.0;
 
                 res.OffsetLatMmValue = Math.Round(finalOffset, 1);
-                Console.WriteLine($"[StackerOffset2DAlgo] 计算完成：最终水平偏移 = {res.OffsetLatMmValue} pixel (由 {offsets.Count} 台相机均值计算得到)");
+                Console.WriteLine($"[StackerOffset2DAlgo] 计算完成：最终水平偏移 = {res.OffsetLatMmValue} mm (由 {offsets.Count} 台相机均值计算得到)");
                 return true;
             }
             catch (Exception ex)
@@ -325,11 +325,13 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             double finalC = selectedLine.X1 - finalK * selectedLine.Y1;
             var bestInliers = selectedInliers;
 
-            // 6. 计算像素偏差
+            // 6. 计算偏差（像素与物理毫米）
             // 标准位置参考值
             float refXVal = referenceOffsetXToUse ?? (mat.Width / 2f);
 
             double offsetPixel = actualCenterX - refXVal;
+            double ratio = param.PixelToMmRatio > 0 ? param.PixelToMmRatio : 0.125;
+            double offsetMm = offsetPixel * ratio;
 
             // 7. 可视化回绘到 PreviewImage
             try
@@ -380,8 +382,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                       using (var bgBrush = new SolidBrush(Color.FromArgb(180, 20, 20, 20)))
                     {
                         string refText = referenceOffsetXToUse.HasValue ? $"标准:{refXVal:F1}px" : "基于画面中心";
-                        string infoText = $"偏差: {offsetPixel:F1} 像素 ({refText})";
-                        string descText = $"[2D算法] 相机 SN: {sn} | 找到孔洞数: {bestInliers.Count}个 | 线中心: {actualCenterX:F1}px";
+                        string infoText = $"偏差: {offsetMm:F2} mm ({refText})";
+                        string descText = $"[2D算法] 相机 SN: {sn} | 找到孔洞数: {bestInliers.Count}个 | 线中心: {actualCenterX:F1}px (比例: {ratio:F4} mm/px)";
 
                         g.FillRectangle(bgBrush, 30, 20, 1100, 95);
                         g.DrawString(infoText, titleFont, Brushes.Cyan, 40, 23);
@@ -402,7 +404,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 processBmp.Dispose();
             }
 
-            return offsetPixel;
+            return offsetMm;
         }
     }
 }

@@ -47,12 +47,19 @@ namespace pallet_storage_detection_system_Net_V2.Config
         public List<System.Drawing.Point> RoiPoints2180 { get; set; } = new();
         public float? ReferenceOffsetX2180 { get; set; }
 
+        // 像素转毫米比例系数 (mm/pixel)，默认值为 0.125
+        public double PixelToMmRatio { get; set; } = 0.125;
+
         // 旧的单组属性，用于兼容以前保存的数据
         public List<System.Drawing.Point> RoiPoints { get; set; } = new();
         public float? ReferenceOffsetX { get; set; }
 
         public void MigrateOldConfig()
         {
+            if (PixelToMmRatio <= 0)
+            {
+                PixelToMmRatio = 0.125;
+            }
             if (RoiPoints != null && RoiPoints.Count == 4)
             {
                 if (RoiPoints1380 == null || RoiPoints1380.Count == 0)
