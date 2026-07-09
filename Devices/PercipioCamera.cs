@@ -178,19 +178,31 @@ namespace pallet_storage_detection_system_Net_V2.Devices
         /// </summary>
         private void Device_FrameSetReceived(object sender, FrameSetReceivedEventArgs e)
         {
-            // 性能优化：如果没有上层 Task 正在等待该图像，直接放弃后续昂贵的 OpenCV 转换。
-            if (_frameTcs == null || _frameTcs.Task.IsCompleted) return;
+            // 性能优化：如果没有上层 Task 正在等待该图像，直接放弃后续昂贵的 OpenCV 转换并释放非托管帧
+            if (_frameTcs == null || _frameTcs.Task.IsCompleted)
+            {
+                e.FrameSet?.Dispose();
+                return;
+            }
+
+            var frameSet = e.FrameSet;
+            if (frameSet == null) return;
+
+            Frame? frame = null;
+            UCV.DataModel.Interop.Image? image = null;
+            Frame? colorFrame = null;
+            UCV.DataModel.Interop.Image? colorImg = null;
+            PointCloud? pointCloud = null;
 
             try
             {
-                var frameSet = e.FrameSet;
-                var frame = frameSet.GetFrame(SensorType.Depth);
+                frame = frameSet.GetFrame(SensorType.Depth);
                 if (frame == null || frame.Image == null) return;
 
                 // 缓存帧元数据，供内参读取等场景使用
                 try { _lastFrameInfo = frame.Info; } catch { }
 
-                var image = frame.Image;
+                image = frame.Image;
                 IntPtr rawDataPtr = image.GetData();
                 int width = (int)image.Width;
                 int height = (int)image.Height;
@@ -219,10 +231,10 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                 Bitmap? colorBmp = null;
                 try
                 {
-                    var colorFrame = frameSet.GetFrame(SensorType.Color);
+                    colorFrame = frameSet.GetFrame(SensorType.Color);
                     if (colorFrame != null && colorFrame.Image != null)
                     {
-                        var colorImg = colorFrame.Image;
+                        colorImg = colorFrame.Image;
                         IntPtr colorPtr = colorImg.GetData();
                         int cW = (int)colorImg.Width;
                         int cH = (int)colorImg.Height;
@@ -264,7 +276,7 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                 // ★ 方案A升级：调用 SDK 原生 DepthImageToPoint3d 生成点云，替代手动公式
                 try
                 {
-                    var status = ImageProc.DepthImageToPoint3d(frame, out PointCloud pointCloud);
+                    var status = ImageProc.DepthImageToPoint3d(frame, out pointCloud);
                     if (status == CameraApiStatus.Success && pointCloud != null)
                     {
                         int pointCount = (int)pointCloud.GetPointCount();
@@ -286,6 +298,15 @@ namespace pallet_storage_detection_system_Net_V2.Devices
             catch (Exception ex)
             {
                 Console.WriteLine($"处理 {SerialNumber} 深度图回调异常: {ex.Message}");
+            }
+            finally
+            {
+                pointCloud?.Dispose();
+                colorImg?.Dispose();
+                colorFrame?.Dispose();
+                image?.Dispose();
+                frame?.Dispose();
+                frameSet.Dispose();
             }
         }
 
@@ -413,10 +434,11 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                 bool ok = false;
                 foreach (var src in sourceValues)
                 {
-                    var s1 = _device!.GetFeature("SourceSelector", out CameraFeature selFeat);
-                    if (s1 != CameraApiStatus.Success) continue;
+                    CameraFeature? selFeat = null;
                     try
                     {
+                        var s1 = _device!.GetFeature("SourceSelector", out selFeat);
+                        if (s1 != CameraApiStatus.Success) continue;
                         var strVal = new CameraValue(CameraValueType.String, src);
                         var s2 = selFeat.SetValue(strVal);
                         if (s2 == CameraApiStatus.Success || s2.ToString() == "Opened")
@@ -429,6 +451,10 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                             L($"[内参] SetValue(\"{src}\") 返回 {s2}");
                     }
                     catch (Exception ex) { L($"[内参] SetValue 异常: {ex.Message}"); }
+                    finally
+                    {
+                        selFeat?.Dispose();
+                    }
                 }
                 if (!ok)
                     L($"[内参] SourceSelector 设置失败，继续尝试读取");
@@ -443,50 +469,57 @@ namespace pallet_storage_detection_system_Net_V2.Devices
             }
 
             // 获取 CameraFeature
-            CameraFeature feat;
-            var r1 = _device!.GetFeature(featureName, out feat);
-            if (r1 != CameraApiStatus.Success)
-            {
-                L($"[内参] GetFeature(\"{featureName}\") 返回 {r1}, 回退 {fallbackName}");
-                r1 = _device.GetFeature(fallbackName, out feat);
-                if (r1 != CameraApiStatus.Success)
-                {
-                    L($"[内参] GetFeature(\"{fallbackName}\") 也返回 {r1}");
-                    return null;
-                }
-                L($"[内参] 使用回退特征 {fallbackName}");
-            }
-
-            // 诊断: 输出特征类型信息
+            CameraFeature? feat = null;
             try
             {
-                CameraFeatureAccessMode accessMode;
-                feat.GetAccessMode(out accessMode);
-                L($"[内参] FeatureType={feat.FeatureType}, AccessMode={accessMode}");
-            }
-            catch (Exception ex) { L($"[内参] 特征类型诊断异常: {ex.Message}"); }
+                var r1 = _device!.GetFeature(featureName, out feat);
+                if (r1 != CameraApiStatus.Success)
+                {
+                    L($"[内参] GetFeature(\"{featureName}\") 返回 {r1}, 回退 {fallbackName}");
+                    r1 = _device.GetFeature(fallbackName, out feat);
+                    if (r1 != CameraApiStatus.Success)
+                    {
+                        L($"[内参] GetFeature(\"{fallbackName}\") 也返回 {r1}");
+                        return null;
+                    }
+                    L($"[内参] 使用回退特征 {fallbackName}");
+                }
 
-            // GetValue
-            var r2 = feat.GetValue(out CameraValue camVal);
-            if (r2 != CameraApiStatus.Success && r2.ToString() != "Opened")
-            {
-                L($"[内参] GetValue() 返回 {r2}");
+                // 诊断: 输出特征类型信息
+                try
+                {
+                    CameraFeatureAccessMode accessMode;
+                    feat.GetAccessMode(out accessMode);
+                    L($"[内参] FeatureType={feat.FeatureType}, AccessMode={accessMode}");
+                }
+                catch (Exception ex) { L($"[内参] 特征类型诊断异常: {ex.Message}"); }
+
+                // GetValue
+                var r2 = feat.GetValue(out CameraValue camVal);
+                if (r2 != CameraApiStatus.Success && r2.ToString() != "Opened")
+                {
+                    L($"[内参] GetValue() 返回 {r2}");
+                    return null;
+                }
+                L($"[内参] GetValue() 返回: {r2}, ValueType={camVal.ValueType}");
+
+                // 尝试多种方式提取数据
+                var data = ExtractDataFromCameraValue(L, camVal);
+                if (data != null && data.Length >= 4)
+                    return data;
+
+                // 路径D: CameraFeature 反射 — 查找隐藏的寄存器读取方法
+                L("[内参] CameraValue 提取失败，尝试 CameraFeature 反射探索");
+                data = TryReadFromFeatureRegisters(L, feat);
+                if (data != null && data.Length >= 4)
+                    return data;
+
                 return null;
             }
-            L($"[内参] GetValue() 返回: {r2}, ValueType={camVal.ValueType}");
-
-            // 尝试多种方式提取数据
-            var data = ExtractDataFromCameraValue(L, camVal);
-            if (data != null && data.Length >= 4)
-                return data;
-
-            // 路径D: CameraFeature 反射 — 查找隐藏的寄存器读取方法
-            L("[内参] CameraValue 提取失败，尝试 CameraFeature 反射探索");
-            data = TryReadFromFeatureRegisters(L, feat);
-            if (data != null && data.Length >= 4)
-                return data;
-
-            return null;
+            finally
+            {
+                feat?.Dispose();
+            }
         }
 
         /// <summary>路径C: 读取 CalibrationData 完整标定数据</summary>
@@ -494,41 +527,49 @@ namespace pallet_storage_detection_system_Net_V2.Devices
         {
             L("[内参] 尝试路径C: CalibrationData");
 
-            var r1 = _device!.GetFeature("CalibrationData", out CameraFeature feat);
-            if (r1 != CameraApiStatus.Success)
-            {
-                L($"[内参] CalibrationData 特征不可用 ({r1})");
-                return null;
-            }
-
+            CameraFeature? feat = null;
             try
             {
-                CameraFeatureAccessMode accessMode;
-                feat.GetAccessMode(out accessMode);
-                L($"[内参] CalibrationData FeatureType={feat.FeatureType}, AccessMode={accessMode}");
-            }
-            catch { }
+                var r1 = _device!.GetFeature("CalibrationData", out feat);
+                if (r1 != CameraApiStatus.Success)
+                {
+                    L($"[内参] CalibrationData 特征不可用 ({r1})");
+                    return null;
+                }
 
-            var r2 = feat.GetValue(out CameraValue camVal);
-            if (r2 != CameraApiStatus.Success && r2.ToString() != "Opened")
+                try
+                {
+                    CameraFeatureAccessMode accessMode;
+                    feat.GetAccessMode(out accessMode);
+                    L($"[内参] CalibrationData FeatureType={feat.FeatureType}, AccessMode={accessMode}");
+                }
+                catch { }
+
+                var r2 = feat.GetValue(out CameraValue camVal);
+                if (r2 != CameraApiStatus.Success && r2.ToString() != "Opened")
+                {
+                    L($"[内参] CalibrationData GetValue() 返回 {r2}");
+                    return null;
+                }
+                L($"[内参] CalibrationData GetValue() 返回: {r2}, ValueType={camVal.ValueType}");
+
+                // 先尝试标准提取
+                var data = ExtractDataFromCameraValue(L, camVal);
+                if (data != null && data.Length >= 4)
+                {
+                    L($"[内参] CalibrationData 提取到 {data.Length} floats");
+                    // CalibrationData 通常包含更完整的数据，内参在 data[0:6] 区域
+                    return data;
+                }
+
+                // 如果标准提取失败，用反射深入探索
+                L("[内参] CalibrationData 标准提取失败，使用反射深入探索");
+                return ExtractDataViaReflection(L, camVal);
+            }
+            finally
             {
-                L($"[内参] CalibrationData GetValue() 返回 {r2}");
-                return null;
+                feat?.Dispose();
             }
-            L($"[内参] CalibrationData GetValue() 返回: {r2}, ValueType={camVal.ValueType}");
-
-            // 先尝试标准提取
-            var data = ExtractDataFromCameraValue(L, camVal);
-            if (data != null && data.Length >= 4)
-            {
-                L($"[内参] CalibrationData 提取到 {data.Length} floats");
-                // CalibrationData 通常包含更完整的数据，内参在 data[0:6] 区域
-                return data;
-            }
-
-            // 如果标准提取失败，用反射深入探索
-            L("[内参] CalibrationData 标准提取失败，使用反射深入探索");
-            return ExtractDataViaReflection(L, camVal);
         }
 
         /// <summary>路径D: 通过反射探索 CameraFeature 的隐藏寄存器读取方法</summary>
@@ -1219,21 +1260,29 @@ namespace pallet_storage_detection_system_Net_V2.Devices
                 _frameTcs = new TaskCompletionSource<object>();
 
                 // 发送软触发命令
-                if (_device.GetFeature("TriggerSoftware", out CameraFeature trigFeat) == CameraApiStatus.Success)
+                CameraFeature trigFeat = null;
+                try
                 {
-                    var executeMethod = trigFeat.GetType().GetMethod("Execute", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                    if (executeMethod != null)
+                    if (_device.GetFeature("TriggerSoftware", out trigFeat) == CameraApiStatus.Success)
                     {
-                        executeMethod.Invoke(trigFeat, null);
+                        var executeMethod = trigFeat.GetType().GetMethod("Execute", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        if (executeMethod != null)
+                        {
+                            executeMethod.Invoke(trigFeat, null);
+                        }
+                        else
+                        {
+                            trigFeat.SetValue(new CameraValue(CameraValueType.Int32, 1));
+                        }
                     }
                     else
                     {
-                        trigFeat.SetValue(new CameraValue(CameraValueType.Int32, 1));
+                        Console.WriteLine($"[警告] {SerialNumber} 未找到 TriggerSoftware 特征。");
                     }
                 }
-                else
+                finally
                 {
-                    Console.WriteLine($"[警告] {SerialNumber} 未找到 TriggerSoftware 特征。");
+                    trigFeat?.Dispose();
                 }
 
                 // 构建 5 秒超时熔断任务。
