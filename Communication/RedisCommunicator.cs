@@ -118,6 +118,10 @@ namespace pallet_storage_detection_system_Net_V2.Communication
                                 BeamLength = beamLength
                             };
 
+                            // 将任务处理状态置为 1 (DB0)
+                            await _taskDb.StringSetAsync("vision_task_processing", "1");
+                            Console.WriteLine($"[Redis] vision_task_processing -> 1 (Task {currentFlag} detected)");
+
                             // 广播任务到达事件。
                             OnTaskTriggered?.Invoke(task);
                             _lastFlag = currentFlag;
@@ -186,6 +190,8 @@ namespace pallet_storage_detection_system_Net_V2.Communication
                 await _taskDb.StringSetAsync("vision_task_side", "");
                 await _taskDb.StringSetAsync("vision_task_time", "");
                 await _taskDb.StringSetAsync("vision_task_beam_length", "");
+                await _taskDb.StringSetAsync("vision_task_processing", "0");
+                Console.WriteLine("[Redis] vision_task_processing -> 0 (Task completed)");
                 Console.WriteLine("Redis 任务触发键已成功被初始化/清空。");
             }
             catch (Exception) { /* 忽略通讯异常 */ }
