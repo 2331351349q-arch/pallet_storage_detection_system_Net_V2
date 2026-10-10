@@ -333,6 +333,13 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
             double ratio = param.PixelToMmRatio > 0 ? param.PixelToMmRatio : 0.125;
             double offsetMm = offsetPixel * ratio;
 
+            // 统一最终显示与物理输出方向规则：对于 right 一侧进行取反
+            double displayOffsetMm = offsetMm;
+            if (string.Equals(task.Side, "right", StringComparison.OrdinalIgnoreCase))
+            {
+                displayOffsetMm = -offsetMm;
+            }
+
             // 7. 可视化回绘到 PreviewImage
             try
             {
@@ -382,7 +389,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                       using (var bgBrush = new SolidBrush(Color.FromArgb(180, 20, 20, 20)))
                     {
                         string refText = referenceOffsetXToUse.HasValue ? $"标准:{refXVal:F1}px" : "基于画面中心";
-                        string infoText = $"偏差: {offsetMm:F2} mm ({refText})";
+                        string infoText = $"偏差: {displayOffsetMm:F2} mm ({refText})";
                         string descText = $"[2D算法] 相机 SN: {sn} | 找到孔洞数: {bestInliers.Count}个 | 线中心: {actualCenterX:F1}px (比例: {ratio:F4} mm/px)";
 
                         g.FillRectangle(bgBrush, 30, 20, 1100, 95);
