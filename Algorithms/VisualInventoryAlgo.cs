@@ -12,7 +12,7 @@ using pallet_storage_detection_system_Net_V2.Config;
 namespace pallet_storage_detection_system_Net_V2.Algorithms
 {
     /// <summary>
-    /// 视觉盘库算法类 (Flag 4 和 5)。
+    /// 视觉盘库算法类 (Flag 4)。
     /// 升级版：使用 MVTec HALCON 引擎进行工业级超强二维码/条码识别。
     /// </summary>
     public static class VisualInventoryAlgo
@@ -64,10 +64,7 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
 
             var elapsed = (DateTime.Now - startTime).TotalMilliseconds;
 
-            if (flag == 4)
-            {
-                onLog?.Invoke($"⏱️  [盘库启动(Flag4)] 扫码完成: 共识别 {sortedBarcodes.Length} 个唯一条码，耗时: {elapsed:F2}ms");
-            }
+            onLog?.Invoke($"⏱️  [盘库扫码(Flag4)] 完成: 共识别 {sortedBarcodes.Length} 个唯一条码，耗时: {elapsed:F2}ms");
 
             return true;
         }
@@ -132,12 +129,17 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
 
                 // 3. 创建 DataCode/BarCode 句柄 (仅注册现场实际使用的码制以提升效率)
                 HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "maximum_recognition", out hv_DataCodeHandle_QR);
-                HOperatorSet.CreateBarCodeModel(new HTuple(new string[] { "Code 128", "Code 39" }), new HTuple(), out hv_BarCodeHandle);
+                HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
 
                 // 强制要求适应任何极性（黑底白码、白底黑码）、镜像反转等极端情况
                 HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "polarity", "any");
                 HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "mirrored", "any");
                 HOperatorSet.SetDataCode2dParam(hv_DataCodeHandle_QR, "timeout", 500); // 限制超时为 500ms，加快没有条码时的退出速度
+                try
+                {
+                    HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "timeout", 500);
+                }
+                catch { }
 
                 // 4. 寻找 QR Code
                 HObject ho_SymbolXLDs_QR = null;

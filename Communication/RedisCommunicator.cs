@@ -123,6 +123,7 @@ namespace pallet_storage_detection_system_Net_V2.Communication
                             var sideStr = await _taskDb.StringGetAsync("vision_task_side");
                             var timeStr = await _taskDb.StringGetAsync("vision_task_time");
                             var beamLenStr = await _taskDb.StringGetAsync("vision_task_beam_length");
+                            var boxIdStr = await _taskDb.StringGetAsync("vision_box_id");
 
                             int beamLength = 2180;
                             if (beamLenStr.HasValue && int.TryParse(beamLenStr, out int parsedLen))
@@ -130,12 +131,15 @@ namespace pallet_storage_detection_system_Net_V2.Communication
                                 beamLength = parsedLen;
                             }
 
+                            string? boxId = (!boxIdStr.IsNullOrEmpty && !string.IsNullOrWhiteSpace(boxIdStr.ToString())) ? boxIdStr.ToString().Trim() : null;
+
                             var task = new TaskData
                             {
                                 Flag = currentFlag,
                                 Side = (!sideStr.IsNullOrEmpty && !string.IsNullOrWhiteSpace(sideStr.ToString())) ? sideStr.ToString() : "left",
                                 TaskTime = (!timeStr.IsNullOrEmpty && !string.IsNullOrWhiteSpace(timeStr.ToString())) ? timeStr.ToString() : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                                BeamLength = beamLength
+                                BeamLength = beamLength,
+                                BoxId = boxId
                             };
 
                             // 将任务处理状态置为 1 (DB0)

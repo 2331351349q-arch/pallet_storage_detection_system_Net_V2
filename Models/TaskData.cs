@@ -13,7 +13,7 @@ namespace pallet_storage_detection_system_Net_V2.Models
     {
         /// <summary>
         /// 任务标志位。
-        /// 1: 货位检测, 2: 堆垛机偏移检测, 3: 变形检测, 4/5: 盘点(2D相机扫码)。
+        /// 1: 货位检测, 2: 堆垛机偏移检测, 3: 变形检测, 4: 盘库(2D相机扫码)。
         /// </summary>
         public int Flag { get; set; }
 
@@ -34,6 +34,12 @@ namespace pallet_storage_detection_system_Net_V2.Models
         public int BeamLength { get; set; } = 2180;
 
         /// <summary>
+        /// 当前盘库的目标料箱编号（例如："BOX111"），非必填。
+        /// 由 WCS 在触发盘库时写入，用于与后续的检测结果进行绑定校验。
+        /// </summary>
+        public string? BoxId { get; set; }
+
+        /// <summary>
         /// 重写 ToString 方法，用于在日志界面清晰展示任务关键参数。
         /// 内部包含了对时间字符串乱码的清洗逻辑。
         /// </summary>
@@ -45,7 +51,8 @@ namespace pallet_storage_detection_system_Net_V2.Models
             cleanTime = System.Text.RegularExpressions.Regex.Replace(cleanTime, @"[^\x20-\x7E]", "");
             cleanTime = System.Text.RegularExpressions.Regex.Replace(cleanTime, @"\s+", " ").Trim();
             
-            return $"Flag={Flag}, Side={Side}, Beam={BeamLength}, Time={cleanTime}";
+            string boxInfo = !string.IsNullOrEmpty(BoxId) ? $", BoxId={BoxId}" : "";
+            return $"Flag={Flag}, Side={Side}, Beam={BeamLength}{boxInfo}, Time={cleanTime}";
         }
     }
 }

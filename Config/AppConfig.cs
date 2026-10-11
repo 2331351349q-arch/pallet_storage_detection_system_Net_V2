@@ -104,7 +104,7 @@ namespace pallet_storage_detection_system_Net_V2.Config
         public RackDeformationConfig RackDeformation { get; set; } = new RackDeformationConfig();
 
         /// <summary>
-        /// 视觉盘库检测的特定配置 (Flag 4/5)。
+        /// 视觉盘库检测的特定配置 (Flag 4)。
         /// 使用 2D 相机进行条码扫描。
         /// </summary>
         [Category("04-盘库检测"), DisplayName("视觉盘库配置")]
@@ -450,14 +450,13 @@ namespace pallet_storage_detection_system_Net_V2.Config
     }
 
     /// <summary>
-    /// 视觉盘库检测配置 (Flag 4/5)。
+    /// 视觉盘库检测配置 (Flag 4)。
     /// 使用 2D 相机拍摄料箱条码，通过图像处理进行解码。
     /// </summary>
     public class VisualInventoryConfig
     {
         /// <summary>
-        /// 该算法对应的 2D 相机 SN 映射关系。
-        /// Flag=4 启动扫码，Flag=5 停止扫码。
+        /// 该算法对应的 2D 相机 SN 映射关系 (Flag=4 盘库扫码)。
         /// </summary>
         [Browsable(false)]
         public CameraMapping CameraMapping { get; set; } = new CameraMapping

@@ -93,7 +93,7 @@ namespace pallet_storage_detection_system_Net_V2.Models
         /// </summary>
         public string PalletHoleDefMmRightWarningAlarm { get; set; } = "{\"warning\": false, \"alarm\": false}";
 
-        // Flag 4/5: 视觉盘库字段
+        // Flag 4: 视觉盘库字段
         /// <summary>
         /// 条码或者库位汇总信息的 JSON 字符串。
         /// </summary>
@@ -200,9 +200,6 @@ namespace pallet_storage_detection_system_Net_V2.Models
                 case 4:
                     entries.Add(new HashEntry("result_barcodes", ResultBarcodes));
                     entries.Add(new HashEntry("scan_completed", ScanCompleted.ToString()));
-                    break;
-                case 5:
-                    entries.Add(new HashEntry("result_barcodes", ResultBarcodes));
                     break;
             }
 

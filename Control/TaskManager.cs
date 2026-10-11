@@ -27,8 +27,6 @@ namespace pallet_storage_detection_system_Net_V2.Control
         private RedisCommunicator _redisComm;
         private CancellationTokenSource _cancellationTokenSource;
 
-        // 盘库条码累计集合
-        private HashSet<string> _inventoryBarcodes = new HashSet<string>();
 
         /// <summary>
         /// 当产生新的日志消息时触发。用于 UI 实时展现系统状态。
@@ -132,27 +130,9 @@ namespace pallet_storage_detection_system_Net_V2.Control
 
                     bool algoSuccess;
                     var imagesToSave = new List<(string Name, Image Img)>();
-                    object?[]? imagesToProcess = null;
 
-                    // 2. 统一抓图流程：除 Flag 5 以外的所有任务类型均通过相机抓图。
-                    if (task.Flag == 5)
-                    {
-                        Log("ℹ️ [Flag 5] 收到盘库结束指令，正在打包汇总结果...");
-                        algoSuccess = true;
-                        try
-                        {
-                            var sortedBarcodes = _inventoryBarcodes.OrderBy(b => b).ToArray();
-                            result.ResultBarcodes = System.Text.Json.JsonSerializer.Serialize(sortedBarcodes);
-                            Log($"✅ [盘库结束] 汇总识别到 {_inventoryBarcodes.Count} 个唯一条码。");
-                        }
-                        catch (Exception ex)
-                        {
-                            Log($"❌ [盘库结束] 处理条码时发生异常: {ex.Message}");
-                            result.ResultBarcodes = "[]";
-                        }
-                        _inventoryBarcodes.Clear();
-                    }
-                    else if (task.Flag == 4)
+                    // 2. 抓图与算法流程
+                    if (task.Flag == 4)
                     {
                         Log("ℹ️ [Flag 4] 执行单次扫码盘库检测...");
                         
@@ -168,7 +148,21 @@ namespace pallet_storage_detection_system_Net_V2.Control
                         if (requiredCameraCount == 0)
                         {
                             Log("配置文件中相应映射 SN 数量不足，任务中止");
-                            result.ResultBarcodes = "[]";
+                            if (!string.IsNullOrWhiteSpace(task.BoxId))
+                            {
+                                var emptyPayload = new
+                                {
+                                    box_id = task.BoxId.Trim(),
+                                    barcode_qty = 0,
+                                    barcodes = Array.Empty<string>()
+                                };
+                                result.ResultBarcodes = System.Text.Json.JsonSerializer.Serialize(emptyPayload);
+                            }
+                            else
+                            {
+                                result.ResultBarcodes = "[]";
+                            }
+                            result.ScanCompleted = 1;
                             algoSuccess = false;
                         }
                         else
@@ -217,34 +211,42 @@ namespace pallet_storage_detection_system_Net_V2.Control
                             algoSuccess = await ExecuteAlgorithmAsync(task, image1, image2, targetSNs, tempRes);
                             LogPhaseTime($"算法执行(Flag4)", algoStartTime);
 
-                            // 将识别到的条码加入集合
-                            if (!string.IsNullOrEmpty(tempRes.ResultBarcodes))
-                            {
-                                try
-                                {
-                                    var arr = System.Text.Json.JsonSerializer.Deserialize<string[]>(tempRes.ResultBarcodes);
-                                    if (arr != null)
-                                    {
-                                        foreach (var code in arr)
-                                        {
-                                            _inventoryBarcodes.Add(code);
-                                        }
-                                        Log($"[Flag 4] 本次单次扫码识别到 {arr.Length} 个条码，当前累计 {_inventoryBarcodes.Count} 个唯一条码。");
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    Log($"[Flag 4] 解析条码时发生异常: {ex.Message}");
-                                }
-                            }
-
                             // 释放本地 images
                             for (int i = 0; i < images.Length; i++)
                             {
                                 if (images[i] is IDisposable disp) { disp.Dispose(); }
                             }
 
-                            result.ResultBarcodes = tempRes.ResultBarcodes ?? "[]";
+                            // 解析识别到的条码列表
+                            string[] scannedBarcodes = Array.Empty<string>();
+                            if (!string.IsNullOrEmpty(tempRes.ResultBarcodes))
+                            {
+                                try
+                                {
+                                    scannedBarcodes = System.Text.Json.JsonSerializer.Deserialize<string[]>(tempRes.ResultBarcodes) ?? Array.Empty<string>();
+                                }
+                                catch
+                                {
+                                    scannedBarcodes = Array.Empty<string>();
+                                }
+                            }
+
+                            // 如果提供了 vision_box_id，合并为对象；否则保持原有的条码数组
+                            if (!string.IsNullOrWhiteSpace(task.BoxId))
+                            {
+                                var payload = new
+                                {
+                                    box_id = task.BoxId.Trim(),
+                                    barcode_qty = scannedBarcodes.Length,
+                                    barcodes = scannedBarcodes
+                                };
+                                result.ResultBarcodes = System.Text.Json.JsonSerializer.Serialize(payload);
+                            }
+                            else
+                            {
+                                result.ResultBarcodes = tempRes.ResultBarcodes ?? "[]";
+                            }
+
                             result.ScanCompleted = 1;
                         }
                     }
@@ -334,15 +336,15 @@ namespace pallet_storage_detection_system_Net_V2.Control
 
                     result.Success = algoSuccess;
 
-                    // 5. 评价阶段：盘库任务(Flag 4/5)不参与偏移阈值判定。
-                    if (task.Flag != 4 && task.Flag != 5)
+                    // 5. 评价阶段：盘库任务(Flag 4)不参与偏移阈值判定。
+                    if (task.Flag != 4)
                     {
                         result.ApplyThresholds(ConfigManager.Instance);
                     }
 
                     // 6. 上报阶段：组装结果推回 Redis，并清理触发标志位。
                     string statusInfo = GetStatusSummary(result);
-                    if (task.Flag == 4 || task.Flag == 5)
+                    if (task.Flag == 4)
                     {
                         Log(statusInfo);
                     }
@@ -388,8 +390,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
         {
             if (!res.Success) return "❌ [处理失败]";
 
-            if (res.ResultType == 4) return "ℹ️ [盘库进行中]";
-            if (res.ResultType == 5) return "✅ [盘库结束]";
+            if (res.ResultType == 4) return "✅ [盘库扫码完成]";
             
             // 使用堆垛机左右偏移作为代表性指标进行状态等级初步展示。
             var eval = Algorithms.ThresholdEvaluator.Evaluate(res.OffsetLatMmValue, ConfigManager.Instance.Algorithms.StackerOffset.LateralThreshold);
@@ -421,14 +422,6 @@ namespace pallet_storage_detection_system_Net_V2.Control
                         barcodeSummary4 = barcodeSummary4.Substring(0, 200) + "... (截断，数据过长)";
                     }
                     return $"📌 结果明细(Flag4): result_barcodes={barcodeSummary4}, scan_completed={res.ScanCompleted}";
-
-                case 5:
-                    string barcodeSummary5 = res.ResultBarcodes;
-                    if (barcodeSummary5 != null && barcodeSummary5.Length > 200)
-                    {
-                        barcodeSummary5 = barcodeSummary5.Substring(0, 200) + "... (截断，数据过长)";
-                    }
-                    return $"📌 结果明细(Flag5): result_barcodes={barcodeSummary5}";
 
                 default:
                     return $"📌 结果明细(Flag{res.ResultType}): 无可用字段";
@@ -470,8 +463,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                         return Algorithms.RackDeformationAlgo.Run(task, img1, img2, res);
 
                     case 4:
-                    case 5:
-                        // 视觉盘库逻辑：4 为启动任务，5 为停止任务 (Flag 4/5)
+                        // 视觉盘库逻辑：单次扫码识别
                         return Algorithms.VisualInventoryAlgo.Run(task.Flag, img1, img2, targetSNs, res, Log);
 
                     default:

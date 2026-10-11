@@ -153,8 +153,7 @@ namespace pallet_storage_detection_system_Net_V2.Config
                 case 1: mapping = Instance.Algorithms.SlotOccupancy?.CameraMapping; break;
                 case 2: mapping = Instance.Algorithms.StackerOffset?.CameraMapping; break;
                 case 3: mapping = Instance.Algorithms.RackDeformation?.CameraMapping; break;
-                case 4:
-                case 5: mapping = Instance.Algorithms.VisualInventory?.CameraMapping; break;
+                case 4: mapping = Instance.Algorithms.VisualInventory?.CameraMapping; break;
             }
 
             if (mapping == null) 
