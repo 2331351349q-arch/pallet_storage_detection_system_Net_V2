@@ -25,6 +25,11 @@ namespace pallet_storage_detection_system_Net_V2.Communication
         public event Action<TaskData> OnTaskTriggered;
 
         /// <summary>
+        /// Redis 通信日志回调事件。
+        /// </summary>
+        public event Action<string>? OnLogMessage;
+
+        /// <summary>
         /// 任务被检测到的时间（用于性能追踪）
         /// </summary>
         public DateTime TaskDetectedTime => _taskDetectedTime;
@@ -47,12 +52,20 @@ namespace pallet_storage_detection_system_Net_V2.Communication
                     EndPoints = { $"{host}:{port}" },
                     Password = string.IsNullOrEmpty(password) ? null : password,
                     AbortOnConnectFail = false,
-                    ConnectTimeout = 5000
+                    ConnectTimeout = 5000,
+                    SyncTimeout = 5000
                 };
 
                 _redis = ConnectionMultiplexer.Connect(options);
                 _taskDb = _redis.GetDatabase(taskDbIndex);
                 _resultDb = _redis.GetDatabase(resultDbIndex);
+
+                // 注册连接恢复事件：当网络断开后重新连上时，自动确保 DB1 必备键
+                _redis.ConnectionRestored += (sender, args) =>
+                {
+                    OnLogMessage?.Invoke("✔ [Redis] 连接已恢复，正在校验 DB1 必备键...");
+                    _ = EnsureResultKeysAsync();
+                };
 
                 Console.WriteLine("Redis Connected.");
                 return true;
@@ -87,10 +100,17 @@ namespace pallet_storage_detection_system_Net_V2.Communication
         /// </summary>
         private async Task ListenLoop()
         {
+            bool hasEnsuredResultKeys = false;
+
             while (_isListening)
             {
                 try
                 {
+                    if (!hasEnsuredResultKeys && _redis != null && _redis.IsConnected)
+                    {
+                        hasEnsuredResultKeys = await EnsureResultKeysAsync();
+                    }
+
                     var flagStr = await _taskDb.StringGetAsync("vision_task_flag");
                     int currentFlag = 0;
 
@@ -113,8 +133,8 @@ namespace pallet_storage_detection_system_Net_V2.Communication
                             var task = new TaskData
                             {
                                 Flag = currentFlag,
-                                Side = sideStr.HasValue ? sideStr.ToString() : "left",
-                                TaskTime = timeStr.HasValue ? timeStr.ToString() : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                                Side = (!sideStr.IsNullOrEmpty && !string.IsNullOrWhiteSpace(sideStr.ToString())) ? sideStr.ToString() : "left",
+                                TaskTime = (!timeStr.IsNullOrEmpty && !string.IsNullOrWhiteSpace(timeStr.ToString())) ? timeStr.ToString() : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
                                 BeamLength = beamLength
                             };
 
@@ -179,22 +199,83 @@ namespace pallet_storage_detection_system_Net_V2.Communication
         }
 
         /// <summary>
-        /// 业务流转重置：在任务处理结束后，将 Redis 中所有相关的触发指令键位恢复初始状态。
+        /// 业务流转重置：在任务处理结束后，将 Redis 中触发标志位归零。
+        /// 注意：vision_task_beam_length 和 vision_task_side 等配置参数保留原值，不进行清空。
         /// </summary>
         public async Task ClearTaskKeysAsync()
         {
-            if (_taskDb == null) return;
+            if (_taskDb == null || _redis == null) return;
             try
             {
+                // 等待连接完全就绪（最多等待 3 秒）
+                int waitCount = 0;
+                while (!_redis.IsConnected && waitCount < 30)
+                {
+                    await Task.Delay(100);
+                    waitCount++;
+                }
+
+                if (!_redis.IsConnected) return;
+
                 await _taskDb.StringSetAsync("vision_task_flag", "0");
-                await _taskDb.StringSetAsync("vision_task_side", "");
-                await _taskDb.StringSetAsync("vision_task_time", "");
-                await _taskDb.StringSetAsync("vision_task_beam_length", "");
                 await _taskDb.StringSetAsync("vision_task_processing", "0");
                 Console.WriteLine("[Redis] vision_task_processing -> 0 (Task completed)");
-                Console.WriteLine("Redis 任务触发键已成功被初始化/清空。");
+                Console.WriteLine("Redis 任务触发键已成功归零。");
             }
             catch (Exception) { /* 忽略通讯异常 */ }
+        }
+
+        /// <summary>
+        /// 校验并确保结果数据库 (DB1) 中必备的键已初始化（若不存在则自动创建）。
+        /// 例如：scan_completed 用于 Flag=4 盘库，默认为 0。
+        /// </summary>
+        public async Task<bool> EnsureResultKeysAsync(Action<string>? logAction = null)
+        {
+            var log = logAction ?? ((msg) => OnLogMessage?.Invoke(msg));
+
+            if (_resultDb == null || _redis == null)
+            {
+                log("⚠️ [Redis DB1] Redis 数据库未初始化，无法检测 scan_completed。");
+                return false;
+            }
+
+            try
+            {
+                // 等待连接就绪（最多等待 5 秒）
+                int waitCount = 0;
+                while (!_redis.IsConnected && waitCount < 50)
+                {
+                    await Task.Delay(100);
+                    waitCount++;
+                }
+
+                if (!_redis.IsConnected)
+                {
+                    log("⚠️ [Redis DB1] Redis 尚未连通，暂时无法校验 scan_completed。");
+                    return false;
+                }
+
+                bool exists = await _resultDb.KeyExistsAsync("scan_completed");
+                if (!exists)
+                {
+                    await _resultDb.StringSetAsync("scan_completed", "0");
+                    log("✔ [Redis DB1] 检测到 scan_completed 字段不存在，已自动创建并初始化为 0。");
+                    Console.WriteLine("[Redis DB1] 检测到 scan_completed 字段不存在，已自动创建并初始化为 0。");
+                }
+                else
+                {
+                    var val = await _resultDb.StringGetAsync("scan_completed");
+                    log($"✔ [Redis DB1] 检测到 scan_completed 字段已存在 (当前值: {val})。");
+                    Console.WriteLine($"[Redis DB1] 检测到 scan_completed 字段已存在 (当前值: {val})。");
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                log($"❌ [Redis DB1] 检测/创建 scan_completed 异常: {ex.Message}");
+                Console.WriteLine($"[Redis DB1] EnsureResultKeysAsync 异常: {ex.Message}");
+                return false;
+            }
         }
     }
 }

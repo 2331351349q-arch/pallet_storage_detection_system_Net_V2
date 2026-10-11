@@ -243,9 +243,10 @@ namespace pallet_storage_detection_system_Net_V2.Control
                             {
                                 if (images[i] is IDisposable disp) { disp.Dispose(); }
                             }
-                        }
 
-                        result.ResultBarcodes = "[]";
+                            result.ResultBarcodes = tempRes.ResultBarcodes ?? "[]";
+                            result.ScanCompleted = 1;
+                        }
                     }
                     else
                     {
@@ -414,13 +415,20 @@ namespace pallet_storage_detection_system_Net_V2.Control
                     return $"📌 结果明细(Flag3): rackL={res.RackDefMmLeftValue:F1}mm {res.RackDefMmLeftWarningAlarm}, rackR={res.RackDefMmRightValue:F1}mm {res.RackDefMmRightWarningAlarm}, beam={res.BeamDefMmValue:F1}mm {res.BeamDefMmWarningAlarm}, palletL={res.PalletHoleDefMmLeftValue:F1}mm {res.PalletHoleDefMmLeftWarningAlarm}, palletR={res.PalletHoleDefMmRightValue:F1}mm {res.PalletHoleDefMmRightWarningAlarm}";
 
                 case 4:
-                case 5:
-                    string barcodeSummary = res.ResultBarcodes;
-                    if (barcodeSummary != null && barcodeSummary.Length > 200)
+                    string barcodeSummary4 = res.ResultBarcodes;
+                    if (barcodeSummary4 != null && barcodeSummary4.Length > 200)
                     {
-                        barcodeSummary = barcodeSummary.Substring(0, 200) + "... (截断，数据过长)";
+                        barcodeSummary4 = barcodeSummary4.Substring(0, 200) + "... (截断，数据过长)";
                     }
-                    return $"📌 结果明细(Flag{res.ResultType}): result_barcodes={barcodeSummary}";
+                    return $"📌 结果明细(Flag4): result_barcodes={barcodeSummary4}, scan_completed={res.ScanCompleted}";
+
+                case 5:
+                    string barcodeSummary5 = res.ResultBarcodes;
+                    if (barcodeSummary5 != null && barcodeSummary5.Length > 200)
+                    {
+                        barcodeSummary5 = barcodeSummary5.Substring(0, 200) + "... (截断，数据过长)";
+                    }
+                    return $"📌 结果明细(Flag5): result_barcodes={barcodeSummary5}";
 
                 default:
                     return $"📌 结果明细(Flag{res.ResultType}): 无可用字段";

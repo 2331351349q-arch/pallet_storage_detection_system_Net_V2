@@ -100,6 +100,11 @@ namespace pallet_storage_detection_system_Net_V2.Models
         public string ResultBarcodes { get; set; } = "[\"BOX111\", \"BOX112\"]";
 
         /// <summary>
+        /// (新增) 视觉扫描完毕标识 (Flag=4 盘库时使用)：视觉扫描完毕并写入结果后置为 1，WMS取完值后需要置为 0。
+        /// </summary>
+        public int ScanCompleted { get; set; } = 1;
+
+        /// <summary>
         /// 核心业务方法：根据应用配置的阈值对象，自动对当前测得的数值进行等级评定（正常/预警/报警）。
         /// </summary>
         /// <param name="config">全局配置实例。</param>
@@ -193,6 +198,9 @@ namespace pallet_storage_detection_system_Net_V2.Models
                     entries.Add(new HashEntry("pallet_hole_def_mm_right_warning_alarm", PalletHoleDefMmRightWarningAlarm));
                     break;
                 case 4:
+                    entries.Add(new HashEntry("result_barcodes", ResultBarcodes));
+                    entries.Add(new HashEntry("scan_completed", ScanCompleted.ToString()));
+                    break;
                 case 5:
                     entries.Add(new HashEntry("result_barcodes", ResultBarcodes));
                     break;

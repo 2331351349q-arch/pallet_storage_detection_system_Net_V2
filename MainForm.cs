@@ -112,6 +112,7 @@ namespace pallet_storage_detection_system_Net_V2
             // 01、订阅日志与图像更新事件，以便在 UI 上进行实时反馈。
             _manager.OnLogMessage += Manager_OnLogMessage;
             _manager.OnImageUpdated += Manager_OnImageUpdated;
+            _redis.OnLogMessage += Manager_OnLogMessage;
 
             var config = ConfigManager.Instance;
             string host = config.Redis?.Host ?? "127.0.0.1";
@@ -126,16 +127,17 @@ namespace pallet_storage_detection_system_Net_V2
             if (!redisConnected)
             {
                 System.Windows.Forms.MessageBox.Show(
-                    "Redis 连接失败!\n请检查 config.yaml 以及本地 Redis 服务是否启动。",
+                    "Redis 连接失败!\n请检查 config.json 以及本地 Redis 服务是否启动。",
                     "严重错误",
                     System.Windows.Forms.MessageBoxButtons.OK,
                     System.Windows.Forms.MessageBoxIcon.Error);
                 return;
             }
 
-            //03、异步初始化Redis：清理残留任务触发状态。
+            //03、异步初始化Redis：清理残留任务触发状态并检查结果库必备键。
             await _redis.ClearTaskKeysAsync();
-            Manager_OnLogMessage("✔ Redis 连接成功，已清理残留任务状态。");
+            await _redis.EnsureResultKeysAsync(Manager_OnLogMessage);
+            Manager_OnLogMessage("✔ Redis 连接初始化完成。");
 
 
 
