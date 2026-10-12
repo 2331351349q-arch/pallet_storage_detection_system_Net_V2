@@ -98,8 +98,8 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 //
 
 
-                if (finalOffset < -20.0) finalOffset = -20.0;
-                if (finalOffset > 20.0) finalOffset = 20.0;
+                if (finalOffset < -3.0) finalOffset = -3.0;
+                if (finalOffset > 3.0) finalOffset = 3.0;
 
                 res.OffsetLatMmValue = Math.Round(finalOffset, 1);
                 Console.WriteLine($"[StackerOffset2DAlgo] 计算完成：最终水平偏移 = {res.OffsetLatMmValue} mm (由 {offsets.Count} 台相机均值计算得到)");
