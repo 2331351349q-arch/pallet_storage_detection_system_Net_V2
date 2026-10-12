@@ -457,8 +457,9 @@ namespace pallet_storage_detection_system_Net_V2.Control
         /// <returns>算法处理是否成功。若为 false，系统将记录日志并中止该次上报。</returns>
         private async Task<bool> ExecuteAlgorithmAsync(TaskData task, object img1, object img2, List<string> targetSNs, DetectionResult res)
         {
-            // 在此模拟一个 500ms 的图像处理延迟，代表真实的 Halcon/OpenCV 计算开销。
-            await Task.Delay(500);
+            // 算法处理延迟模拟：Flag=3 变形检测控制在 300ms 左右（扣除点云实际计算的约 15ms 开销，延时约 285ms）
+            int delayMs = (task.Flag == 3) ? 285 : 500;
+            await Task.Delay(delayMs);
 
             try
             {

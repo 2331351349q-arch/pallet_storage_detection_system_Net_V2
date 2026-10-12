@@ -310,6 +310,21 @@ namespace pallet_storage_detection_system_Net_V2.Communication
                     Console.WriteLine($"[Redis DB1] 检测到 result_status 字段已存在 (当前值: '{val}')。");
                 }
 
+                // 3. system_ready 校验（未启动时为空）
+                bool readyExists = await _resultDb.KeyExistsAsync("system_ready");
+                if (!readyExists)
+                {
+                    await _resultDb.StringSetAsync("system_ready", "");
+                    log("✔ [Redis DB1] 检测到 system_ready 字段不存在，已自动创建并初始化为空。");
+                    Console.WriteLine("[Redis DB1] 检测到 system_ready 字段不存在，已自动创建并初始化为空。");
+                }
+                else
+                {
+                    var val = await _resultDb.StringGetAsync("system_ready");
+                    log($"✔ [Redis DB1] 检测到 system_ready 字段已存在 (当前值: '{val}')。");
+                    Console.WriteLine($"[Redis DB1] 检测到 system_ready 字段已存在 (当前值: '{val}')。");
+                }
+
                 return true;
             }
             catch (Exception ex)
@@ -317,6 +332,39 @@ namespace pallet_storage_detection_system_Net_V2.Communication
                 log($"❌ [Redis DB1] 检测/创建结果状态键异常: {ex.Message}");
                 Console.WriteLine($"[Redis DB1] EnsureResultKeysAsync 异常: {ex.Message}");
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// 异步设置软件系统就绪状态字段 (DB1 中的 system_ready)。
+        /// 未正常启动为 "0"，准备就绪为 "1"，软件关闭时为 ""。
+        /// </summary>
+        public async Task SetSystemReadyAsync(string status)
+        {
+            if (_resultDb == null || _redis == null || !_redis.IsConnected) return;
+            try
+            {
+                await _resultDb.StringSetAsync("system_ready", status);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Redis DB1] 异步设置 system_ready 异常: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 同步设置软件系统就绪状态字段 (DB1 中的 system_ready)，用于程序退出关闭时快速写入。
+        /// </summary>
+        public void SetSystemReady(string status)
+        {
+            if (_resultDb == null || _redis == null || !_redis.IsConnected) return;
+            try
+            {
+                _resultDb.StringSet("system_ready", status);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Redis DB1] 同步设置 system_ready 异常: {ex.Message}");
             }
         }
     }

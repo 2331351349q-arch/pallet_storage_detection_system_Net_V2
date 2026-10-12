@@ -137,17 +137,34 @@ namespace pallet_storage_detection_system_Net_V2
             //03、异步初始化Redis：清理残留任务触发状态并检查结果库必备键。
             await _redis.ClearTaskKeysAsync();
             await _redis.EnsureResultKeysAsync(Manager_OnLogMessage);
+            // 启动初始化阶段，先置为 0 表示尚未准备就绪
+            await _redis.SetSystemReadyAsync("0");
             Manager_OnLogMessage("✔ Redis 连接初始化完成。");
-
-
 
             //04、异步初始化硬件，防止阻断 UI 响应。
             Manager_OnLogMessage("[-] 系统正在初始化相机阵列，请稍候...");
-            await Task.Run(() =>
+            int camCount = 0;
+            int expectedCamCount = config.Cameras?.Count ?? 0;
+            try
             {
-                int camCount = DeviceManager.Initialize(config.Cameras, Manager_OnLogMessage);
-                Manager_OnLogMessage($"🚀 所有硬件检测完毕，共成功装载并点亮了 {camCount} 台相机设备");
-            });
+                await Task.Run(() =>
+                {
+                    camCount = DeviceManager.Initialize(config.Cameras, Manager_OnLogMessage);
+                    Manager_OnLogMessage($"🚀 所有硬件检测完毕，共成功装载并点亮了 {camCount} 台相机设备");
+                });
+            }
+            catch (Exception ex)
+            {
+                Manager_OnLogMessage($"❌ 相机初始化发生异常: {ex.Message}");
+            }
+
+            // 校验相机是否正常加载：若配置了相机但没有全部正常加载成功，则保持为 0，不置为 1
+            if (expectedCamCount > 0 && camCount < expectedCamCount)
+            {
+                await _redis.SetSystemReadyAsync("0");
+                Manager_OnLogMessage($"⚠️ [未就绪] 相机装载未达到配置要求 ({camCount}/{expectedCamCount})，system_ready 保持为 0。");
+                return;
+            }
 
             //05、依次启动业务队列处理器与外部监听服务。
             _manager.Start();
@@ -160,13 +177,23 @@ namespace pallet_storage_detection_system_Net_V2
 
             // 07、给每个 PictureBox 添加相机 SN 标签
             SetupCameraLabels();
+
+            // 08、软件成功启动并加载相机后，标记系统准备就绪为 1
+            await _redis.SetSystemReadyAsync("1");
+            Manager_OnLogMessage("✔ [Redis DB1] 软件准备就绪，system_ready -> 1。");
         }
 
         /// <summary>
-        /// 窗体关闭时，确保后台线程与 SDK 资源得到正确释放。
+        /// 窗体关闭时，确保后台线程与 SDK 资源得到正确释放，并将就绪状态置空。
         /// </summary>
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            try
+            {
+                // 软件关闭后将 DB1 中的 system_ready 设置为空
+                _redis?.SetSystemReady("");
+            }
+            catch { }
             _ctsLiveLeft?.Cancel();
             _ctsLiveRight?.Cancel();
             _redis?.StopListening();

@@ -97,9 +97,9 @@ namespace pallet_storage_detection_system_Net_V2.Algorithms
                 //    - 既然原始偏差 dx > 0（正值）对应“向里移动（正值）”，因此 left 侧保持同号，无需取反。
                 //
 
-                // 钳制异常偏离范围（物理毫米级安全限制）
-                if (finalOffset < -500.0) finalOffset = -500.0;
-                if (finalOffset > 500.0) finalOffset = 500.0;
+
+                if (finalOffset < -20.0) finalOffset = -20.0;
+                if (finalOffset > 20.0) finalOffset = 20.0;
 
                 res.OffsetLatMmValue = Math.Round(finalOffset, 1);
                 Console.WriteLine($"[StackerOffset2DAlgo] 计算完成：最终水平偏移 = {res.OffsetLatMmValue} mm (由 {offsets.Count} 台相机均值计算得到)");
