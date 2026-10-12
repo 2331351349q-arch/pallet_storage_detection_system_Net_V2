@@ -17,6 +17,11 @@ namespace pallet_storage_detection_system_Net_V2.Models
         public bool Success { get; set; } = false;
 
         /// <summary>
+        /// (可选) 检测执行状态：成功为 1，失败为 0，未执行为空 null。若不设置，则默认根据 Success 解析为 1 或 0。
+        /// </summary>
+        public int? ResultStatus { get; set; } = null;
+
+        /// <summary>
         /// 结果类型标识，与 TaskData.Flag 一致。
         /// </summary>
         public int ResultType { get; set; } = 0;
@@ -100,9 +105,9 @@ namespace pallet_storage_detection_system_Net_V2.Models
         public string ResultBarcodes { get; set; } = "[\"BOX111\", \"BOX112\"]";
 
         /// <summary>
-        /// (新增) 视觉扫描完毕标识 (Flag=4 盘库时使用)：视觉扫描完毕并写入结果后置为 1，WMS取完值后需要置为 0。
+        /// (新增) 视觉扫描完毕标识 (Flag=4 盘库时使用)：扫描成功为 1，失败为 0，没有触发扫描时为空 null。
         /// </summary>
-        public int ScanCompleted { get; set; } = 1;
+        public int? ScanCompleted { get; set; } = null;
 
         /// <summary>
         /// 核心业务方法：根据应用配置的阈值对象，自动对当前测得的数值进行等级评定（正常/预警/报警）。
@@ -157,12 +162,14 @@ namespace pallet_storage_detection_system_Net_V2.Models
         /// 将对象转化为 Redis HashEntry 数组，用于写入 Redis。
         /// 只会转化与当前 ResultType 相关的字段以节省带宽。
         /// </summary>
-        /// <returns>HashEntry 数组。</returns>
+        /// <returns>HashEntry 数组。</returns>,使用0，1表示false，true
         public HashEntry[] ToHashEntries()
         {
+            string statusStr = ResultStatus.HasValue ? ResultStatus.Value.ToString() : (Success ? "1" : "0");
+
             var entries = new List<HashEntry>
             {
-                new HashEntry("result_status", Success ? "success" : "fail"),
+                new HashEntry("result_status", statusStr),
                 new HashEntry("result_type", ResultType.ToString()),
                 new HashEntry("last_update_time", LastUpdateTime)
             };
@@ -171,6 +178,7 @@ namespace pallet_storage_detection_system_Net_V2.Models
             {
                 case 1:
                     entries.Add(new HashEntry("slot_occupied", SlotOccupied ? "true" : "false"));
+                    entries.Add(new HashEntry("scan_completed", ""));
                     break;
                 case 2:
                     entries.Add(new HashEntry("slot_occupied", SlotOccupied ? "true" : "false"));
@@ -184,6 +192,7 @@ namespace pallet_storage_detection_system_Net_V2.Models
                         entries.Add(new HashEntry("offset_lat_mm_right_value", OffsetLatMmValue.ToString("F1")));
                         entries.Add(new HashEntry("offset_lat_mm_right_warning_alarm", OffsetLatMmWarningAlarm));
                     }
+                    entries.Add(new HashEntry("scan_completed", ""));
                     break;
                 case 3:
                     entries.Add(new HashEntry("rack_def_mm_left_value", RackDefMmLeftValue.ToString("F1")));
@@ -196,10 +205,12 @@ namespace pallet_storage_detection_system_Net_V2.Models
                     entries.Add(new HashEntry("pallet_hole_def_mm_left_warning_alarm", PalletHoleDefMmLeftWarningAlarm));
                     entries.Add(new HashEntry("pallet_hole_def_mm_right_value", PalletHoleDefMmRightValue.ToString("F1")));
                     entries.Add(new HashEntry("pallet_hole_def_mm_right_warning_alarm", PalletHoleDefMmRightWarningAlarm));
+                    entries.Add(new HashEntry("scan_completed", ""));
                     break;
                 case 4:
                     entries.Add(new HashEntry("result_barcodes", ResultBarcodes));
-                    entries.Add(new HashEntry("scan_completed", ScanCompleted.ToString()));
+                    string scanVal = ScanCompleted.HasValue ? ScanCompleted.Value.ToString() : (Success ? "1" : "0");
+                    entries.Add(new HashEntry("scan_completed", scanVal));
                     break;
             }
 

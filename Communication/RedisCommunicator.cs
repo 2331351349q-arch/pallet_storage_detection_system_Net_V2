@@ -230,8 +230,29 @@ namespace pallet_storage_detection_system_Net_V2.Communication
         }
 
         /// <summary>
-        /// 校验并确保结果数据库 (DB1) 中必备的键已初始化（若不存在则自动创建）。
-        /// 例如：scan_completed 用于 Flag=4 盘库，默认为 0。
+        /// 重置结果数据库 (DB1) 中的执行状态：
+        /// 将 result_status 与 scan_completed 置为空字符串，表示当前任务处于未执行/未完成扫描状态。
+        /// </summary>
+        public async Task ResetExecutionStatusAsync()
+        {
+            if (_resultDb == null || _redis == null || !_redis.IsConnected) return;
+            try
+            {
+                var batch = _resultDb.CreateBatch();
+                var t1 = batch.StringSetAsync("result_status", "");
+                var t2 = batch.StringSetAsync("scan_completed", "");
+                batch.Execute();
+                await Task.WhenAll(t1, t2);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Redis DB1] 重置执行状态异常: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 校验并确保结果数据库 (DB1) 中必备的键已初始化（若不存在则自动创建为空）。
+        /// 例如：result_status 与 scan_completed 在未执行/未扫描时为空。
         /// </summary>
         public async Task<bool> EnsureResultKeysAsync(Action<string>? logAction = null)
         {
@@ -239,7 +260,7 @@ namespace pallet_storage_detection_system_Net_V2.Communication
 
             if (_resultDb == null || _redis == null)
             {
-                log("⚠️ [Redis DB1] Redis 数据库未初始化，无法检测 scan_completed。");
+                log("⚠️ [Redis DB1] Redis 数据库未初始化，无法检测结果状态键。");
                 return false;
             }
 
@@ -255,28 +276,45 @@ namespace pallet_storage_detection_system_Net_V2.Communication
 
                 if (!_redis.IsConnected)
                 {
-                    log("⚠️ [Redis DB1] Redis 尚未连通，暂时无法校验 scan_completed。");
+                    log("⚠️ [Redis DB1] Redis 尚未连通，暂时无法校验 DB1 必备键。");
                     return false;
                 }
 
-                bool exists = await _resultDb.KeyExistsAsync("scan_completed");
-                if (!exists)
+                // 1. scan_completed 校验（未触发扫描时为空）
+                bool scanExists = await _resultDb.KeyExistsAsync("scan_completed");
+                if (!scanExists)
                 {
-                    await _resultDb.StringSetAsync("scan_completed", "0");
-                    log("✔ [Redis DB1] 检测到 scan_completed 字段不存在，已自动创建并初始化为 0。");
-                    Console.WriteLine("[Redis DB1] 检测到 scan_completed 字段不存在，已自动创建并初始化为 0。");
+                    await _resultDb.StringSetAsync("scan_completed", "");
+                    log("✔ [Redis DB1] 检测到 scan_completed 字段不存在，已自动创建并初始化为空。");
+                    Console.WriteLine("[Redis DB1] 检测到 scan_completed 字段不存在，已自动创建并初始化为空。");
                 }
                 else
                 {
                     var val = await _resultDb.StringGetAsync("scan_completed");
-                    log($"✔ [Redis DB1] 检测到 scan_completed 字段已存在 (当前值: {val})。");
-                    Console.WriteLine($"[Redis DB1] 检测到 scan_completed 字段已存在 (当前值: {val})。");
+                    log($"✔ [Redis DB1] 检测到 scan_completed 字段已存在 (当前值: '{val}')。");
+                    Console.WriteLine($"[Redis DB1] 检测到 scan_completed 字段已存在 (当前值: '{val}')。");
                 }
+
+                // 2. result_status 校验（未执行时为空）
+                bool statusExists = await _resultDb.KeyExistsAsync("result_status");
+                if (!statusExists)
+                {
+                    await _resultDb.StringSetAsync("result_status", "");
+                    log("✔ [Redis DB1] 检测到 result_status 字段不存在，已自动创建并初始化为空。");
+                    Console.WriteLine("[Redis DB1] 检测到 result_status 字段不存在，已自动创建并初始化为空。");
+                }
+                else
+                {
+                    var val = await _resultDb.StringGetAsync("result_status");
+                    log($"✔ [Redis DB1] 检测到 result_status 字段已存在 (当前值: '{val}')。");
+                    Console.WriteLine($"[Redis DB1] 检测到 result_status 字段已存在 (当前值: '{val}')。");
+                }
+
                 return true;
             }
             catch (Exception ex)
             {
-                log($"❌ [Redis DB1] 检测/创建 scan_completed 异常: {ex.Message}");
+                log($"❌ [Redis DB1] 检测/创建结果状态键异常: {ex.Message}");
                 Console.WriteLine($"[Redis DB1] EnsureResultKeysAsync 异常: {ex.Message}");
                 return false;
             }

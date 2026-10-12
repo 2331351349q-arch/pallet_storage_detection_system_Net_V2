@@ -120,6 +120,9 @@ namespace pallet_storage_detection_system_Net_V2.Control
                     var totalStartTime = DateTime.Now;
                     Log($"\n>>> 开始处理新任务: {task}");
 
+                    // 开始执行新任务前，重置 DB1 的执行状态为空（未执行）
+                    await _redisComm.ResetExecutionStatusAsync();
+
                     // 1. 准备结果容器。
                     DetectionResult result = new DetectionResult
                     {
@@ -162,7 +165,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                             {
                                 result.ResultBarcodes = "[]";
                             }
-                            result.ScanCompleted = 1;
+                            result.ScanCompleted = 0;
                             algoSuccess = false;
                         }
                         else
@@ -247,7 +250,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                                 result.ResultBarcodes = tempRes.ResultBarcodes ?? "[]";
                             }
 
-                            result.ScanCompleted = 1;
+                            result.ScanCompleted = algoSuccess ? 1 : 0;
                         }
                     }
                     else
@@ -378,6 +381,19 @@ namespace pallet_storage_detection_system_Net_V2.Control
                 catch (Exception ex)
                 {
                     Log($"任务执行流程发生未捕获异常: {ex.Message}");
+                    try
+                    {
+                        var failRes = new DetectionResult
+                        {
+                            ResultType = task.Flag,
+                            Side = task.Side,
+                            Success = false,
+                            ScanCompleted = (task.Flag == 4) ? 0 : null,
+                            LastUpdateTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                        };
+                        await _redisComm.WriteResultAsync(failRes);
+                    }
+                    catch { }
                     await _redisComm.ClearTaskKeysAsync(); // 异常时也必须重置 Redis 触发，防止外部逻辑挂起。
                 }
             }
@@ -421,7 +437,8 @@ namespace pallet_storage_detection_system_Net_V2.Control
                     {
                         barcodeSummary4 = barcodeSummary4.Substring(0, 200) + "... (截断，数据过长)";
                     }
-                    return $"📌 结果明细(Flag4): result_barcodes={barcodeSummary4}, scan_completed={res.ScanCompleted}";
+                    string scanCompletedStr = res.ScanCompleted.HasValue ? res.ScanCompleted.Value.ToString() : "";
+                    return $"📌 结果明细(Flag4): result_barcodes={barcodeSummary4}, scan_completed={scanCompletedStr}";
 
                 default:
                     return $"📌 结果明细(Flag{res.ResultType}): 无可用字段";
