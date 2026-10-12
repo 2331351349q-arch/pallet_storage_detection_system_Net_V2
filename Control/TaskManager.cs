@@ -137,7 +137,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                     // 2. 抓图与算法流程
                     if (task.Flag == 4)
                     {
-                        Log("ℹ️ [Flag 4] 执行单次扫码盘库检测...");
+                        Log("ℹ️ [Flag 4] 开始执行组合任务: 先扫码盘库，后变形检测...");
                         
                         // 0. 执行任务前，先清空界面上所有四个相机的画面，避免上一次任务的残留导致用户误判
                         OnImageUpdated?.Invoke(1, null);
@@ -145,12 +145,17 @@ namespace pallet_storage_detection_system_Net_V2.Control
                         OnImageUpdated?.Invoke(3, null);
                         OnImageUpdated?.Invoke(4, null);
 
-                        List<string> targetSNs = ConfigManager.GetTargetCameraSNs(4, task.Side);
-                        int requiredCameraCount = targetSNs?.Count ?? 0;
+                        bool scanSuccess = false;
+                        bool defSuccess = false;
 
-                        if (requiredCameraCount == 0)
+                        // =================== 阶段 1/2: 扫码盘库 (2D 相机) ===================
+                        Log("ℹ️ [Flag 4] 阶段 1/2: 执行扫码盘库...");
+                        List<string> targetSNs4 = ConfigManager.GetTargetCameraSNs(4, task.Side);
+                        int requiredCameraCount4 = targetSNs4?.Count ?? 0;
+
+                        if (requiredCameraCount4 == 0)
                         {
-                            Log("配置文件中相应映射 SN 数量不足，任务中止");
+                            Log("⚠️ [Flag 4] 扫码相机 SN 配置数量不足，跳过扫码");
                             if (!string.IsNullOrWhiteSpace(task.BoxId))
                             {
                                 var emptyPayload = new
@@ -166,43 +171,47 @@ namespace pallet_storage_detection_system_Net_V2.Control
                                 result.ResultBarcodes = "[]";
                             }
                             result.ScanCompleted = 0;
-                            algoSuccess = false;
+                            scanSuccess = false;
                         }
                         else
                         {
-                            List<Task<object?>> grabTasks = new List<Task<object?>>();
-                            for (int i = 0; i < requiredCameraCount; i++)
+                            List<Task<object?>> grabTasks4 = new List<Task<object?>>();
+                            for (int i = 0; i < requiredCameraCount4; i++)
                             {
-                                var camera = DeviceManager.GetCamera(targetSNs[i]);
+                                var camera = DeviceManager.GetCamera(targetSNs4[i]);
                                 if (camera != null)
                                 {
-                                    grabTasks.Add(GrabFrameSafeAsync(camera, 4, i + 1));
+                                    grabTasks4.Add(GrabFrameSafeAsync(camera, 4, i + 1));
+                                }
+                                else
+                                {
+                                    Log($"⚠️ 警告: 系统硬件池中未找到 2D 相机 SN 为 {targetSNs4[i]} 的在线设备");
                                 }
                             }
 
-                            var grabStartTime = DateTime.Now;
-                            var images = await Task.WhenAll(grabTasks);
-                            LogPhaseTime($"相机抓图(Flag4)", grabStartTime);
+                            var grab4StartTime = DateTime.Now;
+                            var images4 = await Task.WhenAll(grabTasks4);
+                            LogPhaseTime($"相机抓图(Flag4扫码)", grab4StartTime);
                             
-                            var image1 = images.Length > 0 ? images[0] : null;
-                            var image2 = images.Length > 1 ? images[1] : image1;
+                            var image1 = images4.Length > 0 ? images4[0] : null;
+                            var image2 = images4.Length > 1 ? images4[1] : image1;
 
                             // 同步推送至 UI 渲染界面
-                            for (int i = 0; i < images.Length && i < 4; i++)
+                            for (int i = 0; i < images4.Length && i < 4; i++)
                             {
-                                if (images[i] != null)
+                                if (images4[i] != null)
                                 {
                                     int uiIndex = (task.Side?.ToLower() == "left") ? (i + 3) : (i + 1);
-                                    OnImageUpdated?.Invoke(uiIndex, images[i]!);
+                                    OnImageUpdated?.Invoke(uiIndex, images4[i]!);
                                 }
                             }
 
                             // 拷贝图像到 imagesToSave
-                            for (int i = 0; i < images.Length; i++)
+                            for (int i = 0; i < images4.Length; i++)
                             {
                                 int uiIndex = (task.Side?.ToLower() == "left") ? (i + 3) : (i + 1);
-                                string name = $"camera_{uiIndex}";
-                                if (images[i] is Image img)
+                                string name = $"barcode_cam_{uiIndex}";
+                                if (images4[i] is Image img)
                                 {
                                     imagesToSave.Add((name, (Image)img.Clone()));
                                 }
@@ -210,14 +219,14 @@ namespace pallet_storage_detection_system_Net_V2.Control
 
                             // 执行算法
                             var tempRes = new DetectionResult();
-                            var algoStartTime = DateTime.Now;
-                            algoSuccess = await ExecuteAlgorithmAsync(task, image1, image2, targetSNs, tempRes);
-                            LogPhaseTime($"算法执行(Flag4)", algoStartTime);
+                            var algo4StartTime = DateTime.Now;
+                            scanSuccess = await ExecuteAlgorithmAsync(task, image1, image2, targetSNs4, tempRes);
+                            LogPhaseTime($"算法执行(Flag4扫码)", algo4StartTime);
 
                             // 释放本地 images
-                            for (int i = 0; i < images.Length; i++)
+                            for (int i = 0; i < images4.Length; i++)
                             {
-                                if (images[i] is IDisposable disp) { disp.Dispose(); }
+                                if (images4[i] is IDisposable disp) { disp.Dispose(); }
                             }
 
                             // 解析识别到的条码列表
@@ -250,8 +259,89 @@ namespace pallet_storage_detection_system_Net_V2.Control
                                 result.ResultBarcodes = tempRes.ResultBarcodes ?? "[]";
                             }
 
-                            result.ScanCompleted = algoSuccess ? 1 : 0;
+                            result.ScanCompleted = scanSuccess ? 1 : 0;
                         }
+
+                        // =================== 阶段 2/2: 货架变形检测 (3D 深度相机) ===================
+                        Log("ℹ️ [Flag 4] 阶段 2/2: 执行货架立柱横梁变形检测...");
+                        List<string> targetSNs3 = ConfigManager.GetTargetCameraSNs(3, task.Side);
+                        int requiredCameraCount3 = targetSNs3?.Count ?? 0;
+
+                        if (requiredCameraCount3 == 0)
+                        {
+                            Log("⚠️ [Flag 4] 3D 深度相机 SN 配置数量不足，跳过变形检测");
+                            defSuccess = false;
+                        }
+                        else
+                        {
+                            List<Task<object?>> grabTasks3 = new List<Task<object?>>();
+                            for (int i = 0; i < requiredCameraCount3; i++)
+                            {
+                                var camera = DeviceManager.GetCamera(targetSNs3[i]);
+                                if (camera != null)
+                                {
+                                    grabTasks3.Add(GrabFrameSafeAsync(camera, 3, i + 1));
+                                }
+                                else
+                                {
+                                    Log($"⚠️ 警告: 系统硬件池中未找到 3D 相机 SN 为 {targetSNs3[i]} 的在线设备");
+                                }
+                            }
+
+                            var grab3StartTime = DateTime.Now;
+                            var images3 = await Task.WhenAll(grabTasks3);
+                            LogPhaseTime($"相机抓图(Flag3变形)", grab3StartTime);
+
+                            var defImg1 = images3.Length > 0 ? images3[0] : null;
+                            var defImg2 = images3.Length > 1 ? images3[1] : defImg1;
+
+                            // 同步推送 3D 预览图至 UI 渲染界面
+                            for (int i = 0; i < images3.Length && i < 4; i++)
+                            {
+                                if (images3[i] != null)
+                                {
+                                    int uiIndex = (task.Side?.ToLower() == "left") ? (i + 3) : (i + 1);
+                                    OnImageUpdated?.Invoke(uiIndex, images3[i]!);
+                                }
+                            }
+
+                            // 拷贝 3D 图像到 imagesToSave
+                            for (int i = 0; i < images3.Length; i++)
+                            {
+                                int uiIndex = (task.Side?.ToLower() == "left") ? (i + 3) : (i + 1);
+                                string name = $"depth_cam_{uiIndex}";
+                                if (images3[i] is Image img)
+                                {
+                                    imagesToSave.Add((name, (Image)img.Clone()));
+                                }
+                                else if (images3[i] is DepthFrameData depthFrame)
+                                {
+                                    imagesToSave.Add((name, (Image)depthFrame.PreviewImage.Clone()));
+                                }
+                            }
+
+                            // 构造 Flag 3 任务对象并执行变形算法，结果直接写入 result
+                            var defTask = new TaskData
+                            {
+                                Flag = 3,
+                                Side = task.Side,
+                                BeamLength = task.BeamLength,
+                                BoxId = task.BoxId,
+                                TaskTime = task.TaskTime
+                            };
+
+                            var algo3StartTime = DateTime.Now;
+                            defSuccess = await ExecuteAlgorithmAsync(defTask, defImg1, defImg2, targetSNs3, result);
+                            LogPhaseTime($"算法执行(Flag3变形)", algo3StartTime);
+
+                            // 释放 3D images
+                            for (int i = 0; i < images3.Length; i++)
+                            {
+                                if (images3[i] is IDisposable disp) { disp.Dispose(); }
+                            }
+                        }
+
+                        algoSuccess = scanSuccess && defSuccess;
                     }
                     else
                     {
@@ -339,22 +429,12 @@ namespace pallet_storage_detection_system_Net_V2.Control
 
                     result.Success = algoSuccess;
 
-                    // 5. 评价阶段：盘库任务(Flag 4)不参与偏移阈值判定。
-                    if (task.Flag != 4)
-                    {
-                        result.ApplyThresholds(ConfigManager.Instance);
-                    }
+                    // 5. 评价阶段：根据配置评估预警/报警（Flag 3 与 Flag 4 均评定立柱及横梁变形等级）
+                    result.ApplyThresholds(ConfigManager.Instance);
 
                     // 6. 上报阶段：组装结果推回 Redis，并清理触发标志位。
                     string statusInfo = GetStatusSummary(result);
-                    if (task.Flag == 4)
-                    {
-                        Log(statusInfo);
-                    }
-                    else
-                    {
-                        Log($"{statusInfo} 计算流程结束. 确认结果已同步至 Redis 缓存。");
-                    }
+                    Log($"{statusInfo} 计算流程结束. 确认结果已同步至 Redis 缓存。");
 
                     Log(GetDetailedResultSummary(result));
 
@@ -406,7 +486,24 @@ namespace pallet_storage_detection_system_Net_V2.Control
         {
             if (!res.Success) return "❌ [处理失败]";
 
-            if (res.ResultType == 4) return "✅ [盘库扫码完成]";
+            if (res.ResultType == 3 || res.ResultType == 4)
+            {
+                bool hasAlarm = res.RackDefMmLeftWarningAlarm.Contains("\"alarm\": true")
+                             || res.RackDefMmRightWarningAlarm.Contains("\"alarm\": true")
+                             || res.BeamDefMmWarningAlarm.Contains("\"alarm\": true")
+                             || res.PalletHoleDefMmLeftWarningAlarm.Contains("\"alarm\": true")
+                             || res.PalletHoleDefMmRightWarningAlarm.Contains("\"alarm\": true");
+                if (hasAlarm) return "🚨 [报警]";
+
+                bool hasWarning = res.RackDefMmLeftWarningAlarm.Contains("\"warning\": true")
+                               || res.RackDefMmRightWarningAlarm.Contains("\"warning\": true")
+                               || res.BeamDefMmWarningAlarm.Contains("\"warning\": true")
+                               || res.PalletHoleDefMmLeftWarningAlarm.Contains("\"warning\": true")
+                               || res.PalletHoleDefMmRightWarningAlarm.Contains("\"warning\": true");
+                if (hasWarning) return "⚠️ [预警]";
+
+                return "✅ [正常]";
+            }
             
             // 使用堆垛机左右偏移作为代表性指标进行状态等级初步展示。
             var eval = Algorithms.ThresholdEvaluator.Evaluate(res.OffsetLatMmValue, ConfigManager.Instance.Algorithms.StackerOffset.LateralThreshold);
@@ -438,7 +535,7 @@ namespace pallet_storage_detection_system_Net_V2.Control
                         barcodeSummary4 = barcodeSummary4.Substring(0, 200) + "... (截断，数据过长)";
                     }
                     string scanCompletedStr = res.ScanCompleted.HasValue ? res.ScanCompleted.Value.ToString() : "";
-                    return $"📌 结果明细(Flag4): result_barcodes={barcodeSummary4}, scan_completed={scanCompletedStr}";
+                    return $"📌 结果明细(Flag4): result_barcodes={barcodeSummary4}, scan_completed={scanCompletedStr}, rackL={res.RackDefMmLeftValue:F1}mm {res.RackDefMmLeftWarningAlarm}, rackR={res.RackDefMmRightValue:F1}mm {res.RackDefMmRightWarningAlarm}, beam={res.BeamDefMmValue:F1}mm {res.BeamDefMmWarningAlarm}, palletL={res.PalletHoleDefMmLeftValue:F1}mm {res.PalletHoleDefMmLeftWarningAlarm}, palletR={res.PalletHoleDefMmRightValue:F1}mm {res.PalletHoleDefMmRightWarningAlarm}";
 
                 default:
                     return $"📌 结果明细(Flag{res.ResultType}): 无可用字段";

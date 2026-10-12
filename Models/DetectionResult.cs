@@ -127,6 +127,7 @@ namespace pallet_storage_detection_system_Net_V2.Models
                     OffsetLatMmWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(OffsetLatMmValue, sCfg.LateralThreshold));
                     break;
                 case 3:
+                case 4:
                     var bCfg = config.Algorithms.RackDeformation;
                     RackDefMmLeftWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(RackDefMmLeftValue, bCfg.RackThreshold));
                     RackDefMmRightWarningAlarm = FormatAlarm(Algorithms.ThresholdEvaluator.Evaluate(RackDefMmRightValue, bCfg.RackThreshold));
@@ -208,9 +209,20 @@ namespace pallet_storage_detection_system_Net_V2.Models
                     entries.Add(new HashEntry("scan_completed", ""));
                     break;
                 case 4:
+                    // Flag 4: 盘库扫码 + 货架变形检测合并输出
                     entries.Add(new HashEntry("result_barcodes", ResultBarcodes));
                     string scanVal = ScanCompleted.HasValue ? ScanCompleted.Value.ToString() : (Success ? "1" : "0");
                     entries.Add(new HashEntry("scan_completed", scanVal));
+                    entries.Add(new HashEntry("rack_def_mm_left_value", RackDefMmLeftValue.ToString("F1")));
+                    entries.Add(new HashEntry("rack_def_mm_left_warning_alarm", RackDefMmLeftWarningAlarm));
+                    entries.Add(new HashEntry("rack_def_mm_right_value", RackDefMmRightValue.ToString("F1")));
+                    entries.Add(new HashEntry("rack_def_mm_right_warning_alarm", RackDefMmRightWarningAlarm));
+                    entries.Add(new HashEntry("beam_def_mm_value", BeamDefMmValue.ToString("F1")));
+                    entries.Add(new HashEntry("beam_def_mm_warning_alarm", BeamDefMmWarningAlarm));
+                    entries.Add(new HashEntry("pallet_hole_def_mm_left_value", PalletHoleDefMmLeftValue.ToString("F1")));
+                    entries.Add(new HashEntry("pallet_hole_def_mm_left_warning_alarm", PalletHoleDefMmLeftWarningAlarm));
+                    entries.Add(new HashEntry("pallet_hole_def_mm_right_value", PalletHoleDefMmRightValue.ToString("F1")));
+                    entries.Add(new HashEntry("pallet_hole_def_mm_right_warning_alarm", PalletHoleDefMmRightWarningAlarm));
                     break;
             }
 
